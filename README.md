@@ -61,11 +61,9 @@ This project consists of a React frontend and a Flask backend.
    ```
    npm install
 
-   npm install react@18 react-dom@18
 
-   npm  install date-fns@2.29.3 
+   npm install react@18 react-dom@18 @emotion/react @emotion/styled date-fns@2.29.3 @mui/material @mui/system @mui/styled-engine @mui/icons-material @mui/x-date-pickers
 
-   npm install @mui/material @mui/system @mui/styled-engine @mui/icons-material @mui/x-date-pickers
 
    npm start
    ```
