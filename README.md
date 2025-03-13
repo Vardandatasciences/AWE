@@ -21,19 +21,8 @@ This project consists of a React frontend and a Flask backend.
    cd backend
    ```
 
-2. Create a virtual environment (recommended):
-   ```
-   python -m venv venv
-   ```
-
-3. Activate the virtual environment:
-   - Windows:
-     ```
-     venv\Scripts\activate
-     ```
-   - macOS/Linux:
-     ```
-     source venv/bin/activate
+2 and 3 :
+Dont create venv 
      ```
 
 4. Install dependencies:
