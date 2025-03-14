@@ -21,19 +21,8 @@ This project consists of a React frontend and a Flask backend.
    cd backend
    ```
 
-2. Create a virtual environment (recommended):
-   ```
-   python -m venv venv
-   ```
-
-3. Activate the virtual environment:
-   - Windows:
-     ```
-     venv\Scripts\activate
-     ```
-   - macOS/Linux:
-     ```
-     source venv/bin/activate
+2 and 3 :
+Dont create venv 
      ```
 
 4. Install dependencies:
@@ -64,14 +53,14 @@ This project consists of a React frontend and a Flask backend.
 
    npm install
 
-   npm  install date-fns@2.29.3 
 
-   npm install @mui/material @mui/system @mui/styled-engine @mui/icons-material @mui/x-date-pickers
+
+
+   npm install react@18 react-dom@18 @emotion/react @emotion/styled date-fns@2.29.3 @mui/material @mui/system @mui/styled-engine @mui/icons-material @mui/x-date-pickers
+
 
    npm start
-
-
-    ```
+   ```
 
 3. Start the development server:
    ```
