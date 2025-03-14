@@ -87,8 +87,29 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
     setLoading(true);
     setError(null);
     
+    // Create a copy of the form data to modify before sending
+    const submissionData = { ...formData };
+    
+    // Handle empty values properly
+    if (!submissionData.gender) {
+      submissionData.gender = '';
+    }
+    
+    // Handle empty group_id
+    if (!submissionData.group_id) {
+      submissionData.group_id = null;
+    } else {
+      // Ensure group_id is a number if provided
+      submissionData.group_id = parseInt(submissionData.group_id, 10);
+    }
+    
+    // Ensure DOB is in the correct format or null if empty
+    if (!submissionData.DOB) {
+      submissionData.DOB = null;
+    }
+    
     try {
-      const response = await axios.post('/customers', formData);
+      const response = await axios.post('/add_customer', submissionData);
       
       if (response.status === 201) {
         onSuccess('Customer added successfully!');
@@ -96,7 +117,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
       }
     } catch (err) {
       console.error('Error adding customer:', err);
-      setError(err.response?.data?.message || 'Failed to add customer. Please try again.');
+      setError(err.response?.data?.error || 'Failed to add customer. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -163,9 +184,9 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
                 onChange={handleChange}
               >
                 <option value="">Not Applicable</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+                <option value="O">Other</option>
               </select>
             </div>
           </div>

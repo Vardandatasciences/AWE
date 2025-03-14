@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './Home.css';
+import { showWorkflowGuide } from '../App';
 
 // Import multiple GIFs for a more dynamic experience
 import taskManagementGif from '../assets/task-management.gif'; // Task management animation
@@ -13,6 +14,7 @@ const Home = () => {
   const featuresRef = useRef(null);
   const benefitsRef = useRef(null);
   const testimonialsRef = useRef(null);
+  const navigate = useNavigate();
 
   // Add scroll animation effect
   useEffect(() => {
@@ -38,6 +40,13 @@ const Home = () => {
     };
   }, []);
 
+  // Handle Get Started button click
+  const handleGetStartedClick = (e) => {
+    e.preventDefault();
+    console.log("Home: Get Started button clicked");
+    showWorkflowGuide();
+  };
+
   return (
     <div className="home-container">
       {/* Hero Section with Animated Background */}
@@ -54,9 +63,12 @@ const Home = () => {
           <h1>Automated Workflow Experience</h1>
           <p className="tagline">Streamline operations. Boost productivity. Achieve excellence.</p>
           <div className="hero-buttons">
-            <Link to="/tasks" className="btn btn-primary">
+            <button 
+              className="btn btn-primary"
+              onClick={handleGetStartedClick}
+            >
               <i className="fas fa-rocket"></i> Get Started
-            </Link>
+            </button>
             <a href="#features" className="btn btn-secondary">
               <i className="fas fa-info-circle"></i> Learn More
             </a>
@@ -314,9 +326,12 @@ const Home = () => {
           <h2>Ready to Transform Your Workflow?</h2>
           <p>Join thousands of organizations already optimizing their operations with AWE.</p>
           <div className="cta-buttons">
-            <Link to="/tasks" className="btn btn-primary btn-large">
+            <button 
+              className="btn btn-primary btn-large"
+              onClick={handleGetStartedClick}
+            >
               <i className="fas fa-rocket"></i> Get Started Now
-            </Link>
+            </button>
             <Link to="/contact" className="btn btn-outline btn-large">
               <i className="fas fa-headset"></i> Talk to an Expert
             </Link>

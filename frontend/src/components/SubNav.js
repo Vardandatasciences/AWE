@@ -16,18 +16,21 @@ const SubNav = () => {
       </button>
       
       <nav className={`sub-nav ${isOpen ? 'open' : ''}`}>
-        <NavLink to="/tasks" className={({ isActive }) => isActive ? 'active' : ''}>
-          <i className="fas fa-tasks"></i> Tasks
+        <NavLink to="/employee" className={({ isActive }) => isActive ? 'active' : ''}>
+          <i className="fas fa-users"></i> Employees
         </NavLink>
         <NavLink to="/activities" className={({ isActive }) => isActive ? 'active' : ''}>
           <i className="fas fa-clipboard-list"></i> Activities
         </NavLink>
+        
+        <NavLink to="/tasks" className={({ isActive }) => isActive ? 'active' : ''}>
+          <i className="fas fa-tasks"></i> Tasks
+        </NavLink>
+        
         <NavLink to="/mailer" className={({ isActive }) => isActive ? 'active' : ''}>
           <i className="fas fa-envelope"></i> Mailer
         </NavLink>
-        <NavLink to="/employee" className={({ isActive }) => isActive ? 'active' : ''}>
-          <i className="fas fa-users"></i> Employees
-        </NavLink>
+        
         {/* <NavLink to="/report" className={({ isActive }) => isActive ? 'active' : ''}>
           <i className="fas fa-chart-bar"></i> Reports
         </NavLink> */}
