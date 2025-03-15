@@ -65,6 +65,7 @@ def login():
             "email": user.email_id if hasattr(user, 'email_id') else "",
             "role": "admin" if is_admin else "user",
             "role_id": user.role_id if hasattr(user, 'role_id') else None
+          
         }
         
         # Create access token

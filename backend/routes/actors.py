@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from models import db, Actor
 from datetime import datetime
+import traceback
 
 actors_bp = Blueprint('actors', __name__)
 

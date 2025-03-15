@@ -38,9 +38,10 @@ const Tasks = () => {
     if (status === 'WIP') return 'in-progress';
     if (status === 'completed') return 'completed';
     if (status === 'Yet to Start') return 'todo';
+    if (status === 'Pending') return 'pending';
    
     // For debugging - log any unexpected status values
-    if (status !== 'WIP' && status !== 'Completed' && status !== 'Yet to Start') {
+    if (status !== 'WIP' && status !== 'Completed' && status !== 'Yet to Start' && status !== 'Pending') {
       console.warn("Unexpected status value:", status);
     }
    
@@ -74,6 +75,7 @@ const Tasks = () => {
         const frontendStatus =
           newStatus === 'Yet to Start' ? 'todo' :
           newStatus === 'WIP' ? 'in-progress' :
+          newStatus === 'Pending' ? 'pending' :
           'Completed';
         
         console.log(`Updating task ${taskId} in UI from ${task.status} to ${frontendStatus}`);
@@ -207,6 +209,7 @@ const Tasks = () => {
     // Map the column back to backend status
     let backendStatus = 'Yet to Start';
     if (newStatus === 'in-progress') backendStatus = 'WIP';
+    if (newStatus === 'pending') backendStatus = 'Pending';
     if (newStatus === 'completed') backendStatus = 'Completed';
  
     const updatedTasks = tasks.map(task => {
@@ -412,10 +415,12 @@ const Tasks = () => {
               <i className="fas fa-calendar"></i>
               <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
             </div>
+            {isAdmin && (
             <div className="detail-item">
               <i className="fas fa-user"></i>
               <span>Assignee: {task.assignee || 'Unassigned'}</span>
             </div>
+          )}
             {isAdmin && (
     <div className="detail-item">
       <i className="fas fa-clock"></i>
@@ -459,27 +464,44 @@ const Tasks = () => {
             <th>Customer</th>
             <th>Status</th>
             <th>Due Date</th>
-            <th>Assignee</th>
+            {isAdmin && <th>Assignee</th>}
             {isAdmin && <th>Time</th>}
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {filteredTasks.map(task => (
-            <tr key={task.id} className={`task-row ${task.criticality?.toLowerCase()} ${isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'delayed' : ''}`}>
+            <tr key={task.id} className={`task-row ${task.criticality?.toLowerCase()}`}>
               <td data-label="Task Name">{task.task_name}</td>
               <td data-label="Customer">{task.customer_name}</td>
               <td data-label="Status">
-                <span className={`status-badge ${task.status} ${isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'delayed' : ''}`}>
+              {!isAdmin && (
+                <select
+                  value={task.status === 'todo' ? 'Yet to Start' :
+                         task.status === 'pending' ? "Pending" :
+                         task.status === 'in-progress' ? 'WIP' :
+                         'Completed'}
+                  onChange={(e) => changeTaskStatus(task.id, e.target.value)}
+                  className="status-select"
+                >
+                  <option value="Yet to Start">Yet to Start</option>
+                  <option value="Pending"> Pending</option>
+                  <option value="WIP">In Progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              )}
+              {/* Show status badge for admin users */}
+              {isAdmin && (
+                <span className={`status-badge ${task.status}`}>
                   {task.status === 'todo' ? 'Yet to start' :
+                   task.status === 'pending' ? 'Pending' :
                    task.status === 'in-progress' ? 'In Progress' :
                    'Completed'}
                 </span>
+              )}
               </td>
-              <td data-label="Due Date" className={isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'delayed-text' : ''}>
-                {new Date(task.due_date).toLocaleDateString()}
-              </td>
-              <td data-label="Assignee">{task.assignee || 'Unassigned'}</td>
+              {isAdmin && <td data-label="Assignee">{task.assignee || 'Unassigned'}</td>}
+              {isAdmin && <td data-label="Time">{task.time_taken || '0'} hours</td>}
               <td data-label="Actions">
                 {isAdmin && (
                   <button

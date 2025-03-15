@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { format, parse } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
+
 import {
   Button,
   Table,
@@ -34,6 +36,10 @@ const Diary = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const role_id = localStorage.getItem('role_id');
+  console.log("User Role ID:", role_id);
+
  
   const emptyEntry = {
     date: new Date(),
@@ -42,56 +48,113 @@ const Diary = () => {
     task: '',
     remarks: ''
   };
- 
   useEffect(() => {
-    const fetchData = async () => {
+    let actorId = localStorage.getItem('actor_id');
+
+    if (!actorId) {
+        console.warn("⚠️ No actor ID found in localStorage, setting default...");
+        localStorage.setItem('actor_id', 'Khairu'); // Set a default for testing
+        actorId = 'Khairu';
+    }
+
+    console.log("🚀 Actor ID found:", actorId);
+    fetchWIPTasks();
+}, []);
+
+
+
+  useEffect(() => {
+    const loadInitialData = async () => {
       try {
-        const actorId = localStorage.getItem('actor_id'); // Get actor_id from localStorage
-
-        // Fetch WIP tasks with actor_id
-        const tasksResponse = await axios.get(`http://localhost:5000/diary/wip-tasks?actor_id=${actorId}`);
-        if (tasksResponse.status === 200) {
-          setTasks(tasksResponse.data);
-        }
-
-        // Fetch diary entries
-        const entriesResponse = await axios.get('http://localhost:5000/diary/entries');
+        await fetchWIPTasks(); // Use the existing function
+        
+        // Then fetch entries
+        const actorId = localStorage.getItem('actor_id');
+        const entriesResponse = await axios.get('http://localhost:5000/diary/entries', {
+          params: { actor_id: actorId }
+        });
+        
         const formattedEntries = entriesResponse.data.map(entry => ({
           ...entry,
           date: entry.date ? new Date(entry.date) : null,
           start_time: entry.start_time ? parse(entry.start_time, 'HH:mm', new Date()) : null,
           end_time: entry.end_time ? parse(entry.end_time, 'HH:mm', new Date()) : null
         }));
+        
         setEntries(formattedEntries);
       } catch (error) {
-        console.error('Error in fetchData:', error);
+        console.error('Error loading initial data:', error);
       } finally {
         setLoading(false);
       }
     };
-
-    fetchData();
+    
+    loadInitialData();
   }, []);
+
+  
  
-  const handleAddEntry = () => {
-    setEntries(prev => [...prev, { ...emptyEntry, id: -Date.now() }]);
-  };
+  const handleAddEntry = async () => {
+    const token = localStorage.getItem('token');
+    const actorId = localStorage.getItem('actor_id');
+
+    if (!token || !actorId) {
+        console.error("🔴 No authentication token or actor_id found in localStorage");
+        alert("Session expired. Please log in again.");
+        navigate('/login'); // Redirect to login page
+        return;
+    }
+
+    console.log('Fetching WIP tasks before adding new entry...');
+    try {
+        const response = await axios.get(`http://localhost:5000/diary/wip-tasks`, {
+            params: { actor_id: actorId },
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+
+        console.log('🟢 WIP tasks fetched:', response.data);
+        setTasks(response.data);
+
+        const newEntry = {
+            id: Date.now(),
+            date: new Date(),
+            start_time: null,
+            end_time: null,
+            task: response.data.length > 0 ? response.data[0].name : '',
+            remarks: ''
+        };
+
+        setEntries(prev => [...prev, newEntry]);
+    } catch (error) {
+        console.error('🔴 Error fetching WIP tasks:', error);
+        alert("Failed to fetch WIP tasks. Please try again.");
+    }
+};
+
+
+
+
+
  
   const handleSaveEntries = async () => {
     try {
       const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('user_id');
+      const actorId = localStorage.getItem('actor_id');
       const formattedEntries = entries.map(entry => ({
         ...entry,
         date: entry.date ? format(entry.date, 'yyyy-MM-dd') : null,
         start_time: entry.start_time ? format(entry.start_time, 'HH:mm') : null,
         end_time: entry.end_time ? format(entry.end_time, 'HH:mm') : null
       }));
-     
+      
       await axios.post('http://localhost:5000/diary/save',
         {
           entries: formattedEntries,
-          user_id: userId
+          actor_id: actorId
         },
         {
           headers: {
@@ -100,20 +163,20 @@ const Diary = () => {
           }
         }
       );
-     
+      
       // Refresh entries after save
       const response = await axios.get('http://localhost:5000/diary/entries', {
-        headers: { 'Authorization': `Bearer ${token}` },
-        data: { user_id: userId }
+        params: { actor_id: actorId },
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-     
+      
       const updatedEntries = response.data.map(entry => ({
         ...entry,
         date: entry.date ? new Date(entry.date) : null,
         start_time: entry.start_time ? parse(entry.start_time, 'HH:mm', new Date()) : null,
         end_time: entry.end_time ? parse(entry.end_time, 'HH:mm', new Date()) : null
       }));
-     
+      
       setEntries(updatedEntries);
     } catch (error) {
       console.error('Error saving entries:', error);
@@ -129,8 +192,8 @@ const Diary = () => {
     if (selectedEntry) {
       try {
         if (selectedEntry.id > 0) {
-          const userId = localStorage.getItem('user_id');
-          await axios.delete(`http://localhost:5000/diary/entries/${selectedEntry.id}?user_id=${userId}`, {
+          const actorId = localStorage.getItem('actor_id');
+          await axios.delete(`http://localhost:5000/diary/entries/${selectedEntry.id}?actor_id=${actorId}`, {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
           });
         }
@@ -144,35 +207,36 @@ const Diary = () => {
  
   const fetchWIPTasks = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('user_id');
-     
-      if (!token || !userId) {
-        throw new Error('No authentication token or user_id found');
-      }
-     
-      console.log('Fetching WIP tasks...');
-      const response = await axios.get(`http://localhost:5000/diary/wip-tasks?user_id=${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
+        const token = localStorage.getItem('token');
+        const actorId = localStorage.getItem('actor_id');
+
+        console.log("📌 Actor ID before request:", actorId);
+
+        if (!token || !actorId) {
+            console.error("🔴 No authentication token or actor_id found");
+            return;
         }
-      });
-     
-      console.log('WIP tasks response:', response.data);
-      setTasks(response.data);
-    } catch (error) {
-      console.error('Error fetching WIP tasks:', error);
-      if (error.response) {
-        console.error('Server response:', {
-          status: error.response.status,
-          data: error.response.data,
-          headers: error.response.headers
+
+        console.log('Fetching WIP tasks...');
+        const response = await axios.get(`http://localhost:5000/diary/wip-tasks`, {
+            params: { actor_id: actorId },
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
         });
-      }
+
+        console.log('🟢 WIP tasks raw response:', response.data);
+
+        const tasksArray = Array.isArray(response.data) ? response.data : [response.data];
+        console.log('🟢 WIP tasks fetched:', tasksArray);
+
+        setTasks(tasksArray);
+    } catch (error) {
+        console.error('🔴 Error fetching WIP tasks:', error);
     }
-  };
+};
  
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -200,97 +264,98 @@ const Diary = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {entries.map((entry, index) => (
-                <TableRow key={entry.id}>
-                  <TableCell style={{ width: '3%' }}>{index + 1}</TableCell>
-                  <TableCell style={{ width: '15%' }}>
-                    <DatePicker
-                      value={entry.date}
-                      onChange={(newDate) => {
-                        const updatedEntries = [...entries];
-                        updatedEntries[index].date = newDate;
-                        setEntries(updatedEntries);
-                      }}
-                      slotProps={{
-                        textField: {
-                          size: "small",
-                          style: { width: '100%' }
-                        }
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell style={{ width: '14%' }}>
-                    <TimePicker
-                      value={entry.start_time}
-                      onChange={(newTime) => {
-                        const updatedEntries = [...entries];
-                        updatedEntries[index].start_time = newTime;
-                        setEntries(updatedEntries);
-                      }}
-                      slotProps={{
-                        textField: {
-                          size: "small",
-                          style: { width: '100%' }
-                        }
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell style={{ width: '14%' }}>
-                    <TimePicker
-                      value={entry.end_time}
-                      onChange={(newTime) => {
-                        const updatedEntries = [...entries];
-                        updatedEntries[index].end_time = newTime;
-                        setEntries(updatedEntries);
-                      }}
-                      slotProps={{
-                        textField: {
-                          size: "small",
-                          style: { width: '100%' }
-                        }
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell style={{ width: '25%' }}>
-                    <Select
-                      value={entry.task || ''}
-                      onChange={(e) => {
-                        const updatedEntries = [...entries];
-                        updatedEntries[index].task = e.target.value;
-                        setEntries(updatedEntries);
-                      }}
-                      fullWidth
-                      size="small"
-                      displayEmpty
-                    >
-                      <MenuItem value="" disabled>Select a task</MenuItem>
-                      {tasks.map((task) => (
-                        <MenuItem key={task.id} value={task.name}>
-                          {task.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </TableCell>
-                  <TableCell style={{ width: '35%' }}>
-                    <TextField
-                      value={entry.remarks || ''}
-                      onChange={(e) => {
-                        const updatedEntries = [...entries];
-                        updatedEntries[index].remarks = e.target.value;
-                        setEntries(updatedEntries);
-                      }}
-                      fullWidth
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell style={{ width: '5%' }}>
-                    <IconButton onClick={() => handleDeleteConfirmation(entry)} color="error" size="small">
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
+  {entries.map((entry, index) => (
+    <TableRow key={entry.id}>
+      <TableCell style={{ width: '3%' }}>{index + 1}</TableCell>
+      <TableCell style={{ width: '15%' }}>
+        <DatePicker
+          value={entry.date}
+          onChange={(newDate) => {
+            const updatedEntries = [...entries];
+            updatedEntries[index].date = newDate;
+            setEntries(updatedEntries);
+          }}
+          slotProps={{
+            textField: { size: "small", style: { width: '100%' } }
+          }}
+        />
+      </TableCell>
+      <TableCell style={{ width: '14%' }}>
+        <TimePicker
+          value={entry.start_time}
+          onChange={(newTime) => {
+            const updatedEntries = [...entries];
+            updatedEntries[index].start_time = newTime;
+            setEntries(updatedEntries);
+          }}
+          slotProps={{
+            textField: { size: "small", style: { width: '100%' } }
+          }}
+        />
+      </TableCell>
+      <TableCell style={{ width: '14%' }}>
+        <TimePicker
+          value={entry.end_time}
+          onChange={(newTime) => {
+            const updatedEntries = [...entries];
+            updatedEntries[index].end_time = newTime;
+            setEntries(updatedEntries);
+          }}
+          slotProps={{
+            textField: { size: "small", style: { width: '100%' } }
+          }}
+        />
+      </TableCell>
+      <TableCell style={{ width: '25%' }}>
+    <Select
+        value={entry.task || ''}
+        onChange={(e) => {
+            const updatedEntries = [...entries];
+            updatedEntries[index].task = e.target.value;
+            setEntries(updatedEntries);
+        }}
+        fullWidth
+        size="small"
+        displayEmpty
+    >
+        <MenuItem value="" disabled>Select a task</MenuItem>
+        {tasks.length > 0 ? (
+            tasks.map((task) => (
+              <MenuItem key={task.task_id} value={task.task_name}>
+                  {task.task_name}
+              </MenuItem>
+          ))
+          
+          
+        ) : (
+            <MenuItem disabled>No WIP tasks available</MenuItem>
+        )}
+    </Select>
+</TableCell>
+
+
+
+      <TableCell style={{ width: '35%' }}>
+        <TextField
+          value={entry.remarks || ''}
+          onChange={(e) => {
+            const updatedEntries = [...entries];
+            updatedEntries[index].remarks = e.target.value;
+            setEntries(updatedEntries);
+          }}
+          fullWidth
+          size="small"
+        />
+      </TableCell>
+      <TableCell style={{ width: '5%' }}>
+        <IconButton onClick={() => handleDeleteConfirmation(entry)} color="error" size="small">
+          <DeleteIcon />
+        </IconButton>
+      </TableCell>
+    </TableRow>
+  ))}
+</TableBody>
+
           </Table>
         </TableContainer>
  

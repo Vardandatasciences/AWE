@@ -19,10 +19,10 @@ const Activities = () => {
         frequency: "0",
         due_by: "",
         activity_type: "R",
-        group_id: "",
+        // group_id: "",
         status: "A"
     });
-    const [groups, setGroups] = useState([]);
+    // const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
     const [assignActivity, setAssignActivity] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -52,7 +52,7 @@ const Activities = () => {
 
     useEffect(() => {
         fetchActivities();
-        fetchGroups();
+        // fetchGroups();
         fetchEmployees();
     }, []);
 
@@ -85,14 +85,14 @@ const Activities = () => {
         }
     };
 
-    const fetchGroups = async () => {
-        try {
-            const response = await axios.get('/groups');
-            setGroups(response.data);
-        } catch (error) {
-            console.error('Error fetching groups:', error);
-        }
-    };
+    // const fetchGroups = async () => {
+    //     try {
+    //         const response = await axios.get('/groups');
+    //         setGroups(response.data);
+    //     } catch (error) {
+    //         console.error('Error fetching groups:', error);
+    //     }
+    // };
     
     const fetchEmployees = async () => {
         try {
@@ -141,7 +141,7 @@ const Activities = () => {
                 frequency: "0",
                 due_by: "",
                 activity_type: "R",
-                group_id: "",
+                // group_id: "",
                 status: "A"
             });
         } catch (error) {
@@ -161,7 +161,7 @@ const Activities = () => {
             frequency: activity.frequency,
             due_by: activity.due_by,
             activity_type: activity.activity_type,
-            group_id: activity.group_id,
+            // group_id: activity.group_id,
             status: activity.status
         });
         setShowForm(true);
@@ -242,10 +242,10 @@ const Activities = () => {
             (activity.due_by && activity.due_by.includes(searchTerm));
     });
 
-    const getGroupName = (groupId) => {
-        const group = groups.find(g => g.id === groupId);
-        return group ? group.group_name : 'Unknown Group';
-    };
+    // const getGroupName = (groupId) => {
+    //     const group = groups.find(g => g.id === groupId);
+    //     return group ? group.group_name : 'Unknown Group';
+    // };
     
     const getEmployeeName = (employeeId) => {
         const employee = employees.find(emp => emp.actor_id === employeeId);
@@ -410,7 +410,7 @@ const Activities = () => {
                         frequency: "0",
                         due_by: "",
                         activity_type: "R",
-                        group_id: "",
+                        // group_id: "",
                         status: "A"
                     });
                     setShowForm(true);
@@ -490,7 +490,7 @@ const Activities = () => {
                                 frequency: "0",
                                 due_by: "",
                                 activity_type: "R",
-                                group_id: "",
+                                // group_id: "",
                                 status: "A"
                             });
                             setShowForm(true);
@@ -568,13 +568,18 @@ const Activities = () => {
                             </div>
                             <div className="form-group">
                                 <label>Role ID:</label>
-                                <input
+                                <input>
                                     type="number"
                                     name="role_id"
                                     value={formData.role_id}
                                     onChange={handleInputChange}
                                     required
-                                />
+                                </input>
+                                <select>
+                                    <option value="">Select Role</option>
+                                    <option value="11">Admin</option>
+                                    <option value="22">User</option>
+                                </select>
                             </div>
                             <div className="form-group">
                                 <label>Frequency:</label>
@@ -617,7 +622,7 @@ const Activities = () => {
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Group:</label>
+                                {/* <label>Group:</label>
                                 <select
                                     name="group_id"
                                     value={formData.group_id}
@@ -630,7 +635,7 @@ const Activities = () => {
                                             {group.group_name}
                                         </option>
                                     ))}
-                                </select>
+                                </select> */}
                             </div>
                             <div className="form-group">
                                 <label>Status:</label>
@@ -640,7 +645,7 @@ const Activities = () => {
                                     onChange={handleInputChange}
                                 >
                                     <option value="A">Active</option>
-                                    <option value="I">Inactive</option>
+                                    <option value="O">Obsolete</option>
                                 </select>
                             </div>
                             <div className="form-actions">

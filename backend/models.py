@@ -14,7 +14,7 @@ class Actor(db.Model):
     mobile2 = db.Column(db.String(20))
     email_id = db.Column(db.String(255), nullable=False)
     password = db.Column(db.String(255))
-    group_id = db.Column(db.Integer, db.ForeignKey('group_a.group_id'))
+    group_id = db.Column(db.Integer)
     role_id = db.Column(db.Integer)
     status = db.Column(db.String(10))
     
@@ -58,7 +58,7 @@ class Customer(db.Model):
     customer_id = db.Column(db.Integer, primary_key=True)
     customer_name = db.Column(db.String(255), nullable=False)
     customer_type = db.Column(db.String(50))
-    gender = db.Column(db.String(20))
+    gender = db.Column(db.String(10))
     DOB = db.Column(db.Date)
     email_id = db.Column(db.String(255), nullable=False)
     mobile1 = db.Column(db.String(20), nullable=False)

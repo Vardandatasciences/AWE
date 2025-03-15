@@ -44,6 +44,8 @@ def get_tasks():
         'due_date': task.due_date.isoformat() if task.due_date else None
     } for task in tasks])
 
+
+
 @app.route('/tasks/<int:task_id>', methods=['PATCH'])
 def update_task(task_id):
     task = Task.query.get_or_404(task_id)
@@ -239,7 +241,7 @@ def update_customer():
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-@app.route('/add_actor', methods=['POST'])
+@app.route('/actors', methods=['POST'])
 def add_actor():
     try:
         data = request.json
@@ -581,6 +583,9 @@ def get_reports():
             'format': 'Excel'
         }
     ])
+
+
+
 
 @app.route('/Analysis')
 def dash_board():

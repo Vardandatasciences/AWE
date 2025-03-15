@@ -76,7 +76,7 @@ const Employee = () => {
     return currentData.filter(item => {
       const statusMatch = filterStatus === "all" || 
         (filterStatus === "active" && item.status === "A") ||
-        (filterStatus === "inactive" && item.status === "I");
+        (filterStatus === "inactive" && item.status === "O");
       
       const searchMatch = searchTerm === "" || 
         (item.actor_name && item.actor_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
