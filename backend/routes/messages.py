@@ -8,6 +8,7 @@ import re
 import threading
 import time
 import os
+from sqlalchemy import desc
 
 messages_bp = Blueprint('messages', __name__)
 
@@ -447,6 +448,38 @@ def custom_message_route():
         db.session.rollback()
         print(f"Error scheduling custom message: {e}")
         return jsonify({"error": str(e)}), 500
+    
+@messages_bp.route('/recent_messages', methods=['GET'])
+def get_recent_messages():
+    try:
+        # Get query parameters with defaults
+        status = request.args.get('status', 'Sent')
+        limit = request.args.get('limit', 5, type=int)
+        
+        # Query the most recent sent messages
+        recent_messages = MessageQueue.query.filter_by(status=status)\
+            .order_by(desc(MessageQueue.date), desc(MessageQueue.time))\
+            .limit(limit)\
+            .all()
+        
+        # Convert to JSON serializable format
+        result = []
+        for message in recent_messages:
+            result.append({
+                's_no': message.s_no,
+                'message_des': message.message_des,
+                'date': message.date.isoformat() if message.date else None,
+                'email_id': message.email_id,
+                'time': message.time.isoformat() if message.time else None,
+                'status': message.status
+            })
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        messages_bp.logger.error(f"Error fetching recent messages: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 
 @messages_bp.route('/stop_email_thread', methods=['POST'])
 def stop_email_thread():

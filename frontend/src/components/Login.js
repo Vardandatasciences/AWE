@@ -33,8 +33,13 @@ const Login = () => {
         password
       });
       
-      // Store token and user info
+      // Store token, user info, and role ID
+
+      localStorage.setItem('role_id', response.data.user.role_id); // Store role ID
+
       login(response.data.token, response.data.user);
+
+ 
       
       // Redirect to the page they were trying to access or home
       const from = location.state?.from?.pathname || '/';

@@ -8,6 +8,7 @@ from dash import html
 from dash import dcc
 from routes.tasks import tasks_bp
 
+
 from models import db, Actor, Group, Customer, Activity, Task, ActivityAssignment, Message, Report, Analytics
 
 app = Flask(__name__)
@@ -44,16 +45,7 @@ def get_tasks():
         'due_date': task.due_date.isoformat() if task.due_date else None
     } for task in tasks])
 
-@app.route('/activity_details/<int:activity_id>', methods=['GET'])
-def get_activity_details(activity_id):
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT frequency FROM activities WHERE activity_id = %s", (activity_id,))
-    activity = cursor.fetchone()
 
-    if activity:
-        return jsonify(activity)
-    else:
-        return jsonify({"error": "Activity not found"}), 404
 
 @app.route('/tasks/<int:task_id>', methods=['PATCH'])
 def update_task(task_id):
@@ -250,7 +242,7 @@ def update_customer():
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-@app.route('/add_actor', methods=['POST'])
+@app.route('/actors', methods=['POST'])
 def add_actor():
     try:
         data = request.json
@@ -592,6 +584,9 @@ def get_reports():
             'format': 'Excel'
         }
     ])
+
+
+
 
 @app.route('/Analysis')
 def dash_board():

@@ -8,54 +8,54 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
         status: 'Yet to Start',
         link: '',
         remarks: '',
-        frequency: '1'
+        frequency: '1' // Default to Yearly
     });
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        fetchEmployees();
-        fetchActivityDetails();
-    }, []);
-
-    const fetchActivityDetails = async () => {
-        try {
-            const response = await axios.get(`/activity_details/${activityId}`); 
-    
-            if (response.status === 200 && response.data.frequency) {
-                setFormData(prev => ({
-                    ...prev,
-                    frequency: response.data.frequency
-                }));
-            } else {
-                throw new Error("No frequency data found");
+        const loadData = async () => {
+            try {
+                // Load employees first
+                const employeesResponse = await axios.get('/actors');
+                setEmployees(employeesResponse.data);
+                
+                // Set default assignee if employees exist
+                if (employeesResponse.data.length > 0) {
+                    setFormData(prev => ({
+                        ...prev,
+                        assignTo: employeesResponse.data[0].actor_name
+                    }));
+                }
+                
+                // Try to fetch frequency, but don't fail if it doesn't work
+                try {
+                    console.log(`Trying to fetch frequency for activity ID: ${activityId}`);
+                    const frequencyResponse = await axios.get(`/get_frequency/${activityId}`);
+                    
+                    if (frequencyResponse.data && frequencyResponse.data.frequency) {
+                        setFormData(prev => ({
+                            ...prev,
+                            frequency: String(frequencyResponse.data.frequency)
+                        }));
+                    }
+                } catch (freqError) {
+                    console.warn(`Could not fetch frequency from API: ${freqError}`);
+                    // Try to get frequency from another source if needed
+                    // For now we'll just use the default value of 1 (Yearly)
+                }
+                
+                setLoading(false);
+            } catch (err) {
+                console.error('Error loading data:', err);
+                setError('Failed to load necessary data');
+                setLoading(false);
             }
-        } catch (error) {
-            console.error('Error fetching activity details:', error);
-            setError('Activity not found or invalid response from server');
-        }
-    };
-    
-
-    const fetchEmployees = async () => {
-        try {
-            const response = await axios.get('/actors');
-            setEmployees(response.data);
-            // Set default assignee if employees exist
-            if (response.data.length > 0) {
-                setFormData(prev => ({
-                    ...prev,
-                    assignTo: response.data[0].actor_name
-                }));
-            }
-            setLoading(false);
-        } catch (error) {
-            console.error('Error fetching employees:', error);
-            setError('Failed to load employees');
-            setLoading(false);
-        }
-    };
+        };
+        
+        loadData();
+    }, [activityId]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -64,6 +64,7 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             [name]: value
         }));
     };
+
     const getFrequencyLabel = (value) => {
         const frequencyMap = {
             "0": "Onetime",
@@ -72,7 +73,9 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             "4": "Quarterly",
             "26": "Fortnightly",
             "52": "Weekly",
-            "365": "Daily"
+            "365": "Daily",
+            "3": "Every 4 Months",
+            "6": "Every 2 Months"
         };
         return frequencyMap[value] || "Unknown"; 
     };
@@ -177,17 +180,15 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                     </div>
                     
                     <div className="form-group">
-    <label>Frequency:</label>
-    <input 
-        type="text"
-        name="frequency"
-        value={getFrequencyLabel(formData.frequency)} 
-        readOnly 
-        className="read-only-input"
-    />
-</div>
-
-
+                        <label>Frequency:</label>
+                        <input 
+                            type="text"
+                            name="frequency"
+                            value={getFrequencyLabel(formData.frequency)} 
+                            readOnly 
+                            className="read-only-input"
+                        />
+                    </div>
                     
                     <div className="form-actions">
                         <button type="button" className="btn-cancel" onClick={onClose}>
@@ -203,4 +204,4 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
     );
 };
 
-export default AssignActivityForm; 
+export default AssignActivityForm;

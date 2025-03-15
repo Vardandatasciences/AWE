@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './Mailer.css';
 import './MessageModal.css';
+import RecentMessages from './RecentMessages';
 
 const Mailer = () => {
   const [showForm, setShowForm] = useState(false);
@@ -802,14 +803,9 @@ const Mailer = () => {
       
       {/* Empty state when no tab is active */}
       {!showForm && !showScheduledForm && !showCustomForm && (
-        <div className="empty-state">
-          <i className="fas fa-envelope-open"></i>
-          <h3>Email Management</h3>
-          <p>Select an option above to create or schedule emails</p>
-          <button className="action-button-large" onClick={toggleForm}>
-            <i className="fas fa-plus"></i> Create New Message
-          </button>
-        </div>
+        <div className="dashboard-container">
+        <RecentMessages />
+      </div>
       )}
     </div>
   );

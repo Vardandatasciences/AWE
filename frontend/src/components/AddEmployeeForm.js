@@ -91,7 +91,8 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
     setError(null);
     
     try {
-      const response = await axios.post('/actors', formData);
+      // Change endpoint to match Flask API
+      const response = await axios.post('/add_actor', formData);
       
       if (response.status === 201) {
         onSuccess('Employee added successfully!');
@@ -99,7 +100,8 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
       }
     } catch (err) {
       console.error('Error adding employee:', err);
-      setError(err.response?.data?.message || 'Failed to add employee. Please try again.');
+      const errorMessage = err.response?.data?.error || 'Failed to add employee. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -317,4 +319,4 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
   );
 };
 
-export default AddEmployeeForm; 
+export default AddEmployeeForm;

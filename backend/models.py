@@ -14,7 +14,7 @@ class Actor(db.Model):
     mobile2 = db.Column(db.String(20))
     email_id = db.Column(db.String(255), nullable=False)
     password = db.Column(db.String(255))
-    group_id = db.Column(db.Integer, db.ForeignKey('group_a.group_id'))
+    group_id = db.Column(db.Integer)
     role_id = db.Column(db.Integer)
     status = db.Column(db.String(10))
     
@@ -67,7 +67,7 @@ class Customer(db.Model):
     city = db.Column(db.String(100))
     pincode = db.Column(db.String(20))
     country = db.Column(db.String(100))
-    group_id = db.Column(db.Integer, db.ForeignKey('group_a.group_id'))
+    group_id = db.Column(db.Integer)
     status = db.Column(db.String(10))
     
     # Define the relationship without backref

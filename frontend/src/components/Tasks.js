@@ -31,9 +31,10 @@ const Tasks = () => {
     if (status === 'WIP') return 'in-progress';
     if (status === 'completed') return 'completed';
     if (status === 'Yet to Start') return 'todo';
+    if (status === 'Pending') return 'pending';
    
     // For debugging - log any unexpected status values
-    if (status !== 'WIP' && status !== 'Completed' && status !== 'Yet to Start') {
+    if (status !== 'WIP' && status !== 'Completed' && status !== 'Yet to Start' && status !== 'Pending') {
       console.warn("Unexpected status value:", status);
     }
    
@@ -67,6 +68,7 @@ const Tasks = () => {
         const frontendStatus =
           newStatus === 'Yet to Start' ? 'todo' :
           newStatus === 'WIP' ? 'in-progress' :
+          newStatus === 'Pending' ? 'pending' :
           'Completed';
         
         console.log(`Updating task ${taskId} in UI from ${task.status} to ${frontendStatus}`);
@@ -169,6 +171,7 @@ const Tasks = () => {
     // Map the column back to backend status
     let backendStatus = 'Yet to Start';
     if (newStatus === 'in-progress') backendStatus = 'WIP';
+    if (newStatus === 'pending') backendStatus = 'Pending';
     if (newStatus === 'completed') backendStatus = 'Completed';
  
     const updatedTasks = tasks.map(task => {
@@ -356,10 +359,12 @@ const Tasks = () => {
               <i className="fas fa-calendar"></i>
               <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
             </div>
+            {isAdmin && (
             <div className="detail-item">
               <i className="fas fa-user"></i>
               <span>Assignee: {task.assignee || 'Unassigned'}</span>
             </div>
+          )}
             {isAdmin && (
     <div className="detail-item">
       <i className="fas fa-clock"></i>
@@ -369,30 +374,40 @@ const Tasks = () => {
           </div>
  
           <div className="task-footer">
-          <span className="activity-tag">
-            <i className="fas fa-tasks"></i>
-            {task.title || 'No Activity'}
-          </span>
-         
-          {/* Add status dropdown here */}
-          <div className="status-dropdown">
-  <select
-    value={task.status === 'todo' ? 'Yet to Start' :
-           task.status === 'in-progress' ? 'WIP' :
-           'Completed'}
-    onChange={(e) => changeTaskStatus(task.id, e.target.value)}
-    className="status-select"
-  >
-    <option value="Yet to Start">Yet to Start</option>
-    <option value="WIP">In Progress</option>
-    <option value="Completed">Completed</option>
-  </select>
-</div>
+          {/* Only show status dropdown for regular users, not for admins */}
+          {!isAdmin && (
+            <div className="status-dropdown">
+              <select
+                value={task.status === 'todo' ? 'Yet to Start' :
+                       task.status === 'in-progress' ? 'WIP' :
+                       'Completed'}
+                onChange={(e) => changeTaskStatus(task.id, e.target.value)}
+                className="status-select"
+              >
+                <option value="Yet to Start">Yet to Start</option>
+                <option value = "Pending">Pending</option>
+                <option value="WIP">In Progress</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+          )}
+          {/* For admin users, just display the status as text */}
+          {isAdmin && (
+            <div className="status-display">
+              <span className={`status-badge ${task.status}`}>
+                {task.status === 'todo' ? 'Yet to Start' :
+                 task.status === 'pending' ? 'Pending' :
+                 task.status === 'in-progress' ? 'In Progress' :
+                 'Completed'}
+              </span>
+            </div>
+          )}
+
         </div>
       </div>
     )}
-    </Draggable>
-  );
+  </Draggable>
+);
  
   const renderListView = () => (
     <div className="task-list-view">
@@ -403,7 +418,7 @@ const Tasks = () => {
             <th>Customer</th>
             <th>Status</th>
             <th>Due Date</th>
-            <th>Assignee</th>
+            {isAdmin && <th>Assignee</th>}
             {isAdmin && <th>Time</th>}
             <th>Actions</th>
           </tr>
@@ -414,14 +429,33 @@ const Tasks = () => {
               <td data-label="Task Name">{task.task_name}</td>
               <td data-label="Customer">{task.customer_name}</td>
               <td data-label="Status">
+              {!isAdmin && (
+                <select
+                  value={task.status === 'todo' ? 'Yet to Start' :
+                         task.status === 'pending' ? "Pending" :
+                         task.status === 'in-progress' ? 'WIP' :
+                         'Completed'}
+                  onChange={(e) => changeTaskStatus(task.id, e.target.value)}
+                  className="status-select"
+                >
+                  <option value="Yet to Start">Yet to Start</option>
+                  <option value="Pending"> Pending</option>
+                  <option value="WIP">In Progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              )}
+              {/* Show status badge for admin users */}
+              {isAdmin && (
                 <span className={`status-badge ${task.status}`}>
                   {task.status === 'todo' ? 'Yet to start' :
+                   task.status === 'pending' ? 'Pending' :
                    task.status === 'in-progress' ? 'In Progress' :
                    'Completed'}
                 </span>
+              )}
               </td>
-              <td data-label="Due Date">{new Date(task.due_date).toLocaleDateString()}</td>
-              <td data-label="Assignee">{task.assignee || 'Unassigned'}</td>
+              {isAdmin && <td data-label="Assignee">{task.assignee || 'Unassigned'}</td>}
+              {isAdmin && <td data-label="Time">{task.time_taken || '0'} hours</td>}
               <td data-label="Actions">
                 {isAdmin && (
                   <button
@@ -525,6 +559,7 @@ const Tasks = () => {
                 <div key={status} className="board-column">
                   <h2>
                     {status === 'todo' ? 'Yet to start' :
+                     status === 'pending' ? 'Pending' :
                      status === 'in-progress' ? 'In Progress' :
                      'Completed'}
                   </h2>
