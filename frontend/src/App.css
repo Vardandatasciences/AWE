@@ -186,3 +186,18 @@ body {
   align-items: center;
   z-index: 9999;
 }
+
+/* Workflow Note */
+.workflow-note {
+  background-color: #e3f2fd;
+  border-left: 4px solid #2196F3;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+
+.workflow-note p {
+  margin: 0;
+  color: #0d47a1;
+  font-weight: 500;
+}

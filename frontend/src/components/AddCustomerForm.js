@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './FormStyles.css';
+import { useWorkflow } from '../context/WorkflowContext';
+import { showWorkflowGuide } from '../App';
+import { useNavigate } from 'react-router-dom';
 
 const AddCustomerForm = ({ onClose, onSuccess }) => {
+  const { completeStep } = useWorkflow();
+  const navigate = useNavigate();
+  
   const [formData, setFormData] = useState({
     customer_name: '',
     customer_type: 'Business',
@@ -90,8 +96,12 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
     // Create a copy of the form data to modify before sending
     const submissionData = { ...formData };
     
-    // Handle empty values properly
-    if (!submissionData.gender) {
+    // Convert gender to single character format (M/F) to match database
+    if (submissionData.gender === 'Male') {
+      submissionData.gender = 'M';
+    } else if (submissionData.gender === 'Female') {
+      submissionData.gender = 'F';
+    } else if (!submissionData.gender) {
       submissionData.gender = '';
     }
     
@@ -112,8 +122,18 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
       const response = await axios.post('/add_customer', submissionData);
       
       if (response.status === 201) {
+        // Mark the first step (Create Customer) as completed
+        completeStep(1);
+        
         onSuccess('Customer added successfully!');
+        
+        // Close the form
         onClose();
+        
+        // Show the workflow guide again to guide to the next step
+        setTimeout(() => {
+          showWorkflowGuide();
+        }, 500);
       }
     } catch (err) {
       console.error('Error adding customer:', err);

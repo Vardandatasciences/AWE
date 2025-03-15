@@ -44,6 +44,9 @@ const Home = () => {
   const handleGetStartedClick = (e) => {
     e.preventDefault();
     console.log("Home: Get Started button clicked");
+    
+    // Show the workflow guide
+    // The redirection to employee page if canceled will be handled in App.js
     showWorkflowGuide();
   };
 

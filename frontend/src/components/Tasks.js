@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import './Tasks.css';
 import './ReassignModal.css';
@@ -6,6 +6,13 @@ import axios from 'axios';
 import { API_ENDPOINTS } from '../config/api';
 import apiService from '../services/api.service';
 import { useAuth } from '../context/AuthContext';
+import yetToStart from '../assets/yet-to-start.gif';
+import inProgress from '../assets/in-progress.gif';
+import completed from '../assets/completed.gif';
+import todoGif from '../assets/yet-to-start.gif'
+import progressGif from '../assets/in-progress.gif';
+import doneGif from '../assets/completed.gif';
+import { useWorkflow } from '../context/WorkflowContext';
  
 const Tasks = () => {
   const [tasks, setTasks] = useState([]);
@@ -24,6 +31,11 @@ const Tasks = () => {
   const [selectedAssignee, setSelectedAssignee] = useState('');
   const { user, isAdmin } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [gifsLoaded, setGifsLoaded] = useState({
+    yetToStart: false,
+    inProgress: false,
+    completed: false
+  });
   const [stats, setStats] = useState({
     total: 0,
     todo: 0,
@@ -31,6 +43,26 @@ const Tasks = () => {
     completed: 0,
     pending: 0
   });
+ 
+  // Check if GIFs are loading correctly
+  useEffect(() => {
+    console.log("Checking if GIFs are loading correctly...");
+    
+    const checkImageLoaded = (src, name) => {
+      const img = new Image();
+      img.onload = () => {
+        console.log(`✅ ${name} GIF loaded successfully:`, src);
+      };
+      img.onerror = () => {
+        console.error(`❌ ${name} GIF failed to load:`, src);
+      };
+      img.src = src;
+    };
+    
+    checkImageLoaded(todoGif, "Todo");
+    checkImageLoaded(progressGif, "Progress");
+    checkImageLoaded(doneGif, "Done");
+  }, []);
  
   // Map backend status directly to column names
   const getColumnForStatus = (status) => {
@@ -498,6 +530,137 @@ const Tasks = () => {
     </div>
   );
  
+  // Enhanced StatCard component with a clean three-part layout
+  const StatCard = ({ type, count, total, title, subtitle, gifSrc, iconClass, onClick, isActive }) => {
+    const [gifLoaded, setGifLoaded] = useState(false);
+    const [gifError, setGifError] = useState(false);
+    const progressRef = useRef(null);
+    const circleRef = useRef(null);
+    const [animatedCount, setAnimatedCount] = useState(0);
+    const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+
+    // Set the progress value as a CSS variable for animation
+    useEffect(() => {
+      if (progressRef.current) {
+        progressRef.current.style.setProperty('--progress', `${percentage}`);
+        // Set the data-percentage attribute for the ::after content
+        progressRef.current.setAttribute('data-percentage', percentage);
+      }
+      
+      // Force animation restart by removing and adding the element
+      if (circleRef.current) {
+        const parent = circleRef.current.parentNode;
+        const oldElement = circleRef.current;
+        const newElement = oldElement.cloneNode(true);
+        
+        // Apply the animation directly
+        setTimeout(() => {
+          newElement.style.strokeDasharray = `${percentage}, 100`;
+        }, 100);
+        
+        parent.replaceChild(newElement, oldElement);
+        circleRef.current = newElement;
+      }
+      
+      // Animate count number
+      let start = 0;
+      const end = count;
+      const duration = 2000;
+      const startTime = Date.now();
+      
+      if (end > 0) {
+        const timer = setInterval(() => {
+          const elapsedTime = Date.now() - startTime;
+          const progress = Math.min(elapsedTime / duration, 1);
+          
+          // Use easeOutQuad for smoother animation
+          const easeProgress = 1 - (1 - progress) * (1 - progress);
+          const current = Math.floor(easeProgress * end);
+          
+          setAnimatedCount(current);
+          
+          if (progress === 1) {
+            clearInterval(timer);
+          }
+        }, 16);
+        
+        return () => clearInterval(timer);
+      }
+    }, [count, total, percentage]);
+
+    return (
+      <div className={`stat-card ${type}-stat ${isActive ? 'active' : ''}`} onClick={onClick}>
+        {/* Left part - GIF/Icon */}
+        <div className="stat-icon">
+          {!gifError ? (
+            <img 
+              src={gifSrc} 
+              alt={title} 
+              className="stat-gif"
+              onLoad={() => setGifLoaded(true)}
+              onError={() => setGifError(true)}
+              style={{ display: gifLoaded ? 'block' : 'none' }}
+            />
+          ) : (
+            <i className={iconClass}></i>
+          )}
+          {!gifLoaded && !gifError && (
+            <div className="gif-loading-spinner"></div>
+          )}
+        </div>
+        
+        {/* Middle part - Text content */}
+        <div className="stat-content">
+          <div className="stat-count">
+            {animatedCount}
+          </div>
+          <h3 className="stat-title">{title}</h3>
+          <div className="stat-subtitle">
+            <span className={`detail-dot ${type}`}></span>
+            <span>{subtitle}</span>
+          </div>
+        </div>
+        
+        {/* Right part - Progress circle */}
+        <div className="stat-progress" ref={progressRef} data-percentage={percentage}>
+          <svg viewBox="0 0 36 36" className="circular-chart">
+            <path className="circle-bg"
+              d="M18 2.0845
+                a 15.9155 15.9155 0 0 1 0 31.831
+                a 15.9155 15.9155 0 0 1 0 -31.831"
+            />
+            <path 
+              ref={circleRef}
+              className={`circle ${type}-circle`}
+              d="M18 2.0845
+                a 15.9155 15.9155 0 0 1 0 31.831
+                a 15.9155 15.9155 0 0 1 0 -31.831"
+            />
+          </svg>
+        </div>
+      </div>
+    );
+  };
+ 
+  // Add these handler functions for filtering by clicking on stat cards
+  const handleFilterByTodo = () => {
+    setFilterStatus('todo');
+    // Scroll to the task list
+    document.querySelector('.task-cards-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleFilterByInProgress = () => {
+    setFilterStatus('in-progress');
+    // Scroll to the task list
+    document.querySelector('.task-cards-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleFilterByCompleted = () => {
+    setFilterStatus('completed');
+    // Scroll to the task list
+    document.querySelector('.task-cards-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+ 
   return (
     <div className="tasks-container">
       {success && (
@@ -511,106 +674,43 @@ const Tasks = () => {
         <p>Manage and track your team's tasks</p>
       </div> */}
  
-      {/* Quick Stats Section */}
+      {/* Quick Stats Section with click handlers */}
       <div className="quick-stats-section">
-        <div className="stat-card todo-stat">
-          <div className="stat-icon">
-            <i className="fas fa-hourglass-start"></i>
-          </div>
-          <div className="stat-content">
-            <div className="stat-numbers">
-              <span className="stat-count">{stats.todo}</span>
-              <div className="stat-details">
-                <div className="stat-detail">
-                  <span className="detail-dot todo"></span>
-                  <span>Yet to Start</span>
-                </div>
-              </div>
-            </div>
-            <h3 className="stat-title">To Do</h3>
-          </div>
-          <div className="stat-progress">
-            <svg viewBox="0 0 36 36" className="circular-chart">
-              <path className="circle-bg"
-                d="M18 2.0845
-                  a 15.9155 15.9155 0 0 1 0 31.831
-                  a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-              <path className="circle todo-circle"
-                strokeDasharray={`${stats.total > 0 ? (stats.todo / stats.total) * 100 : 0}, 100`}
-                d="M18 2.0845
-                  a 15.9155 15.9155 0 0 1 0 31.831
-                  a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-            </svg>
-          </div>
-        </div>
-
-        <div className="stat-card progress-stat">
-          <div className="stat-icon">
-            <i className="fas fa-spinner"></i>
-          </div>
-          <div className="stat-content">
-            <div className="stat-numbers">
-              <span className="stat-count">{stats.inProgress}</span>
-              <div className="stat-details">
-                <div className="stat-detail">
-                  <span className="detail-dot progress"></span>
-                  <span>In Progress</span>
-                </div>
-              </div>
-            </div>
-            <h3 className="stat-title">WIP</h3>
-          </div>
-          <div className="stat-progress">
-            <svg viewBox="0 0 36 36" className="circular-chart">
-              <path className="circle-bg"
-                d="M18 2.0845
-                  a 15.9155 15.9155 0 0 1 0 31.831
-                  a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-              <path className="circle progress-circle"
-                strokeDasharray={`${stats.total > 0 ? (stats.inProgress / stats.total) * 100 : 0}, 100`}
-                d="M18 2.0845
-                  a 15.9155 15.9155 0 0 1 0 31.831
-                  a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-            </svg>
-          </div>
-        </div>
-
-        <div className="stat-card completed-stat">
-          <div className="stat-icon">
-            <i className="fas fa-check-circle"></i>
-          </div>
-          <div className="stat-content">
-            <div className="stat-numbers">
-              <span className="stat-count">{stats.completed}</span>
-              <div className="stat-details">
-                <div className="stat-detail">
-                  <span className="detail-dot completed"></span>
-                  <span>Completed</span>
-                </div>
-              </div>
-            </div>
-            <h3 className="stat-title">Done</h3>
-          </div>
-          <div className="stat-progress">
-            <svg viewBox="0 0 36 36" className="circular-chart">
-              <path className="circle-bg"
-                d="M18 2.0845
-                  a 15.9155 15.9155 0 0 1 0 31.831
-                  a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-              <path className="circle completed-circle"
-                strokeDasharray={`${stats.total > 0 ? (stats.completed / stats.total) * 100 : 0}, 100`}
-                d="M18 2.0845
-                  a 15.9155 15.9155 0 0 1 0 31.831
-                  a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-            </svg>
-          </div>
-        </div>
+        <StatCard 
+          type="todo"
+          count={stats.todo}
+          total={stats.total}
+          title="To Do"
+          subtitle="Yet to Start"
+          gifSrc={todoGif}
+          iconClass="fas fa-clipboard-list"
+          onClick={handleFilterByTodo}
+          isActive={filterStatus === 'todo'}
+        />
+        
+        <StatCard 
+          type="progress"
+          count={stats.inProgress}
+          total={stats.total}
+          title="WIP"
+          subtitle="In Progress"
+          gifSrc={progressGif}
+          iconClass="fas fa-spinner fa-spin"
+          onClick={handleFilterByInProgress}
+          isActive={filterStatus === 'in-progress'}
+        />
+        
+        <StatCard 
+          type="completed"
+          count={stats.completed}
+          total={stats.total}
+          title="Done"
+          subtitle="Completed"
+          gifSrc={doneGif}
+          iconClass="fas fa-check-circle"
+          onClick={handleFilterByCompleted}
+          isActive={filterStatus === 'completed'}
+        />
       </div>
  
       <div className="controls-container">
@@ -741,7 +841,7 @@ const Tasks = () => {
                   </div>
                   <div className="detail-item">
                     <i className="fas fa-user"></i>
-                    <span>Assignee: {task.assignee || 'Unassigned'}</span>
+                    <span> {task.assignee || 'Unassigned'}</span>
                   </div>
                   {isAdmin && (
                     <div className="detail-item">
