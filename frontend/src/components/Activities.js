@@ -41,14 +41,6 @@ const Activities = () => {
     const [showAssignForm, setShowAssignForm] = useState(false);
     const [assigningCustomer, setAssigningCustomer] = useState(null);
 
-
-    // Add new states for report modal
-    const [showReportModal, setShowReportModal] = useState(false);
-    const [selectedActivityReport, setSelectedActivityReport] = useState(null);
-    const [reportData, setReportData] = useState([]);
-    const [selectedStatus, setSelectedStatus] = useState(null);
-    const [standardTime, setStandardTime] = useState(null);
-
     const [stats, setStats] = useState({
         total: 0,
         regulatory: 0,
@@ -57,7 +49,6 @@ const Activities = () => {
         active: 0,
         inactive: 0
     });
-
 
     useEffect(() => {
         fetchActivities();
@@ -269,47 +260,6 @@ const Activities = () => {
         setShowActivityMapping(true);
     };
 
-    // Add new function to fetch report data
-    const fetchActivityReport = async (activityId) => {
-        try {
-            const response = await axios.get(`/get_activity_data?activity_id=${activityId}`);
-            setReportData(response.data.tasks);
-            setStandardTime(response.data.standard_time);
-        } catch (error) {
-            console.error('Error fetching report data:', error);
-        }
-    };
-
-    // Add function to handle report button click
-    const handleReportClick = (activity) => {
-        setSelectedActivityReport(activity);
-        fetchActivityReport(activity.activity_id);
-        setShowReportModal(true);
-    };
-
-    // Add function to handle pie chart segment click
-    const handlePieSegmentClick = (status) => {
-        setSelectedStatus(status === selectedStatus ? null : status);
-    };
-
-    // Add function to download report
-    const handleDownloadReport = async (activityId) => {
-        try {
-            const response = await axios.get(`/generate_activity_report?activity_id=${activityId}`, {
-                responseType: 'blob'
-            });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `activity_report_${activityId}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch (error) {
-            console.error('Error downloading report:', error);
-        }
-    };
-
     return (
         <div className="activities-container">
             <div className="page-header">
@@ -486,13 +436,6 @@ const Activities = () => {
                                 <div className="activity-icon">
                                     <i className="fas fa-clipboard-check"></i>
                                 </div>
-                                <button 
-                                    className="report-btn"
-                                    onClick={() => handleReportClick(activity)}
-                                    title="View Activity Performance Report"
-                                >
-                                    <i className="fas fa-chart-pie"></i>
-                                </button>
                             </div>
                             
                             <div className="activity-card-body">
@@ -524,13 +467,6 @@ const Activities = () => {
                                     onClick={(event) => handleStatusClick(event, activity)}
                                 >
                                     <i className="fas fa-users"></i> Mapping
-                                </button>
-                                <button 
-                                    className="download-btn"
-                                    onClick={() => handleDownloadReport(activity.activity_id)}
-                                    title="Download Activity Performance Report"
-                                >
-                                    <i className="fas fa-download"></i>
                                 </button>
                             </div>
                         </div>
@@ -823,147 +759,6 @@ const Activities = () => {
                     onSuccess={handleAssignSuccess}
                 />
             )}
-
-            {/* Add Report Modal */}
-            {showReportModal && (
-                <div className="modal-overlay">
-                    <div className="report-modal">
-                        <div className="modal-header">
-                            <h2>
-                                <i className="fas fa-chart-pie"></i>
-                                Activity Report
-                                {selectedActivityReport && 
-                                    <span> - {selectedActivityReport.activity_name}</span>
-                                }
-                            </h2>
-                            <div className="standard-time">
-                                Standard Time: {standardTime} hours
-                            </div>
-                            <button 
-                                className="close-btn" 
-                                onClick={() => setShowReportModal(false)}
-                            >
-                                <i className="fas fa-times"></i>
-                            </button>
-                        </div>
-                        
-                        <div className="report-content">
-                            <div className="report-table">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Employee ID</th>
-                                            <th>Name</th>
-                                            <th>Task ID</th>
-                                            <th>Time Taken</th>
-                                            <th>Date of Completion</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {reportData.map(task => {
-                                            const status = 
-                                                task.time_taken === standardTime ? 'ON-TIME' :
-                                                task.time_taken < standardTime ? 'EARLY' : 'DELAY';
-                                            
-                                            return (
-                                                <tr 
-                                                    key={task.task_id}
-                                                    className={selectedStatus === status ? 'highlighted' : ''}
-                                                >
-                                                    <td>{task.employee_id}</td>
-                                                    <td>{task.name}</td>
-                                                    <td>{task.task_id}</td>
-                                                    <td>{task.time_taken}</td>
-                                                    <td>{task.completion_date}</td>
-                                                    <td className={`status-${status.toLowerCase()}`}>
-                                                        {status}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                            
-                            <div className="report-chart">
-                                <PieChart
-                                    data={[
-                                        {
-                                            title: 'ON-TIME',
-                                            value: reportData.filter(t => t.time_taken === standardTime).length,
-                                            color: '#2ecc71'
-                                        },
-                                        {
-                                            title: 'EARLY',
-                                            value: reportData.filter(t => t.time_taken < standardTime).length,
-                                            color: '#3498db'
-                                        },
-                                        {
-                                            title: 'DELAY',
-                                            value: reportData.filter(t => t.time_taken > standardTime).length,
-                                            color: '#e74c3c'
-                                        }
-                                    ]}
-                                    onSegmentClick={handlePieSegmentClick}
-                                    selectedSegment={selectedStatus}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// Add PieChart component
-const PieChart = ({ data, onSegmentClick, selectedSegment }) => {
-    const total = data.reduce((sum, item) => sum + item.value, 0);
-    let currentAngle = 0;
-
-    return (
-        <div className="pie-chart-container">
-            <svg viewBox="0 0 100 100">
-                {data.map((item, index) => {
-                    if (item.value === 0) return null;
-                    
-                    const angle = (item.value / total) * 360;
-                    const startAngle = currentAngle;
-                    currentAngle += angle;
-                    
-                    const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
-                    const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
-                    const x2 = 50 + 40 * Math.cos(((startAngle + angle) * Math.PI) / 180);
-                    const y2 = 50 + 40 * Math.sin(((startAngle + angle) * Math.PI) / 180);
-                    
-                    const largeArcFlag = angle > 180 ? 1 : 0;
-                    
-                    return (
-                        <path
-                            key={item.title}
-                            d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
-                            fill={item.color}
-                            stroke="white"
-                            strokeWidth="1"
-                            className={selectedSegment === item.title ? 'selected' : ''}
-                            onClick={() => onSegmentClick(item.title)}
-                        />
-                    );
-                })}
-            </svg>
-            <div className="pie-chart-legend">
-                {data.map(item => (
-                    <div 
-                        key={item.title} 
-                        className={`legend-item ${selectedSegment === item.title ? 'selected' : ''}`}
-                        onClick={() => onSegmentClick(item.title)}
-                    >
-                        <span className="color-box" style={{ backgroundColor: item.color }}></span>
-                        <span className="label">{item.title} ({item.value})</span>
-                    </div>
-                ))}
-            </div>
         </div>
     );
 };
