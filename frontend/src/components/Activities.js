@@ -264,21 +264,37 @@ const Activities = () => {
         setSelectedStatus(status === selectedStatus ? null : status);
     };
 
-    // Add function to download report
+    // Update the handleDownloadReport function
     const handleDownloadReport = async (activityId) => {
         try {
+            // Show loading indicator or message if needed
+            
+            // Call the correct endpoint that generates the PDF with table and pie chart
             const response = await axios.get(`/generate_activity_report?activity_id=${activityId}`, {
-                responseType: 'blob'
+                responseType: 'blob' // Important: set responseType to 'blob'
             });
+            
+            // Create a blob URL from the response data
             const url = window.URL.createObjectURL(new Blob([response.data]));
+            
+            // Create a temporary link element to trigger the download
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `activity_report_${activityId}.xlsx`);
+            
+            // Set the filename with current date
+            const currentDate = new Date().toISOString().split('T')[0];
+            link.setAttribute('download', `${currentDate}_Activity_${activityId}_Report.pdf`);
+            
+            // Append to body, click to download, then remove
             document.body.appendChild(link);
             link.click();
-            link.remove();
+            document.body.removeChild(link);
+            
+            // Clean up the blob URL
+            window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Error downloading report:', error);
+            alert('Failed to download report. Please try again.');
         }
     };
 
