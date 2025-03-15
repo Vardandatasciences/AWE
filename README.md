@@ -1,4 +1,4 @@
-# AWE Project
+# AWE Project khairu
 
 This project consists of a React frontend and a Flask backend.
 
