@@ -44,10 +44,22 @@ const Home = () => {
   const handleGetStartedClick = (e) => {
     e.preventDefault();
     console.log("Home: Get Started button clicked");
-    
-    // Show the workflow guide
-    // The redirection to employee page if canceled will be handled in App.js
-    showWorkflowGuide();
+
+
+    const user = JSON.parse(localStorage.getItem('user'));
+
+  if (user) {
+    if (user.role != 'admin') {
+      navigate('/tasks');  // Redirect Admin to Employee Page
+    } else {
+      showWorkflowGuide();     // Redirect User to Tasks Page
+    }
+  } else {
+    showWorkflowGuide();      // Redirect to Login if Not Authenticated
+  }
+      
+
+
   };
 
   return (
@@ -63,8 +75,8 @@ const Home = () => {
           </div>
         </div>
         <div className="hero-content">
-          <h1>Automated Workflow Experience</h1>
-          <p className="tagline">Streamline operations. Boost productivity. Achieve excellence.</p>
+          <h1>CA Financial Excellence</h1>
+          <p className="tagline">Streamline accounting processes. Enhance compliance. Maximize financial insights.</p>
           <div className="hero-buttons">
             <button 
               className="btn btn-primary"
@@ -81,7 +93,7 @@ const Home = () => {
           <div className="gif-container primary-gif">
             <img src={taskManagementGif} alt="Task Management" className="hero-gif" />
             <div className="gif-overlay">
-              <span>Intelligent Task Management</span>
+              <span>Intelligent Financial Management</span>
             </div>
           </div>
         </div>
@@ -96,28 +108,28 @@ const Home = () => {
                 <i className="fas fa-bolt"></i>
               </div>
               <h3>Efficiency</h3>
-              <p>Reduce manual work by 75%</p>
+              <p>Reduce accounting workload by 75%</p>
             </div>
             <div className="value-card">
               <div className="value-icon">
                 <i className="fas fa-chart-line"></i>
               </div>
-              <h3>Productivity</h3>
-              <p>Increase output by 40%</p>
+              <h3>Accuracy</h3>
+              <p>Minimize errors in financial reporting</p>
             </div>
             <div className="value-card">
               <div className="value-icon">
                 <i className="fas fa-shield-alt"></i>
               </div>
-              <h3>Reliability</h3>
-              <p>99.9% system uptime</p>
+              <h3>Compliance</h3>
+              <p>Stay updated with tax regulations</p>
             </div>
             <div className="value-card">
               <div className="value-icon">
                 <i className="fas fa-sync"></i>
               </div>
               <h3>Adaptability</h3>
-              <p>Customizable to your needs</p>
+              <p>Customizable to your firm's needs</p>
             </div>
           </div>
         </div>
@@ -127,8 +139,8 @@ const Home = () => {
       <section className="features animate-on-scroll" id="features" ref={featuresRef}>
         <div className="container">
           <div className="section-header">
-            <h2>Powerful Features</h2>
-            <p>Everything you need to transform your workflow</p>
+            <h2>CA Practice Management Solutions</h2>
+            <p>Comprehensive tools designed for accounting professionals</p>
           </div>
           
           <div className="feature-showcase">
@@ -136,17 +148,17 @@ const Home = () => {
               <div className="feature-icon">
                 <i className="fas fa-tasks"></i>
               </div>
-              <h3>Intelligent Task Management</h3>
-              <p>Organize, prioritize, and track tasks with ease. Our smart algorithms help distribute workload efficiently across your team.</p>
+              <h3>Intelligent Tax Management</h3>
+              <p>Organize, prioritize, and track client tax filings with ease. Our smart algorithms help distribute workload efficiently across your accounting team.</p>
               <ul className="feature-list">
-                <li><i className="fas fa-check-circle"></i> Automated task assignment</li>
-                <li><i className="fas fa-check-circle"></i> Priority-based scheduling</li>
-                <li><i className="fas fa-check-circle"></i> Real-time progress tracking</li>
-                <li><i className="fas fa-check-circle"></i> Deadline management</li>
+                <li><i className="fas fa-check-circle"></i> Automated tax deadline tracking</li>
+                <li><i className="fas fa-check-circle"></i> Priority-based client scheduling</li>
+                <li><i className="fas fa-check-circle"></i> Real-time compliance monitoring</li>
+                <li><i className="fas fa-check-circle"></i> Document management system</li>
               </ul>
             </div>
             <div className="feature-visual">
-              <img src={taskManagementGif} alt="Task Management" className="feature-gif" />
+              <img src={taskManagementGif} alt="Tax Management" className="feature-gif" />
             </div>
           </div>
           
@@ -326,17 +338,17 @@ const Home = () => {
           </div>
         </div>
         <div className="container">
-          <h2>Ready to Transform Your Workflow?</h2>
-          <p>Join thousands of organizations already optimizing their operations with AWE.</p>
+          <h2>Ready to Transform Your CA Practice?</h2>
+          <p>Join hundreds of accounting firms already optimizing their operations with our financial automation platform.</p>
           <div className="cta-buttons">
             <button 
               className="btn btn-primary btn-large"
               onClick={handleGetStartedClick}
             >
-              <i className="fas fa-rocket"></i> Get Started Now
+              <i className="fas fa-rocket"></i> Schedule a Demo
             </button>
             <Link to="/contact" className="btn btn-outline btn-large">
-              <i className="fas fa-headset"></i> Talk to an Expert
+              <i className="fas fa-headset"></i> Speak to an Advisor
             </Link>
           </div>
           <div className="cta-features">
@@ -346,11 +358,11 @@ const Home = () => {
             </div>
             <div className="cta-feature">
               <i className="fas fa-check-circle"></i>
-              <span>Free 30-day trial</span>
+              <span>14-day free trial</span>
             </div>
             <div className="cta-feature">
               <i className="fas fa-check-circle"></i>
-              <span>24/7 support</span>
+              <span>Dedicated support</span>
             </div>
           </div>
         </div>
