@@ -1,9 +1,10 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from flask_login import UserMixin
 
 db = SQLAlchemy()
 
-class Actor(db.Model):
+class Actor(UserMixin, db.Model):
     __tablename__ = 'actors'
     
     actor_id = db.Column(db.Integer, primary_key=True)
@@ -14,13 +15,17 @@ class Actor(db.Model):
     mobile2 = db.Column(db.String(20))
     email_id = db.Column(db.String(255), nullable=False)
     password = db.Column(db.String(255))
-    group_id = db.Column(db.Integer, db.ForeignKey('group_a.group_id'))
+    group_id = db.Column(db.Integer, db.ForeignKey('group a.group_id'))
     role_id = db.Column(db.Integer)
     status = db.Column(db.String(10))
     
     # Define the relationship without backref to avoid circular reference
     tasks = db.relationship('Task', backref='actor', lazy=True)
+    group = db.relationship('Group', backref='actors', lazy=True)
     
+    def get_id(self):
+        return str(self.actor_id)
+
     def to_dict(self):
         return {
             'actor_id': self.actor_id,
@@ -40,10 +45,8 @@ class Group(db.Model):
     __tablename__ = 'group a'
     
     group_id = db.Column(db.Integer, primary_key=True)
-    group_name = db.Column(db.String(255), nullable=False)
+    group_name = db.Column(db.String(45), nullable=False)
     group_des = db.Column(db.String(255))
-    
-
     
     def to_dict(self):
         return {

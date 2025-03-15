@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import './Navbar.css'; // Import CSS for styling
 import aweLogo from '../assets/image.png';
 
+
 const Navbar = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { isAuthenticated, user, logout, isAdmin } = useAuth();
