@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useWorkflow } from '../context/WorkflowContext';
+import { showWorkflowGuide } from '../App';
 import './Activities.css';
 import AssignActivity from './AssignActivity';
 import { API_ENDPOINTS } from '../config/api';
@@ -49,6 +51,19 @@ const Activities = () => {
         active: 0,
         inactive: 0
     });
+
+    const { completeStep, workflowSteps } = useWorkflow();
+    
+    // Check if we're in the workflow process - now check for step 3 (employee assignment)
+    const isInWorkflow = workflowSteps.some(step => 
+        (step.status === 'in-progress' && step.id === 2) || 
+        (step.status === 'in-progress' && step.id === 3)
+    );
+    
+    // Specifically check if we're in step 3 (employee assignment)
+    const isInEmployeeAssignmentStep = workflowSteps.some(step => 
+        step.status === 'in-progress' && step.id === 3
+    );
 
     useEffect(() => {
         fetchActivities();
@@ -127,6 +142,16 @@ const Activities = () => {
                 await axios.put(API_ENDPOINTS.UPDATE_ACTIVITY, formData);
             } else {
                 await axios.post(API_ENDPOINTS.ADD_ACTIVITY, formData);
+                
+                // If we're in the workflow process, mark this step as completed
+                if (isInWorkflow) {
+                    completeStep(2);
+                    
+                    // Show the workflow guide again to guide to the next step
+                    setTimeout(() => {
+                        showWorkflowGuide();
+                    }, 500);
+                }
             }
             fetchActivities();
             setShowForm(false);
@@ -215,6 +240,16 @@ const Activities = () => {
         // Close the form
         setShowAssignForm(false);
         
+        // If we're in the employee assignment step of the workflow, mark it as completed
+        if (isInEmployeeAssignmentStep) {
+            completeStep(3);
+            
+            // Show the workflow guide again to show completion
+            setTimeout(() => {
+                showWorkflowGuide();
+            }, 1000);
+        }
+        
         // Clear the success message after 5 seconds
         setTimeout(() => {
             setAssignSuccess(null);
@@ -260,12 +295,108 @@ const Activities = () => {
         setShowActivityMapping(true);
     };
 
+    const handleAddActivity = async (activityData) => {
+        try {
+            const response = await axios.post('/add_activity', activityData);
+            
+            if (response.status === 201) {
+                // Add the new activity to the list
+                fetchActivities();
+                
+                // If we're in the workflow process, mark this step as completed
+                if (isInWorkflow) {
+                    completeStep(2);
+                    
+                    // Show the workflow guide again to guide to the next step
+                    setTimeout(() => {
+                        showWorkflowGuide();
+                    }, 500);
+                }
+                
+                setShowForm(false);
+                // Show success message
+            }
+        } catch (err) {
+            console.error('Error adding activity:', err);
+            // Show error message
+        }
+    };
+
+    useEffect(() => {
+        // Set progress values for activity stats
+        const regulatoryProgress = document.querySelector('.regulatory-stat .stat-progress');
+        const internalProgress = document.querySelector('.internal-stat .stat-progress');
+        const customerProgress = document.querySelector('.customer-stat .stat-progress');
+        
+        if (regulatoryProgress && stats.total > 0) {
+            const percentage = Math.round((stats.regulatory / stats.total) * 100);
+            
+            // Set the CSS variable for the animation
+            regulatoryProgress.style.setProperty('--progress', percentage);
+            // Set the data attribute for the percentage text
+            regulatoryProgress.setAttribute('data-percentage', percentage);
+            
+            // Force a repaint to ensure the transition works
+            const circle = regulatoryProgress.querySelector('.regulatory-circle');
+            if (circle) {
+                setTimeout(() => {
+                    circle.style.strokeDasharray = `${percentage}, 100`;
+                }, 50);
+            }
+        }
+        
+        if (internalProgress && stats.total > 0) {
+            const percentage = Math.round((stats.internal / stats.total) * 100);
+            
+            // Set the CSS variable for the animation
+            internalProgress.style.setProperty('--progress', percentage);
+            // Set the data attribute for the percentage text
+            internalProgress.setAttribute('data-percentage', percentage);
+            
+            // Force a repaint to ensure the transition works
+            const circle = internalProgress.querySelector('.internal-circle');
+            if (circle) {
+                setTimeout(() => {
+                    circle.style.strokeDasharray = `${percentage}, 100`;
+                }, 50);
+            }
+        }
+        
+        if (customerProgress && stats.total > 0) {
+            const percentage = Math.round((stats.customer / stats.total) * 100);
+            
+            // Set the CSS variable for the animation
+            customerProgress.style.setProperty('--progress', percentage);
+            // Set the data attribute for the percentage text
+            customerProgress.setAttribute('data-percentage', percentage);
+            
+            // Force a repaint to ensure the transition works
+            const circle = customerProgress.querySelector('.customer-circle');
+            if (circle) {
+                setTimeout(() => {
+                    circle.style.strokeDasharray = `${percentage}, 100`;
+                }, 50);
+            }
+        }
+    }, [stats]); // Run this effect when stats change
+
     return (
         <div className="activities-container">
-            <div className="page-header">
+            {/* <div className="page-header">
                 <h1><i className="fas fa-clipboard-list"></i> Activity Management</h1>
                 <p>Create, update, and assign activities to your team members</p>
-            </div>
+            </div> */}
+
+            {/* Add a note if we're in the workflow process */}
+            {isInWorkflow && (
+                <div className="workflow-note">
+                    {isInEmployeeAssignmentStep ? (
+                        <p>You're in step 3 of the workflow. Please assign an employee to an activity to continue.</p>
+                    ) : (
+                        <p>You're in step 2 of the workflow. Please create an activity to continue.</p>
+                    )}
+                </div>
+            )}
 
             {/* Quick Stats Section */}
             <div className="quick-stats-section">
