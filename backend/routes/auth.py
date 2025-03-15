@@ -1,7 +1,6 @@
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, jsonify, request
 from models import db, Actor
 from flask_jwt_extended import create_access_token
-from flask_login import login_user, logout_user, current_user
 import datetime
 import bcrypt
 
@@ -54,12 +53,6 @@ def login():
             print(f"User account is inactive: {user.status}")
             return jsonify({"error": "Account is inactive"}), 403
         
-        # Log in the user with Flask-Login
-        login_user(user)
-        
-        # Store actor_id in session
-        session['actor_id'] = user.actor_id
-        
         # Determine if user is admin based on role_id
         is_admin = False
         if hasattr(user, 'role_id'):
@@ -93,8 +86,6 @@ def login():
 
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
-    # Log out the user with Flask-Login
-    logout_user()
-    # Clear the session
-    session.clear()
+    # In a stateless JWT system, the client simply discards the token
+    # Here we just return a success message
     return jsonify({"message": "Logged out successfully"}), 200 
