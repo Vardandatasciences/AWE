@@ -18,6 +18,8 @@ const Employee = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [successMessage, setSuccessMessage] = useState(null);
   const [showAssignForm, setShowAssignForm] = useState(false);
+  // const [showDownloadReport, setShowDownloadReport] = useState(false);
+  const[filteredData, setFilteredData] = useState([]);
   const [stats, setStats] = useState({
     actors: { total: 0, active: 0, inactive: 0 },
     customers: { total: 0, active: 0, inactive: 0 }
