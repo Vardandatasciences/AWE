@@ -997,6 +997,10 @@ form {
 .stat-progress {
   width: 60px;
   height: 60px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .circular-chart {
@@ -1015,9 +1019,11 @@ form {
   fill: none;
   stroke-width: 2.8;
   stroke-linecap: round;
-  animation: progress 1.5s ease-out forwards;
+  stroke-dasharray: 0, 100; /* Start at 0 */
+  transition: stroke-dasharray 1.5s ease-out; /* Use transition instead of animation */
 }
 
+/* Circle colors */
 .regulatory-circle {
   stroke: #e74c3c;
 }
@@ -1030,11 +1036,40 @@ form {
   stroke: #9b59b6;
 }
 
-@keyframes progress {
-  0% {
-    stroke-dasharray: 0 100;
+/* Add percentage text in the middle of the circle */
+.stat-progress::after {
+  content: attr(data-percentage) '%';
+  position: absolute;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.regulatory-stat .stat-progress::after {
+  color: #e74c3c;
+}
+
+.internal-stat .stat-progress::after {
+  color: #3498db;
+}
+
+.customer-stat .stat-progress::after {
+  color: #9b59b6;
+}
+
+/* Remove the animation keyframes and direct animation property */
+/* @keyframes progress-animation {
+  from {
+    stroke-dasharray: 0, 100;
+  }
+  to {
+    stroke-dasharray: var(--progress, 0), 100;
   }
 }
+
+.regulatory-circle, .internal-circle, .customer-circle {
+  animation: progress-animation 1.5s ease-out forwards;
+} */
 
 @keyframes countUp {
   from {

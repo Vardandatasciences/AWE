@@ -55,6 +55,9 @@ def process_message_queue(app):
         print("Email processing thread started within app context")
         while email_thread_running:
             try:
+
+                db.session.remove()  # Close the session to clear any old state
+                db.session.commit()
                 # Get current date and time
                 now = datetime.now()
                 current_date = now.date()
@@ -67,10 +70,13 @@ def process_message_queue(app):
                 
                 # Find messages that are scheduled for now or earlier
                 messages_to_send = MessageQueue.query.filter(
+                    MessageQueue.time <= current_time,
                     MessageQueue.date <= current_date,
-                    MessageQueue.status == "Scheduled",
-                    MessageQueue.time <= current_time
+                    MessageQueue.status == "Scheduled"
+                    
                 ).all()
+
+                # groups = Group.query.all()
                 print(messages_to_send)
                 
                 if messages_to_send:

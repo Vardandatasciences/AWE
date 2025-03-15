@@ -3,6 +3,8 @@ import "./Employee.css";
 import axios from "axios";
 import AddEmployeeForm from './AddEmployeeForm';
 import AddCustomerForm from './AddCustomerForm';
+import { useWorkflow } from '../context/WorkflowContext';
+import { showWorkflowGuide } from '../App';
 
 const Employee = () => {
   const [data, setData] = useState([]);
@@ -15,16 +17,65 @@ const Employee = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [successMessage, setSuccessMessage] = useState(null);
+  const [showAssignForm, setShowAssignForm] = useState(false);
   const [stats, setStats] = useState({
     actors: { total: 0, active: 0, inactive: 0 },
     customers: { total: 0, active: 0, inactive: 0 }
   });
+  const { completeStep, workflowSteps } = useWorkflow();
+  
+  // Check if we're in the workflow process
+  const isInWorkflow = workflowSteps.some(step => step.status === 'in-progress' && step.id === 3);
+
+  // Add state for the customer being assigned
+  const [assigningCustomer, setAssigningCustomer] = useState(null);
 
   useEffect(() => {
     // Load both data types on component mount
     fetchData("actors");
     fetchData("customers");
   }, []);
+
+  // Add useEffect to handle progress animation
+  useEffect(() => {
+    // Set progress values for employee and customer stats
+    const employeeProgress = document.querySelector('.employee-stat .stat-progress');
+    const customerProgress = document.querySelector('.customer-stat .stat-progress');
+    
+    if (employeeProgress && stats.actors) {
+      const percentage = stats.actors.total > 0 ? Math.round((stats.actors.active / stats.actors.total) * 100) : 0;
+      
+      // Set the CSS variable for the animation
+      employeeProgress.style.setProperty('--progress', percentage);
+      // Set the data attribute for the percentage text
+      employeeProgress.setAttribute('data-percentage', percentage);
+      
+      // Force a repaint to ensure the transition works
+      const circle = employeeProgress.querySelector('.circle');
+      if (circle) {
+        setTimeout(() => {
+          circle.style.strokeDasharray = `${percentage}, 100`;
+        }, 50);
+      }
+    }
+    
+    if (customerProgress && stats.customers) {
+      const percentage = stats.customers.total > 0 ? Math.round((stats.customers.active / stats.customers.total) * 100) : 0;
+      
+      // Set the CSS variable for the animation
+      customerProgress.style.setProperty('--progress', percentage);
+      // Set the data attribute for the percentage text
+      customerProgress.setAttribute('data-percentage', percentage);
+      
+      // Force a repaint to ensure the transition works
+      const circle = customerProgress.querySelector('.customer-circle');
+      if (circle) {
+        setTimeout(() => {
+          circle.style.strokeDasharray = `${percentage}, 100`;
+        }, 50);
+      }
+    }
+  }, [stats]); // Run this effect when stats change
 
   const fetchData = async (cat) => {
     setLoading(true);
@@ -117,6 +168,20 @@ const Employee = () => {
     setTimeout(() => {
       setSuccessMessage(null);
     }, 3000);
+  };
+
+  const handleAssignEmployee = async (customerId, customerName) => {
+    setShowAssignForm(true);
+    
+    // If we're in the workflow process, mark this step as completed
+    if (isInWorkflow) {
+      completeStep(3);
+      
+      // Show the workflow guide again to show completion
+      setTimeout(() => {
+        showWorkflowGuide();
+      }, 500);
+    }
   };
 
   const filteredData = getFilteredData();
@@ -229,6 +294,7 @@ const Employee = () => {
               <i className="fas fa-building"></i>
               <span>New Customer</span>
             </button>
+
           </div>
         </div>
       </div>
@@ -393,6 +459,65 @@ const Employee = () => {
               onClose={() => setIsAddingCustomer(false)} 
               onSuccess={handleSuccess}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Add a note if we're in the workflow process */}
+      {isInWorkflow && (
+        <div className="workflow-note">
+          <p>You're in step 3 of the workflow. Please assign an employee to continue.</p>
+        </div>
+      )}
+
+      {/* Add Employee Assignment Form Modal */}
+      {showAssignForm && assigningCustomer && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="form-container">
+              <h2><i className="fas fa-user-plus"></i> Assign Employee to {assigningCustomer.name}</h2>
+              
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const employeeId = formData.get('employee_id');
+                
+                // Call the handleAssignEmployee function with the form data
+                handleAssignEmployee({
+                  customer_id: assigningCustomer.id,
+                  employee_id: employeeId
+                });
+                
+                // Close the form
+                setShowAssignForm(false);
+              }}>
+                <div className="form-group">
+                  <label htmlFor="employee_id">Select Employee</label>
+                  <select 
+                    id="employee_id" 
+                    name="employee_id" 
+                    required
+                  >
+                    <option value="">-- Select an Employee --</option>
+                    {data.actors && data.actors.map(employee => (
+                      <option key={employee.actor_id} value={employee.actor_id}>
+                        {employee.actor_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="form-actions">
+                  <button type="button" className="btn-cancel" onClick={() => setShowAssignForm(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-submit">
+                    <i className="fas fa-save"></i>
+                    <span>Assign Employee</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import SubNav from './components/SubNav';
 import Footer from './components/Footer';
@@ -20,6 +20,7 @@ import WorkflowGuide from './components/WorkflowGuide';
 import Dashboard from './components/Dashboard';
 import WorkflowTest from './components/WorkflowTest';
 import AddCustomerForm from './components/AddCustomerForm';
+import { WorkflowProvider, useWorkflow } from './context/WorkflowContext';
 import './App.css';
 
 // Create a global variable to store the workflow guide state handler
@@ -55,13 +56,15 @@ function App() {
   return (
     <div className="app-wrapper">
       <AuthProvider>
-        <Router>
-          <AppContent 
-            handleGetStartedClick={handleGetStartedClick} 
-            showWorkflowGuide={showWorkflowGuide}
-            setShowWorkflowGuide={setShowWorkflowGuide}
-          />
-        </Router>
+        <WorkflowProvider>
+          <Router>
+            <AppContent 
+              handleGetStartedClick={handleGetStartedClick} 
+              showWorkflowGuide={showWorkflowGuide}
+              setShowWorkflowGuide={setShowWorkflowGuide}
+            />
+          </Router>
+        </WorkflowProvider>
       </AuthProvider>
     </div>
   );
@@ -70,6 +73,8 @@ function App() {
 // Separate component to handle route-specific logic
 function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowGuide }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { getCurrentStep } = useWorkflow();
   
   // Log when routes change to help with debugging
   useEffect(() => {
@@ -82,13 +87,41 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
     // You can add a toast notification here if you want
   };
 
+  // Handle workflow guide close with reason
+  const handleWorkflowGuideClose = (reason) => {
+    console.log('Workflow guide closed with reason:', reason);
+    setShowWorkflowGuide(false);
+    
+    // If the guide was closed by clicking the X button or clicking outside
+    if (reason === 'canceled') {
+      // Navigate to the employee page
+      navigate('/employee');
+    } 
+    // If the guide was closed by clicking a step
+    else if (reason === 'navigated') {
+      // The navigation will be handled by the Link component in WorkflowGuide
+    }
+    // If the guide was closed specifically to navigate to activities page
+    else if (reason === 'navigated-to-activities') {
+      navigate('/activities');
+    }
+    // If the workflow was reset to start again
+    else if (reason === 'reset-workflow') {
+      // Navigate to the employee page to start the first step again
+      navigate('/employee');
+      
+      // Show a toast or notification that the workflow has been reset
+      console.log('Workflow has been reset to start again');
+    }
+  };
+
   return (
     <div className="app">
       <Navbar />
       
       {/* Render WorkflowGuide inside the Router context */}
       {showWorkflowGuide && (
-        <WorkflowGuide onClose={() => setShowWorkflowGuide(false)} />
+        <WorkflowGuide onClose={handleWorkflowGuideClose} />
       )}
       
       <Routes>
