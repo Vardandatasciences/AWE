@@ -31,19 +31,47 @@ def add_customer():
         if not data.get('customer_name') or not data.get('email_id') or not data.get('mobile1'):
             return jsonify({"error": "Missing required fields"}), 400
         
+        # Handle empty or null values properly
+        gender = data.get('gender', '')
+        if gender is None:
+            gender = ''
+        
+        # Ensure gender is a single character (M/F/O)
+        if gender and len(gender) > 1:
+            # If somehow a full word is sent, convert it
+            if gender.lower() == 'male':
+                gender = 'M'
+            elif gender.lower() == 'female':
+                gender = 'F'
+            else:
+                gender = gender[0].upper()  # Just take the first character
+            
+        # Handle empty group_id
+        group_id = data.get('group_id')
+        if not group_id:  # If empty string or None
+            group_id = None
+            
+        # Parse DOB if provided
+        dob = None
+        if data.get('DOB'):
+            try:
+                dob = datetime.strptime(data.get('DOB'), '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({"error": "Invalid date format for DOB. Use YYYY-MM-DD"}), 400
+        
         new_customer = Customer(
             customer_name=data.get('customer_name'),
             customer_type=data.get('customer_type'),
-            gender=data.get('gender'),
-            DOB=datetime.strptime(data.get('DOB'), '%Y-%m-%d').date() if data.get('DOB') else None,
+            gender=gender,
+            DOB=dob,
             email_id=data.get('email_id'),
             mobile1=data.get('mobile1'),
-            mobile2=data.get('mobile2'),
+            mobile2=data.get('mobile2') if data.get('mobile2') else None,
             address=data.get('address'),
             city=data.get('city'),
             pincode=data.get('pincode'),
             country=data.get('country'),
-            group_id=data.get('group_id'),
+            group_id=group_id,
             status=data.get('status')
         )
         

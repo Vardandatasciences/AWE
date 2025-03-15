@@ -41,12 +41,23 @@ const Activities = () => {
     const [showAssignForm, setShowAssignForm] = useState(false);
     const [assigningCustomer, setAssigningCustomer] = useState(null);
 
+
     // Add new states for report modal
     const [showReportModal, setShowReportModal] = useState(false);
     const [selectedActivityReport, setSelectedActivityReport] = useState(null);
     const [reportData, setReportData] = useState([]);
     const [selectedStatus, setSelectedStatus] = useState(null);
     const [standardTime, setStandardTime] = useState(null);
+
+    const [stats, setStats] = useState({
+        total: 0,
+        regulatory: 0,
+        internal: 0,
+        customer: 0,
+        active: 0,
+        inactive: 0
+    });
+
 
     useEffect(() => {
         fetchActivities();
@@ -59,6 +70,23 @@ const Activities = () => {
         try {
             const response = await axios.get(API_ENDPOINTS.ACTIVITIES);
             setActivities(response.data);
+
+            // Calculate stats
+            const total = response.data.length;
+            const regulatory = response.data.filter(activity => activity.activity_type === 'R').length;
+            const internal = response.data.filter(activity => activity.activity_type === 'I').length;
+            const customer = response.data.filter(activity => activity.activity_type === 'C').length;
+            const active = response.data.filter(activity => activity.status === 'A').length;
+            const inactive = response.data.filter(activity => activity.status === 'I').length;
+
+            setStats({
+                total,
+                regulatory,
+                internal,
+                customer,
+                active,
+                inactive
+            });
         } catch (error) {
             console.error('Error fetching activities:', error);
         } finally {
@@ -287,6 +315,108 @@ const Activities = () => {
             <div className="page-header">
                 <h1><i className="fas fa-clipboard-list"></i> Activity Management</h1>
                 <p>Create, update, and assign activities to your team members</p>
+            </div>
+
+            {/* Quick Stats Section */}
+            <div className="quick-stats-section">
+                <div className="stat-card regulatory-stat">
+                    <div className="stat-icon">
+                        <i className="fas fa-balance-scale"></i>
+                    </div>
+                    <div className="stat-content">
+                        <div className="stat-numbers">
+                            <span className="stat-count">{stats.regulatory}</span>
+                            <div className="stat-details">
+                                <div className="stat-detail">
+                                    <span className="detail-dot regulatory"></span>
+                                    <span>Regulatory Activities</span>
+                                </div>
+                            </div>
+                        </div>
+                        <h3 className="stat-title">Regulatory</h3>
+                    </div>
+                    <div className="stat-progress">
+                        <svg viewBox="0 0 36 36" className="circular-chart">
+                            <path className="circle-bg"
+                                d="M18 2.0845
+                                    a 15.9155 15.9155 0 0 1 0 31.831
+                                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path className="circle regulatory-circle"
+                                strokeDasharray={`${stats.total > 0 ? (stats.regulatory / stats.total) * 100 : 0}, 100`}
+                                d="M18 2.0845
+                                    a 15.9155 15.9155 0 0 1 0 31.831
+                                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                        </svg>
+                    </div>
+                </div>
+
+                <div className="stat-card internal-stat">
+                    <div className="stat-icon">
+                        <i className="fas fa-building"></i>
+                    </div>
+                    <div className="stat-content">
+                        <div className="stat-numbers">
+                            <span className="stat-count">{stats.internal}</span>
+                            <div className="stat-details">
+                                <div className="stat-detail">
+                                    <span className="detail-dot internal"></span>
+                                    <span>Internal Activities</span>
+                                </div>
+                            </div>
+                        </div>
+                        <h3 className="stat-title">Internal</h3>
+                    </div>
+                    <div className="stat-progress">
+                        <svg viewBox="0 0 36 36" className="circular-chart">
+                            <path className="circle-bg"
+                                d="M18 2.0845
+                                    a 15.9155 15.9155 0 0 1 0 31.831
+                                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path className="circle internal-circle"
+                                strokeDasharray={`${stats.total > 0 ? (stats.internal / stats.total) * 100 : 0}, 100`}
+                                d="M18 2.0845
+                                    a 15.9155 15.9155 0 0 1 0 31.831
+                                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                        </svg>
+                    </div>
+                </div>
+
+                <div className="stat-card customer-stat">
+                    <div className="stat-icon">
+                        <i className="fas fa-users"></i>
+                    </div>
+                    <div className="stat-content">
+                        <div className="stat-numbers">
+                            <span className="stat-count">{stats.customer}</span>
+                            <div className="stat-details">
+                                <div className="stat-detail">
+                                    <span className="detail-dot customer"></span>
+                                    <span>Customer Activities</span>
+                                </div>
+                            </div>
+                        </div>
+                        <h3 className="stat-title">Customer</h3>
+                    </div>
+                    <div className="stat-progress">
+                        <svg viewBox="0 0 36 36" className="circular-chart">
+                            <path className="circle-bg"
+                                d="M18 2.0845
+                                    a 15.9155 15.9155 0 0 1 0 31.831
+                                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path className="circle customer-circle"
+                                strokeDasharray={`${stats.total > 0 ? (stats.customer / stats.total) * 100 : 0}, 100`}
+                                d="M18 2.0845
+                                    a 15.9155 15.9155 0 0 1 0 31.831
+                                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                        </svg>
+                    </div>
+                </div>
             </div>
 
             <div className="controls-container">

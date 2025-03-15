@@ -24,6 +24,13 @@ const Tasks = () => {
   const [selectedAssignee, setSelectedAssignee] = useState('');
   const { user, isAdmin } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [stats, setStats] = useState({
+    total: 0,
+    todo: 0,
+    inProgress: 0,
+    completed: 0,
+    pending: 0
+  });
  
   // Map backend status directly to column names
   const getColumnForStatus = (status) => {
@@ -52,7 +59,7 @@ const Tasks = () => {
       task.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredTasks(searchFiltered);
-  }, [tasks, searchTerm, filterMonth]);
+  }, [tasks, searchTerm, filterMonth, filterStatus]);
  
   const changeTaskStatus = (taskId, newStatus) => {
     console.log(`Direct status change requested for task ${taskId} to ${newStatus}`);
@@ -104,6 +111,22 @@ const Tasks = () => {
       });
      
       setTasks(tasksWithIds);
+
+      // Calculate stats
+      const total = tasksWithIds.length;
+      const todo = tasksWithIds.filter(task => task.status === 'todo').length;
+      const inProgress = tasksWithIds.filter(task => task.status === 'in-progress').length;
+      const completed = tasksWithIds.filter(task => task.status === 'completed').length;
+      const pending = todo + inProgress;
+
+      setStats({
+        total,
+        todo,
+        inProgress,
+        completed,
+        pending
+      });
+
       setError(null);
     } catch (err) {
       console.error('Error fetching tasks:', err);
@@ -127,36 +150,51 @@ const Tasks = () => {
  
   // Add this function to filter tasks by month
   const getFilteredTasks = () => {
-    if (filterMonth === 'all') return tasks; // Return all tasks when 'all' is selected
-   
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    let filtered = tasks;
+    
+    // Filter by month
+    if (filterMonth !== 'all') {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
  
-    return tasks.filter(task => {
-      if (!task.due_date) return true; // Include tasks without due dates
-     
-      const taskDate = new Date(task.due_date);
-      const taskMonth = taskDate.getMonth();
-      const taskYear = taskDate.getFullYear();
+      filtered = filtered.filter(task => {
+        if (!task.due_date) return true; // Include tasks without due dates
+       
+        const taskDate = new Date(task.due_date);
+        const taskMonth = taskDate.getMonth();
+        const taskYear = taskDate.getFullYear();
  
-      switch (filterMonth) {
-        case 'current':
-          return taskMonth === currentMonth && taskYear === currentYear;
-        case 'previous':
-          return (taskMonth === currentMonth - 1 && taskYear === currentYear) ||
-                 (currentMonth === 0 && taskMonth === 11 && taskYear === currentYear - 1);
-        case 'next':
-          return (taskMonth === currentMonth + 1 && taskYear === currentYear) ||
-                 (currentMonth === 11 && taskMonth === 0 && taskYear === currentYear + 1);
-        case 'last3':
-          const threeMonthsAgo = new Date();
-          threeMonthsAgo.setMonth(now.getMonth() - 3);
-          return taskDate >= threeMonthsAgo;
-        default:
-          return true;
-      }
-    });
+        switch (filterMonth) {
+          case 'current':
+            return taskMonth === currentMonth && taskYear === currentYear;
+          case 'previous':
+            return (taskMonth === currentMonth - 1 && taskYear === currentYear) ||
+                   (currentMonth === 0 && taskMonth === 11 && taskYear === currentYear - 1);
+          case 'next':
+            return (taskMonth === currentMonth + 1 && taskYear === currentYear) ||
+                   (currentMonth === 11 && taskMonth === 0 && taskYear === currentYear + 1);
+          case 'last3':
+            const threeMonthsAgo = new Date();
+            threeMonthsAgo.setMonth(now.getMonth() - 3);
+            return taskDate >= threeMonthsAgo;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    // Filter by status
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(task => {
+        if (filterStatus === 'pending') {
+          return task.status === 'todo' || task.status === 'in-progress';
+        }
+        return task.status === filterStatus;
+      });
+    }
+    
+    return filtered;
   };
  
   const handleDragEnd = async (result) => {
@@ -314,6 +352,16 @@ const Tasks = () => {
     fetchEmployees();
   };
  
+  // Add this helper function to check if a task is delayed
+  const isTaskDelayed = (dueDate) => {
+    if (!dueDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for fair comparison
+    const taskDueDate = new Date(dueDate);
+    taskDueDate.setHours(0, 0, 0, 0);
+    return taskDueDate < today;
+  };
+ 
   const renderTaskCard = (task, index) => (
     <Draggable key={task.id} draggableId={task.id} index={index}>
       {(provided, snapshot) => (
@@ -321,27 +369,35 @@ const Tasks = () => {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`task-card ${task.criticality?.toLowerCase()} ${snapshot.isDragging ? 'dragging' : ''}`}
+          className={`task-card ${task.criticality?.toLowerCase()} ${isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'delayed' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
         >
           <div className="task-card-header">
-  <span className={`priority-indicator ${task.criticality?.toLowerCase()}`}>
-    {task.criticality}
-  </span>
-  <div className="task-actions">
-    {isAdmin && (
-      <button
-        className="reassign-button"
-        onClick={(e) => {
-          e.stopPropagation();
-          openReassignModal(task);
-        }}
-      >
-        <i className="fas fa-user-plus"></i>
-        Reassign
-      </button>
-    )}
-  </div>
-</div>
+            <span className={`priority-indicator ${task.criticality?.toLowerCase()}`}>
+              {task.criticality}
+            </span>
+            
+            {/* Add delayed badge between priority and reassign button */}
+            {isTaskDelayed(task.due_date) && task.status !== 'completed' && (
+              <span className="delayed-badge">
+                <i className="fas fa-exclamation-circle"></i> DELAYED
+              </span>
+            )}
+            
+            <div className="task-actions">
+              {isAdmin && (
+                <button
+                  className="reassign-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openReassignModal(task);
+                  }}
+                >
+                  <i className="fas fa-user-plus"></i>
+                  Reassign
+                </button>
+              )}
+            </div>
+          </div>
          
           <h3 className="task-title">{task.task_name}</h3>
           <div className="customer-info">
@@ -413,17 +469,19 @@ const Tasks = () => {
         </thead>
         <tbody>
           {filteredTasks.map(task => (
-            <tr key={task.id} className={`task-row ${task.criticality?.toLowerCase()}`}>
+            <tr key={task.id} className={`task-row ${task.criticality?.toLowerCase()} ${isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'delayed' : ''}`}>
               <td data-label="Task Name">{task.task_name}</td>
               <td data-label="Customer">{task.customer_name}</td>
               <td data-label="Status">
-                <span className={`status-badge ${task.status}`}>
+                <span className={`status-badge ${task.status} ${isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'delayed' : ''}`}>
                   {task.status === 'todo' ? 'Yet to start' :
                    task.status === 'in-progress' ? 'In Progress' :
                    'Completed'}
                 </span>
               </td>
-              <td data-label="Due Date">{new Date(task.due_date).toLocaleDateString()}</td>
+              <td data-label="Due Date" className={isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'delayed-text' : ''}>
+                {new Date(task.due_date).toLocaleDateString()}
+              </td>
               <td data-label="Assignee">{task.assignee || 'Unassigned'}</td>
               <td data-label="Actions">
                 {isAdmin && (
@@ -451,9 +509,111 @@ const Tasks = () => {
           <span>{success}</span>
         </div>
       )}
-      <div className="page-header">
+      {/* <div className="page-header">
         <h1><i className="fas fa-tasks"></i> Tasks</h1>
         <p>Manage and track your team's tasks</p>
+      </div> */}
+ 
+      {/* Quick Stats Section */}
+      <div className="quick-stats-section">
+        <div className="stat-card todo-stat">
+          <div className="stat-icon">
+            <i className="fas fa-hourglass-start"></i>
+          </div>
+          <div className="stat-content">
+            <div className="stat-numbers">
+              <span className="stat-count">{stats.todo}</span>
+              <div className="stat-details">
+                <div className="stat-detail">
+                  <span className="detail-dot todo"></span>
+                  <span>Yet to Start</span>
+                </div>
+              </div>
+            </div>
+            <h3 className="stat-title">To Do</h3>
+          </div>
+          <div className="stat-progress">
+            <svg viewBox="0 0 36 36" className="circular-chart">
+              <path className="circle-bg"
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <path className="circle todo-circle"
+                strokeDasharray={`${stats.total > 0 ? (stats.todo / stats.total) * 100 : 0}, 100`}
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+            </svg>
+          </div>
+        </div>
+
+        <div className="stat-card progress-stat">
+          <div className="stat-icon">
+            <i className="fas fa-spinner"></i>
+          </div>
+          <div className="stat-content">
+            <div className="stat-numbers">
+              <span className="stat-count">{stats.inProgress}</span>
+              <div className="stat-details">
+                <div className="stat-detail">
+                  <span className="detail-dot progress"></span>
+                  <span>In Progress</span>
+                </div>
+              </div>
+            </div>
+            <h3 className="stat-title">WIP</h3>
+          </div>
+          <div className="stat-progress">
+            <svg viewBox="0 0 36 36" className="circular-chart">
+              <path className="circle-bg"
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <path className="circle progress-circle"
+                strokeDasharray={`${stats.total > 0 ? (stats.inProgress / stats.total) * 100 : 0}, 100`}
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+            </svg>
+          </div>
+        </div>
+
+        <div className="stat-card completed-stat">
+          <div className="stat-icon">
+            <i className="fas fa-check-circle"></i>
+          </div>
+          <div className="stat-content">
+            <div className="stat-numbers">
+              <span className="stat-count">{stats.completed}</span>
+              <div className="stat-details">
+                <div className="stat-detail">
+                  <span className="detail-dot completed"></span>
+                  <span>Completed</span>
+                </div>
+              </div>
+            </div>
+            <h3 className="stat-title">Done</h3>
+          </div>
+          <div className="stat-progress">
+            <svg viewBox="0 0 36 36" className="circular-chart">
+              <path className="circle-bg"
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <path className="circle completed-circle"
+                strokeDasharray={`${stats.total > 0 ? (stats.completed / stats.total) * 100 : 0}, 100`}
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+            </svg>
+          </div>
+        </div>
       </div>
  
       <div className="controls-container">
@@ -481,13 +641,27 @@ const Tasks = () => {
               <option value="last3">Last 3 Months</option>
             </select>
           </div>
+          
+          <div className="filter-group">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="status-filter"
+            >
+              <option value="all">All Status</option>
+              <option value="todo">Yet to Start</option>
+              <option value="in-progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="pending">Pending</option>
+            </select>
+          </div>
          
           <div className="view-toggle">
             <button
               className={`toggle-btn ${viewMode === 'board' ? 'active' : ''}`}
               onClick={() => setViewMode('board')}
             >
-              <i className="fas fa-th-large"></i> Board
+              <i className="fas fa-th-large"></i> Grid
             </button>
             <button
               className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
@@ -498,6 +672,7 @@ const Tasks = () => {
           </div>
         </div>
        
+        {/* Only show add/reassign button if user is admin, and moved outside the filter container */}
         {isAdmin && (
           <button className="add-button" onClick={() => setShowReassignModal(true)}>
             <i className="fas fa-plus"></i> Reassign Task
@@ -519,42 +694,98 @@ const Tasks = () => {
           </button>
         </div>
       ) : viewMode === 'board' ? (
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="task-board">
-            {['todo', 'in-progress', 'completed'].map((status) => {
-              const columnTasks = filteredTasks.filter(task => task.status === status);
-             
-              return (
-                <div key={status} className="board-column">
-                  <h2>
-                    {status === 'todo' ? 'Yet to start' :
-                     status === 'in-progress' ? 'In Progress' :
-                     'Completed'}
-                  </h2>
-                  <Droppable droppableId={status}>
-                    {(provided) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className="task-list"
+        <div className="task-cards-grid">
+          {filteredTasks.length > 0 ? (
+            filteredTasks.map(task => (
+              <div 
+                key={task.id} 
+                className={`task-card ${task.criticality?.toLowerCase()} ${isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'delayed' : ''}`}
+              >
+                <div className="task-card-header">
+                  <span className={`priority-indicator ${task.criticality?.toLowerCase()}`}>
+                    {task.criticality}
+                  </span>
+                  
+                  {/* Add delayed badge between priority and reassign button */}
+                  {isTaskDelayed(task.due_date) && task.status !== 'completed' && (
+                    <span className="delayed-badge">
+                      <i className="fas fa-exclamation-circle"></i> DELAYED
+                    </span>
+                  )}
+                  
+                  <div className="task-actions">
+                    {isAdmin && (
+                      <button
+                        className="reassign-button"
+                        onClick={() => openReassignModal(task)}
                       >
-                        {columnTasks.length > 0 ? (
-                          columnTasks.map((task, index) => renderTaskCard(task, index))
-                        ) : (
-                          <div className="empty-column-message">
-                            <i className="fas fa-clipboard-list"></i>
-                            <p>No tasks in this column</p>
-                          </div>
-                        )}
-                        {provided.placeholder}
-                      </div>
+                        <i className="fas fa-user-plus"></i>
+                        Reassign
+                      </button>
                     )}
-                  </Droppable>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </DragDropContext>
+                
+                <h3 className="task-title">{task.task_name}</h3>
+                <div className="customer-info">
+                  <i className="fas fa-building"></i>
+                  <span>{task.customer_name || 'No Customer'}</span>
+                </div>
+                <div className="task-details">
+                  <div className="detail-item">
+                    <i className="fas fa-link"></i>
+                    <a href={task.link} target="_blank" rel="noopener noreferrer">
+                      Task Link
+                    </a>
+                  </div>
+                  <div className={`detail-item ${isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'due-date' : ''}`}>
+                    <i className="fas fa-calendar"></i>
+                    <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
+                  </div>
+                  <div className="detail-item">
+                    <i className="fas fa-user"></i>
+                    <span>Assignee: {task.assignee || 'Unassigned'}</span>
+                  </div>
+                  {isAdmin && (
+                    <div className="detail-item">
+                      <i className="fas fa-clock"></i>
+                      <span>Time: {task.time_taken || '0'} hours</span>
+                    </div>
+                  )}
+                </div>
+                
+                {!isAdmin && (
+                <div className="task-footer">
+                  <span className="activity-tag">
+                    <i className="fas fa-tasks"></i>
+                    {task.title || 'No Activity'}
+                  </span>
+                  
+                  <div className="status-dropdown">
+                    <select
+                      value={task.status === 'todo' ? 'Yet to Start' :
+                             task.status === 'in-progress' ? 'WIP' :
+                             'Completed'}
+                      onChange={(e) => changeTaskStatus(task.id, e.target.value)}
+                      className="status-select"
+                    >
+                      <option value="Yet to Start">Yet to Start</option>
+                      <option value="WIP">In Progress</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  </div>
+                </div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="empty-state">
+              <i className="fas fa-clipboard-list"></i>
+              <h3>No tasks found</h3>
+              <p>Try adjusting your filters or search criteria</p>
+            </div>
+          )}
+        </div>
       ) : renderListView()}
  
       {showReassignModal && selectedTask && (

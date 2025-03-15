@@ -61,7 +61,7 @@ class Customer(db.Model):
     customer_id = db.Column(db.Integer, primary_key=True)
     customer_name = db.Column(db.String(255), nullable=False)
     customer_type = db.Column(db.String(50))
-    gender = db.Column(db.String(10))
+    gender = db.Column(db.String(20))
     DOB = db.Column(db.Date)
     email_id = db.Column(db.String(255), nullable=False)
     mobile1 = db.Column(db.String(20), nullable=False)
@@ -70,7 +70,7 @@ class Customer(db.Model):
     city = db.Column(db.String(100))
     pincode = db.Column(db.String(20))
     country = db.Column(db.String(100))
-    group_id = db.Column(db.Integer, db.ForeignKey('group_a.group_id'))
+    group_id = db.Column(db.Integer)
     status = db.Column(db.String(10))
     
     # Define the relationship without backref
