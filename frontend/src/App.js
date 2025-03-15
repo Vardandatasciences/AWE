@@ -13,6 +13,7 @@ import Analysis from './components/Analysis';
 import Login from './components/Login';
 import Unauthorized from './components/Unauthorized';
 import ProtectedRoute from './components/ProtectedRoute';
+import Profile from './components/Profile';
 import { AuthProvider } from './context/AuthContext';
 // import ChangePassword from './ChangePassword';
 import Diary from './components/Diary';
@@ -29,6 +30,13 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <main className="main-content">
+                  <Profile />
+                </main>
+              </ProtectedRoute>
+            } />
             
             <Route path="/tasks" element={
               <ProtectedRoute>

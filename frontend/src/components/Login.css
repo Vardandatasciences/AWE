@@ -198,9 +198,7 @@
   }
 }
 
-.error-message {
-  background-color: #ffebee;
-  color: #e53935;
+.message {
   padding: 12px;
   border-radius: 6px;
   margin-bottom: 20px;
@@ -209,22 +207,17 @@
   animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
 }
 
-@keyframes shake {
-  10%, 90% {
-    transform: translate3d(-1px, 0, 0);
-  }
-  20%, 80% {
-    transform: translate3d(2px, 0, 0);
-  }
-  30%, 50%, 70% {
-    transform: translate3d(-4px, 0, 0);
-  }
-  40%, 60% {
-    transform: translate3d(4px, 0, 0);
-  }
+.message.error {
+  background-color: #ffebee;
+  color: #e53935;
 }
 
-.error-message i {
+.message.success {
+  background-color: #e8f5e9;
+  color: #43a047;
+}
+
+.message i {
   margin-right: 10px;
 }
 
@@ -299,16 +292,84 @@
   margin-right: 8px;
 }
 
-.forgot-password {
+.forgot-password-form {
+  margin-bottom: 30px;
+}
+
+.forgot-password-link {
   color: var(--primary-color);
   text-decoration: none;
   font-size: 14px;
   transition: color 0.3s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
 }
 
-.forgot-password:hover {
+.forgot-password-link:hover {
   color: var(--primary-dark);
   text-decoration: underline;
+}
+
+.back-to-login {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.back-to-login:hover {
+  background: rgba(52, 152, 219, 0.1);
+  color: var(--primary-dark);
+}
+
+.back-to-login i {
+  font-size: 12px;
+}
+
+/* Password strength indicator */
+.password-strength {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.password-strength.weak {
+  color: #e53935;
+}
+
+.password-strength.medium {
+  color: #fb8c00;
+}
+
+.password-strength.strong {
+  color: #43a047;
+}
+
+/* OTP input styling */
+input[type="text"][maxlength="6"] {
+  letter-spacing: 4px;
+  font-size: 18px;
+  text-align: center;
+}
+
+/* Responsive adjustments for forgot password */
+@media (max-width: 576px) {
+  .forgot-password-form {
+    padding: 0 10px;
+  }
+  
+  input[type="text"][maxlength="6"] {
+    font-size: 16px;
+    letter-spacing: 2px;
+  }
 }
 
 .login-button {

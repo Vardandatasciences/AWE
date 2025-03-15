@@ -15,6 +15,11 @@ const Employee = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [successMessage, setSuccessMessage] = useState(null);
+  const [showReport, setShowReport] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [performanceData, setPerformanceData] = useState([]);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState(null);
 
   useEffect(() => {
     if (category) {
@@ -94,6 +99,38 @@ const Employee = () => {
     }, 3000);
   };
 
+  const handleShowReport = async (employee) => {
+    setSelectedEmployee(employee);
+    try {
+      const response = await axios.get(`/employee-performance/${employee.actor_id}`);
+      setPerformanceData(response.data);
+      setShowReportModal(true);
+    } catch (error) {
+      console.error("Error fetching performance data:", error);
+    }
+  };
+
+  const handleDownloadReport = async (employee) => {
+    try {
+      const response = await axios.get(`/download-performance/${employee.actor_id}`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${employee.actor_name}_performance.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Error downloading report:", error);
+    }
+  };
+
+  const handlePieSegmentClick = (status) => {
+    setSelectedStatus(status === selectedStatus ? null : status);
+  };
+
   return (
     <div className="employee-container">
       {successMessage && (
@@ -167,6 +204,13 @@ const Employee = () => {
                 <div className="status-indicator" title={actor.status === 'A' ? 'Active' : 'Inactive'}>
                   <i className={`fas fa-circle ${actor.status === 'A' ? 'status-active' : 'status-inactive'}`}></i>
                 </div>
+                <button 
+                  className="report-btn" 
+                  onClick={() => handleShowReport(actor)}
+                  title="View Employee Performance Report"
+                >
+                  <i className="fas fa-chart-pie"></i>
+                </button>
               </div>
               
               {editIndex === index ? (
@@ -216,10 +260,13 @@ const Employee = () => {
                     </div>
                   </div>
                   <div className="card-actions">
-                    <button className="btn-edit" onClick={() => handleEdit(index)}>
+                    <button className="btn-edit" onClick={() => handleEdit(index)} title="Edit Employee">
                       <i className="fas fa-edit"></i>
                     </button>
-                    <button className="btn-delete" onClick={() => handleDelete(actor.actor_id)}>
+                    <button className="btn-download" onClick={() => handleDownloadReport(actor)} title="Download Performance Report">
+                      <i className="fas fa-download"></i>
+                    </button>
+                    <button className="btn-delete" onClick={() => handleDelete(actor.actor_id)} title="Delete Employee">
                       <i className="fas fa-trash-alt"></i>
                     </button>
                   </div>
@@ -340,7 +387,127 @@ const Employee = () => {
           </div>
         </div>
       )}
+
+      {/* Add Report Modal */}
+      {showReportModal && selectedEmployee && (
+        <div className="modal-overlay">
+          <div className="report-modal">
+            <div className="modal-header">
+              <h2>
+                <i className="fas fa-chart-pie"></i>
+                Performance Report - {selectedEmployee.actor_name}
+              </h2>
+              <button className="close-btn" onClick={() => setShowReportModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="report-content">
+              <div className="report-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Activity ID</th>
+                      <th>Activity Name</th>
+                      <th>Task ID</th>
+                      <th>Date of Completion</th>
+                      <th>Time Taken</th>
+                      <th>Standard Time</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {performanceData.map(task => (
+                      <tr 
+                        key={task.task_id}
+                        className={selectedStatus === task.status ? 'highlighted' : ''}
+                      >
+                        <td>{task.activity_id}</td>
+                        <td>{task.activity_name}</td>
+                        <td>{task.task_id}</td>
+                        <td>{task.completion_date}</td>
+                        <td>{task.time_taken}</td>
+                        <td>{task.standard_time}</td>
+                        <td className={`status-${task.status.toLowerCase()}`}>
+                          {task.status}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              <div className="report-chart">
+                <div className="pie-chart-container">
+                  <PieChart
+                    data={[
+                      {
+                        title: 'ON-TIME',
+                        value: performanceData.filter(t => t.status === 'ON-TIME').length,
+                        color: '#3498db'
+                      },
+                      {
+                        title: 'EARLY',
+                        value: performanceData.filter(t => t.status === 'EARLY').length,
+                        color: '#1a5e2d'
+                      },
+                      {
+                        title: 'DELAY',
+                        value: performanceData.filter(t => t.status === 'DELAY').length,
+                        color: '#e74c3c'
+                      }
+                    ]}
+                    onSegmentClick={handlePieSegmentClick}
+                    selectedSegment={selectedStatus}
+                  />
+                  <div className="pie-chart-legend">
+                    <div className="legend-item delay">Delay</div>
+                    <div className="legend-item on-time">On Time</div>
+                    <div className="legend-item early">Early</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+};
+
+const PieChart = ({ data, onSegmentClick, selectedSegment }) => {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  let currentAngle = 0;
+
+  return (
+    <svg viewBox="0 0 100 100">
+      {data.map((item, index) => {
+        if (item.value === 0) return null;
+        
+        const angle = (item.value / total) * 360;
+        const startAngle = currentAngle;
+        currentAngle += angle;
+        
+        const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
+        const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
+        const x2 = 50 + 40 * Math.cos(((startAngle + angle) * Math.PI) / 180);
+        const y2 = 50 + 40 * Math.sin(((startAngle + angle) * Math.PI) / 180);
+        
+        const largeArcFlag = angle > 180 ? 1 : 0;
+        
+        return (
+          <path
+            key={item.title}
+            d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
+            fill={item.color}
+            stroke="white"
+            strokeWidth="1"
+            className={selectedSegment === item.title ? 'selected' : ''}
+            onClick={() => onSegmentClick(item.title)}
+          />
+        );
+      })}
+    </svg>
   );
 };
 

@@ -211,24 +211,27 @@ const Tasks = () => {
         { 
           headers: { 
             'Content-Type': 'application/json',
-            // Add any auth headers if needed
           },
-          // Important: Enable CORS for this request
           withCredentials: false
         }
       );
       
       console.log('Task update response:', response.data);
       
-      // Show success message
-      displaySuccess("Task status updated successfully!");
+      // Show success message with time taken if task is completed
+      if (newStatus === 'Completed') {
+        const updatedTask = await axios.get(`http://localhost:5000/tasks/${taskId}?user_id=${userId}&role_id=${roleId}`);
+        const timeTaken = updatedTask.data.time_taken;
+        displaySuccess(`Task marked as completed! Total time taken: ${timeTaken} hours`);
+      } else {
+        displaySuccess("Task status updated successfully!");
+      }
       
       // Refresh tasks to ensure we have the latest data
       fetchTasks();
       
     } catch (err) {
       console.error('Error updating task status:', err);
-      // Revert the optimistic update if the API call fails
       fetchTasks();
       setError('Failed to update task status. Please try again.');
       setTimeout(() => setError(null), 3000);
