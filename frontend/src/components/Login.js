@@ -36,6 +36,7 @@ const Login = () => {
       // Store token, user info, and role ID
 
       localStorage.setItem('role_id', response.data.user.role_id); // Store role ID
+      localStorage.setItem('actor_id', response.data.user.user_id)
 
       login(response.data.token, response.data.user);
 
