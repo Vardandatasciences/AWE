@@ -327,7 +327,7 @@ const Activities = () => {
         const regulatoryProgress = document.querySelector('.regulatory-stat .stat-progress');
         const internalProgress = document.querySelector('.internal-stat .stat-progress');
         const customerProgress = document.querySelector('.customer-stat .stat-progress');
-        
+
         if (regulatoryProgress && stats.total > 0) {
             const percentage = Math.round((stats.regulatory / stats.total) * 100);
             
@@ -379,6 +379,47 @@ const Activities = () => {
             }
         }
     }, [stats]); // Run this effect when stats change
+
+    // Function to handle report button click
+    const handleReportClick = (activity) => {
+        setSelectedActivityReport(activity);
+        fetchActivityReport(activity.activity_id);
+        setShowReportModal(true);
+    };
+
+    // Function to handle pie chart segment click
+    const handlePieSegmentClick = (status) => {
+        setSelectedStatus(status === selectedStatus ? null : status);
+    };
+
+    // Function to handle download report
+    const handleDownloadReport = async (activityId) => {
+        // Show loading indicator or message if needed
+        
+        // Call the correct endpoint that generates the PDF with table and pie chart
+        const response = await axios.get(`/generate_activity_report?activity_id=${activityId}`, {
+            responseType: 'blob' // Important: set responseType to 'blob'
+        });
+        
+        // Create a blob URL from the response data
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        
+        // Create a temporary link element to trigger the download
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // Set the filename with current date
+        const currentDate = new Date().toISOString().split('T')[0];
+        link.setAttribute('download', `${currentDate}_Activity_${activityId}_Report.pdf`);
+        
+        // Append to body, click to download, then remove
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up the blob URL
+        window.URL.revokeObjectURL(url);
+    };
 
     return (
         <div className="activities-container">
