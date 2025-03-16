@@ -22,10 +22,10 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (adminOnly && !isAdmin) {
-    // Redirect to unauthorized page
+  if (adminOnly && !isAdmin && !['/mailer', '/analysis'].includes(location.pathname)) {
     return <Navigate to="/unauthorized" replace />;
   }
+  
 
   return children;
 };

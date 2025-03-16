@@ -171,7 +171,7 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
         } />
         
         <Route path="/mailer" element={
-          <ProtectedRoute adminOnly={true}>
+          <ProtectedRoute >
             <SubNav />
             <main className="main-content">
               <Mailer />
@@ -189,7 +189,7 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
         } />
         
         <Route path="/analysis" element={
-          <ProtectedRoute adminOnly={true}>
+          <ProtectedRoute >
             <SubNav />
             <main className="main-content">
               <Analysis />

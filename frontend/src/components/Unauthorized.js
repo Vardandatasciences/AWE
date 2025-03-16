@@ -1,4 +1,6 @@
 import React from 'react';
+// This Unauthorized component is used to display an access denied page when users attempt to access restricted content
+// It provides navigation options to return to the home page or tasks page
 import { Link } from 'react-router-dom';
 import './Unauthorized.css';
 

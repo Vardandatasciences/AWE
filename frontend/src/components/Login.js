@@ -14,6 +14,7 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
+  
   // Redirect if already logged in
   useEffect(() => {
     if (isAuthenticated) {
