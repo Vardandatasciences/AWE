@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify, request
 from models import db, Customer
 from datetime import datetime
-
+ 
 customers_bp = Blueprint('customers', __name__)
-
+ 
 @customers_bp.route('/customers', methods=['GET'])
 def get_customers():
     try:
@@ -12,7 +12,7 @@ def get_customers():
     except Exception as e:
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
-
+ 
 @customers_bp.route('/customers_assign', methods=['GET'])
 def get_customers_assign():
     try:
@@ -21,21 +21,21 @@ def get_customers_assign():
     except Exception as e:
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
-
+ 
 @customers_bp.route('/add_customer', methods=['POST'])
 def add_customer():
     try:
         data = request.json
-        
+       
         # Ensure required fields are present
         if not data.get('customer_name') or not data.get('email_id') or not data.get('mobile1'):
             return jsonify({"error": "Missing required fields"}), 400
-        
+       
         # Handle empty or null values properly
         gender = data.get('gender', '')
         if gender is None:
             gender = ''
-        
+       
         # Ensure gender is a single character (M/F/O)
         if gender and len(gender) > 1:
             # If somehow a full word is sent, convert it
@@ -45,12 +45,12 @@ def add_customer():
                 gender = 'F'
             else:
                 gender = gender[0].upper()  # Just take the first character
-            
+           
         # Handle empty group_id
         group_id = data.get('group_id')
         if not group_id:  # If empty string or None
             group_id = None
-            
+           
         # Parse DOB if provided
         dob = None
         if data.get('DOB'):
@@ -58,7 +58,7 @@ def add_customer():
                 dob = datetime.strptime(data.get('DOB'), '%Y-%m-%d').date()
             except ValueError:
                 return jsonify({"error": "Invalid date format for DOB. Use YYYY-MM-DD"}), 400
-        
+       
         new_customer = Customer(
             customer_name=data.get('customer_name'),
             customer_type=data.get('customer_type'),
@@ -74,16 +74,16 @@ def add_customer():
             group_id=group_id,
             status=data.get('status')
         )
-        
+       
         db.session.add(new_customer)
         db.session.commit()
-        
+       
         return jsonify({"message": "Customer added successfully"}), 201
     except Exception as e:
         db.session.rollback()
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
-
+ 
 @customers_bp.route('/delete_customer/<int:customer_id>', methods=['DELETE'])
 def delete_customer(customer_id):
     try:
@@ -94,13 +94,13 @@ def delete_customer(customer_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
-
+ 
 @customers_bp.route('/update_customer', methods=['PUT'])
 def update_customer():
     try:
         data = request.json
         customer = Customer.query.get_or_404(data['customer_id'])
-        
+       
         customer.customer_name = data['customer_name']
         customer.email_id = data['email_id']
         customer.group_id = data['group_id']
@@ -108,9 +108,9 @@ def update_customer():
         customer.address = data['address']
         customer.city = data['city']
         customer.pincode = data['pincode']
-        
+       
         db.session.commit()
         return jsonify({"message": "Customer updated successfully"}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500 
+        return jsonify({"error": str(e)}), 500

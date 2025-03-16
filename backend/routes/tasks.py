@@ -244,8 +244,26 @@ def adjust_due_date(date, criticality):
         print(f"🚨 ERROR in adjust_due_date: {e}")
         return date  # Return original date if an error occurs
 
-
-
+def calculate_time_taken(task_id):
+    """Calculate total time taken from diary1 records for a task"""
+    try:
+        diary_records = Diary1.query.filter_by(task=str(task_id)).all()
+        total_time = 0.0
+        
+        for record in diary_records:
+            if record.start_time and record.end_time:
+                # Convert time strings to datetime objects
+                start = datetime.combine(record.date, record.start_time)
+                end = datetime.combine(record.date, record.end_time)
+                
+                # Calculate difference in hours
+                time_diff = (end - start).total_seconds() / 3600
+                total_time += time_diff
+        
+        return round(total_time, 2)
+    except Exception as e:
+        print(f"Error calculating time taken: {e}")
+        return 0.0
 
 
 @tasks_bp.route('/tasks/<task_id>', methods=['PATCH'])

@@ -2,9 +2,9 @@ from flask import Blueprint, jsonify, request
 from models import db, Actor
 from datetime import datetime
 import traceback
-
+ 
 actors_bp = Blueprint('actors', __name__)
-
+ 
 @actors_bp.route('/actors', methods=['GET'])
 def get_actors():
     try:
@@ -13,7 +13,7 @@ def get_actors():
     except Exception as e:
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
-
+ 
 @actors_bp.route('/actors_assign', methods=['GET'])
 def get_actors_assign():
     try:
@@ -22,16 +22,16 @@ def get_actors_assign():
     except Exception as e:
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
-
+ 
 @actors_bp.route('/add_actor', methods=['POST'])
 def add_actor():
     try:
         data = request.json
-        
+       
         # Ensure required fields are present
         if not data.get('actor_name') or not data.get('mobile1') or not data.get('email_id'):
             return jsonify({"error": "Missing required fields"}), 400
-        
+       
         new_actor = Actor(
             actor_name=data.get('actor_name'),
             gender=data.get('gender'),
@@ -44,16 +44,16 @@ def add_actor():
             role_id=data.get('role_id'),
             status=data.get('status')
         )
-        
+       
         db.session.add(new_actor)
         db.session.commit()
-        
+       
         return jsonify({"message": "Actor added successfully"}), 201
     except Exception as e:
         db.session.rollback()
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
-
+ 
 @actors_bp.route('/delete_actor/<int:actor_id>', methods=['DELETE'])
 def delete_actor(actor_id):
     try:
@@ -64,21 +64,21 @@ def delete_actor(actor_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
-
+ 
 @actors_bp.route('/update_actor', methods=['PUT'])
 def update_actor():
     try:
         data = request.json
         actor = Actor.query.get_or_404(data['actor_id'])
-        
+       
         actor.actor_name = data['actor_name']
         actor.mobile1 = data['mobile1']
         actor.email_id = data['email_id']
         actor.group_id = data['group_id']
         actor.role_id = data['role_id']
-        
+       
         db.session.commit()
         return jsonify({"message": "Actor updated successfully"}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500 
+        return jsonify({"error": str(e)}), 500

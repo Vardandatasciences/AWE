@@ -29,28 +29,44 @@ def view_activity_report():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@reports_bp.route('/get_activity_data', methods=['POST'])
+@reports_bp.route('/get_activity_data', methods=['POST', 'GET'])
 def get_activity_data():
     try:
-        data = request.json
-        activity_id = data.get("activity_id")
+        if request.method == 'POST':
+            data = request.json
+            activity_id = data.get("activity_id")
+        else:
+            activity_id = request.args.get("activity_id")
+        
+        if not activity_id:
+            return jsonify({"error": "Activity ID is required"}), 400
         
         # Get standard time
         activity = Activity.query.get_or_404(activity_id)
         standard_time = activity.standard_time
         
-        # Get all completed tasks for the activity
-        tasks = Task.query.filter_by(activity_id=activity_id, status='completed').all()
+        # Get all completed tasks for the activity with actor information
+        tasks = db.session.query(
+            Task, Actor.actor_name
+        ).join(
+            Actor, Task.actor_id == Actor.actor_id
+        ).filter(
+            Task.activity_id == activity_id,
+            Task.status == 'completed'
+        ).all()
         
         task_list = [{
-            "employee_id": task.actor_id,
-            "name": task.assigned_to,
-            "task_id": task.task_id,
-            "time_taken": task.time_taken,
-            "completion_date": task.actual_date.strftime('%Y-%m-%d') if task.actual_date else None
+            "employee_id": task[0].actor_id,
+            "name": task[1],  # actor_name
+            "task_id": task[0].task_id,
+            "time_taken": task[0].time_taken if task[0].time_taken is not None else 0,
+            "completion_date": task[0].actual_date.strftime('%Y-%m-%d') if task[0].actual_date else None,
         } for task in tasks]
         
-        return jsonify({"tasks": task_list, "standard_time": standard_time})
+        return jsonify({
+            "tasks": task_list,
+            "standard_time": standard_time
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
