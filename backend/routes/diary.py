@@ -15,27 +15,40 @@ def get_entries():
         
     return jsonify([entry.to_dict() for entry in entries])
 
-@diary_bp.route('/wip-tasks', methods=['GET'])
+@diary_bp.route('/diary/wip-tasks', methods=['GET'])
 def get_wip_tasks():
     actor_id = request.args.get('actor_id')
-
-    if not actor_id:
-        return jsonify({"error": "Missing actor_id"}), 400
-
-    print(f"🔍 Fetching WIP tasks for actor_id: {actor_id}")
-
+    print(f"Received request for WIP tasks with actor_id: {actor_id}")
+    
     try:
-        wip_tasks = Task.query.filter_by(assigned_to=actor_id, status="WIP").all()
+        # Print query parameters for debugging
+        sql_query = """
+        SELECT task_id, task_name 
+        FROM aawe.tasks 
+        WHERE status = 'WIP' AND assigned_to = %s
+        """
+        print(f"Executing SQL: {sql_query} with params: {actor_id}")
         
-        if not wip_tasks:
-            print("⚠️ No WIP tasks found for this actor_id")
-
-        # Ensure response is always a list
-        return jsonify([task.to_dict() for task in wip_tasks])
+        # Execute query
+        cursor = db.cursor()
+        cursor.execute(sql_query, (actor_id,))
+        tasks = cursor.fetchall()
+        
+        # Print results for debugging
+        print(f"Query returned {len(tasks)} results")
+        
+        # Format results
+        result = []
+        for task in tasks:
+            result.append({
+                'task_id': task[0],
+                'task_name': task[1]
+            })
+        
+        return jsonify(result)
     except Exception as e:
-        print(f"❌ Error fetching WIP tasks: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
+        print(f"Error fetching WIP tasks: {str(e)}")
+        return jsonify([])
 
 
 

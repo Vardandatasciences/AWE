@@ -75,7 +75,7 @@ const Report = () => {
                 createdAt: '2023-06-30',
                 status: 'completed',
                 charts: 5,
-                format: 'Excel'
+                format: 'PDF'
             },
             {
                 id: 3,
@@ -105,7 +105,7 @@ const Report = () => {
                 createdAt: '2023-07-05',
                 status: 'completed',
                 charts: 1,
-                format: 'Excel'
+                format: 'PDF'
             }
         ];
     };
@@ -137,8 +137,39 @@ const Report = () => {
     };
 
     const handleDownloadReport = (report) => {
-        // Implement download logic here
-        alert(`Downloading ${report.title} in ${report.format} format`);
+        try {
+            // For demonstration purposes, we'll use fixed IDs
+            // In a real application, you would use the actual IDs from your report object
+            if (report.type === 'activity') {
+                const activityId = report.activityId || 1144; // Use a valid activity ID
+                
+                // Create a link element and trigger the download
+                const link = document.createElement('a');
+                link.href = `/generate_activity_report?activity_id=${activityId}`;
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+            } else if (report.type === 'employee') {
+                const actorId = report.actorId || 1; // Use a valid actor ID
+                
+                // Create a link element and trigger the download
+                const link = document.createElement('a');
+                link.href = `/download-performance/${actorId}`;
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+            } else {
+                // For other report types or fallback
+                alert(`Downloading ${report.title} in PDF format`);
+            }
+        } catch (error) {
+            console.error("Error downloading report:", error);
+            alert("Failed to download report. Please try again.");
+        }
     };
 
     const renderReportTypeIcon = (type) => {

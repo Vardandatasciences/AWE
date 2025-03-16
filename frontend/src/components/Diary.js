@@ -38,7 +38,9 @@ const Diary = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const role_id = localStorage.getItem('role_id');
+  const actor_id = localStorage.getItem('actor_id')
   console.log("User Role ID:", role_id);
+  console.log("User User ID:", actor_id)
 
  
   const emptyEntry = {
@@ -73,6 +75,7 @@ const Diary = () => {
         const entriesResponse = await axios.get('http://localhost:5000/diary/entries', {
           params: { actor_id: actorId }
         });
+        console.log(entriesResponse)
         
         const formattedEntries = entriesResponse.data.map(entry => ({
           ...entry,
@@ -101,37 +104,30 @@ const Diary = () => {
     if (!token || !actorId) {
         console.error("🔴 No authentication token or actor_id found in localStorage");
         alert("Session expired. Please log in again.");
-        navigate('/login'); // Redirect to login page
+        navigate('/login');
         return;
     }
 
     console.log('Fetching WIP tasks before adding new entry...');
+    
     try {
-        const response = await axios.get(`http://localhost:5000/diary/wip-tasks`, {
-            params: { actor_id: actorId },
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-        });
-
-        console.log('🟢 WIP tasks fetched:', response.data);
-        setTasks(response.data);
-
+        // Call fetchWIPTasks first to ensure tasks are loaded
+        await fetchWIPTasks();
+        
+        // Now create the new entry
         const newEntry = {
             id: Date.now(),
             date: new Date(),
             start_time: null,
             end_time: null,
-            task: response.data.length > 0 ? response.data[0].name : '',
+            task: tasks.length > 0 ? tasks[0].task_id : '',
             remarks: ''
         };
 
         setEntries(prev => [...prev, newEntry]);
     } catch (error) {
-        console.error('🔴 Error fetching WIP tasks:', error);
-        alert("Failed to fetch WIP tasks. Please try again.");
+        console.error('🔴 Error adding entry:', error);
+        alert("Failed to add entry. Please try again.");
     }
 };
 
@@ -210,14 +206,8 @@ const Diary = () => {
         const token = localStorage.getItem('token');
         const actorId = localStorage.getItem('actor_id');
 
-        console.log("📌 Actor ID before request:", actorId);
-
-        if (!token || !actorId) {
-            console.error("🔴 No authentication token or actor_id found");
-            return;
-        }
-
-        console.log('Fetching WIP tasks...');
+        console.log("📌 Making API request to /diary/wip-tasks with actor_id:", actorId);
+        
         const response = await axios.get(`http://localhost:5000/diary/wip-tasks`, {
             params: { actor_id: actorId },
             headers: {
@@ -227,17 +217,23 @@ const Diary = () => {
             }
         });
 
+        console.log('🟢 API response status:', response.status);
         console.log('🟢 WIP tasks raw response:', response.data);
-
+        
+        // Remove fallback data, we want to fix the real issue
         const tasksArray = Array.isArray(response.data) ? response.data : [response.data];
-        console.log('🟢 WIP tasks fetched:', tasksArray);
-
+        
+        if (tasksArray.length === 0) {
+            console.log('⚠️ No tasks returned from API. Check backend query.');
+        }
+        
         setTasks(tasksArray);
+        return tasksArray;
     } catch (error) {
         console.error('🔴 Error fetching WIP tasks:', error);
+        return [];
     }
 };
- 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <div style={{ padding: '20px' }}>
@@ -306,31 +302,34 @@ const Diary = () => {
           }}
         />
       </TableCell>
-      <TableCell style={{ width: '25%' }}>
-    <Select
-        value={entry.task || ''}
-        onChange={(e) => {
-            const updatedEntries = [...entries];
-            updatedEntries[index].task = e.target.value;
-            setEntries(updatedEntries);
-        }}
-        fullWidth
-        size="small"
-        displayEmpty
-    >
-        <MenuItem value="" disabled>Select a task</MenuItem>
-        {tasks.length > 0 ? (
-            tasks.map((task) => (
-              <MenuItem key={task.task_id} value={task.task_name}>
-                  {task.task_name}
-              </MenuItem>
-          ))
-          
-          
-        ) : (
-            <MenuItem disabled>No WIP tasks available</MenuItem>
-        )}
-    </Select>
+      <TableCell style={{ width: '40%' }}>
+      <Select
+    value={entry.task || ''}
+    onChange={(e) => {
+        const updatedEntries = [...entries];
+        updatedEntries[index].task = e.target.value;
+        setEntries(updatedEntries);
+    }}
+    fullWidth
+    size="small"
+    displayEmpty
+>
+    <MenuItem value="" disabled>Select a task</MenuItem>
+    {entry.task && !tasks.some(task => task.task_id === entry.task) && (
+        <MenuItem value={entry.task}>ID: {entry.task}</MenuItem>
+    )}
+    {tasks && tasks.length > 0 ? (
+        tasks.map((task) => (
+            <MenuItem key={task.task_id} value={task.task_id}>
+                {task.task_name}
+            </MenuItem>
+        ))
+    ) : (
+        <MenuItem disabled>No WIP tasks available</MenuItem>
+    )}
+</Select>
+
+
 </TableCell>
 
 
