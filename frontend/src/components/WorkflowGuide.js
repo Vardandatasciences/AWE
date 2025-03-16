@@ -76,7 +76,7 @@ const WorkflowGuide = ({ onClose }) => {
     <div className="workflow-guide-overlay" onClick={handleOverlayClick}>
       <div className="workflow-guide-container" ref={modalRef}>
         <div className="workflow-guide-header">
-          <h2>Admin Workflow Guide</h2>
+          <h2>Supervisor Workflow Guide</h2>
           <button className="close-button" onClick={() => handleClose('canceled')}>×</button>
         </div>
         

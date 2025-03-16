@@ -68,7 +68,7 @@ const Tasks = () => {
   const getColumnForStatus = (status) => {
     console.log("Original status from backend:", status);
     if (status === 'WIP') return 'in-progress';
-    if (status === 'completed') return 'completed';
+    if (status === 'Completed') return 'completed';
     if (status === 'Yet to Start') return 'todo';
     if (status === 'Pending') return 'pending';
    
@@ -96,6 +96,15 @@ const Tasks = () => {
  
   const changeTaskStatus = (taskId, newStatus) => {
     console.log(`Direct status change requested for task ${taskId} to ${newStatus}`);
+    
+    // Find the task
+    const task = tasks.find(t => t.id === taskId);
+    
+    // Prevent non-admin users from changing completed tasks
+    if (!isAdmin && task && task.status === 'completed') {
+      console.log('Non-admin user attempted to change a completed task. Operation blocked.');
+      return; // Exit the function early
+    }
     
     // Map the UI-friendly status to the backend status values
     let backendStatus = newStatus; // Already in the correct format for backend
@@ -146,12 +155,12 @@ const Tasks = () => {
      
       setTasks(tasksWithIds);
 
-      // Calculate stats
+      // Calculate stats - update to separate pending from in-progress
       const total = tasksWithIds.length;
       const todo = tasksWithIds.filter(task => task.status === 'todo').length;
       const inProgress = tasksWithIds.filter(task => task.status === 'in-progress').length;
+      const pending = tasksWithIds.filter(task => task.status === 'pending').length;
       const completed = tasksWithIds.filter(task => task.status === 'completed').length;
-      const pending = todo + inProgress;
 
       setStats({
         total,
@@ -221,9 +230,7 @@ const Tasks = () => {
     // Filter by status
     if (filterStatus !== 'all') {
       filtered = filtered.filter(task => {
-        if (filterStatus === 'pending') {
-          return task.status === 'todo' || task.status === 'in-progress';
-        }
+        // Update to treat pending as its own status
         return task.status === filterStatus;
       });
     }
@@ -462,22 +469,26 @@ const Tasks = () => {
           </div>
  
           <div className="task-footer">
-          <span className="activity-tag">
+          {/* Remove this activity tag that's showing duplicate information */}
+          {/* <span className="activity-tag">
             <i className="fas fa-tasks"></i>
             {task.title || 'No Activity'}
-          </span>
-         
+          </span> */}
+          
           {/* Add status dropdown here */}
           <div className="status-dropdown">
   <select
     value={task.status === 'todo' ? 'Yet to Start' :
+           task.status === 'pending' ? 'Pending' :
            task.status === 'in-progress' ? 'WIP' :
            'Completed'}
     onChange={(e) => changeTaskStatus(task.id, e.target.value)}
     className="status-select"
+    disabled={!isAdmin && task.status === 'completed'}
   >
     <option value="Yet to Start">Yet to Start</option>
     <option value="WIP">In Progress</option>
+    <option value="Pending">Pending</option>
     <option value="Completed">Completed</option>
   </select>
 </div>
@@ -515,6 +526,7 @@ const Tasks = () => {
                          'Completed'}
                   onChange={(e) => changeTaskStatus(task.id, e.target.value)}
                   className="status-select"
+                  disabled={task.status === 'completed'}
                 >
                   <option value="Yet to Start">Yet to Start</option>
                   <option value="Pending"> Pending</option>
@@ -682,6 +694,13 @@ const Tasks = () => {
     // Scroll to the task list
     document.querySelector('.task-cards-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  // Add new handler for Pending status
+  const handleFilterByPending = () => {
+    setFilterStatus('pending');
+    // Scroll to the task list
+    document.querySelector('.task-cards-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
  
   return (
     <div className="tasks-container">
@@ -720,6 +739,19 @@ const Tasks = () => {
           iconClass="fas fa-spinner fa-spin"
           onClick={handleFilterByInProgress}
           isActive={filterStatus === 'in-progress'}
+        />
+        
+        {/* Add new Pending card */}
+        <StatCard 
+          type="pending"
+          count={stats.pending}
+          total={stats.total}
+          title="Pending"
+          subtitle="Awaiting Action"
+          gifSrc={progressGif}
+          iconClass="fas fa-pause-circle"
+          onClick={handleFilterByPending}
+          isActive={filterStatus === 'pending'}
         />
         
         <StatCard 
@@ -875,21 +907,25 @@ const Tasks = () => {
                 
                 {!isAdmin && (
                 <div className="task-footer">
-                  <span className="activity-tag">
+                  {/* Remove this activity tag that's showing duplicate information */}
+                  {/* <span className="activity-tag">
                     <i className="fas fa-tasks"></i>
                     {task.title || 'No Activity'}
-                  </span>
+                  </span> */}
                   
                   <div className="status-dropdown">
                     <select
                       value={task.status === 'todo' ? 'Yet to Start' :
+                             task.status === 'pending' ? 'Pending' :
                              task.status === 'in-progress' ? 'WIP' :
                              'Completed'}
                       onChange={(e) => changeTaskStatus(task.id, e.target.value)}
                       className="status-select"
+                      disabled={task.status === 'completed'}
                     >
                       <option value="Yet to Start">Yet to Start</option>
                       <option value="WIP">In Progress</option>
+                      <option value="Pending">Pending</option>
                       <option value="Completed">Completed</option>
                     </select>
                   </div>

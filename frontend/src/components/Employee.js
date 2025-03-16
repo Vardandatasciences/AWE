@@ -227,7 +227,7 @@ const Employee = () => {
                 </div>
               </div>
             </div>
-            <h3 className="stat-title">Employees</h3>
+            <h3 className="stat-title">Auditors</h3>
           </div>
           <div className="stat-progress">
             <svg viewBox="0 0 36 36" className="circular-chart">
@@ -264,7 +264,7 @@ const Employee = () => {
                 </div>
               </div>
             </div>
-            <h3 className="stat-title">Customers</h3>
+            <h3 className="stat-title">Clients</h3>
           </div>
           <div className="stat-progress">
             <svg viewBox="0 0 36 36" className="circular-chart">
@@ -288,11 +288,11 @@ const Employee = () => {
           <div className="action-buttons">
             <button className="quick-action-btn" onClick={handleAddEmployee}>
               <i className="fas fa-user-plus"></i>
-              <span>New Employee</span>
+              <span>New Auditor</span>
             </button>
             <button className="quick-action-btn" onClick={handleAddCustomer}>
               <i className="fas fa-building"></i>
-              <span>New Customer</span>
+              <span>New Client</span>
             </button>
 
           </div>
@@ -308,13 +308,13 @@ const Employee = () => {
                 className={`tab ${activeTab === "actors" ? "active" : ""}`}
                 onClick={() => handleTabChange("actors")}
               >
-                <i className="fas fa-user-tie"></i> Employees
+                <i className="fas fa-user-tie"></i> Auditors
               </button>
               <button 
                 className={`tab ${activeTab === "customers" ? "active" : ""}`}
                 onClick={() => handleTabChange("customers")}
               >
-                <i className="fas fa-building"></i> Customers
+                <i className="fas fa-building"></i> Clients
               </button>
             </div>
 
@@ -475,7 +475,7 @@ const Employee = () => {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="form-container">
-              <h2><i className="fas fa-user-plus"></i> Assign Employee to {assigningCustomer.name}</h2>
+              <h2><i className="fas fa-user-plus"></i> Assign Auditor to {assigningCustomer.name}</h2>
               
               <form onSubmit={(e) => {
                 e.preventDefault();
@@ -492,13 +492,13 @@ const Employee = () => {
                 setShowAssignForm(false);
               }}>
                 <div className="form-group">
-                  <label htmlFor="employee_id">Select Employee</label>
+                  <label htmlFor="employee_id">Select Auditor</label>
                   <select 
                     id="employee_id" 
                     name="employee_id" 
                     required
                   >
-                    <option value="">-- Select an Employee --</option>
+                    <option value="">-- Select an Auditor --</option>
                     {data.actors && data.actors.map(employee => (
                       <option key={employee.actor_id} value={employee.actor_id}>
                         {employee.actor_name}
@@ -513,7 +513,7 @@ const Employee = () => {
                   </button>
                   <button type="submit" className="btn-submit">
                     <i className="fas fa-save"></i>
-                    <span>Assign Employee</span>
+                    <span>Assign Auditor</span>
                   </button>
                 </div>
               </form>

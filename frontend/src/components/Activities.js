@@ -573,10 +573,10 @@ const Activities = () => {
                                 <h3>{activity.activity_name}</h3>
                                 <p className="activity-description">{activity.act_des || 'No description provided'}</p>
                                 <div className="activity-details">
-                                    <div className="detail-item">
+                                    {/* <div className="detail-item">
                                         <i className="fas fa-users"></i>
                                         <span>{getGroupName(activity.group_id)}</span>
-                                    </div>
+                                    </div> */}
                                     <div className="detail-item">
                                         <i className="fas fa-clock"></i>
                                         <span>Duration: {activity.duration || 'N/A'}</span>

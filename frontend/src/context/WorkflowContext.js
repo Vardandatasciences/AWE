@@ -4,8 +4,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const defaultWorkflowSteps = [
   {
     id: 1,
-    title: 'Create Customer',
-    description: 'Add a new customer to the system',
+    title: 'Create Client',
+    description: 'Add a new client to the system',
     status: 'in-progress',
     path: '/employee'
   },
@@ -18,8 +18,8 @@ const defaultWorkflowSteps = [
   },
   {
     id: 3,
-    title: 'Assign Employee',
-    description: 'Assign an employee to an activity',
+    title: 'Assign Auditor',
+    description: 'Assign an auditor to an activity',
     status: 'pending',
     path: '/activities'  // Changed from /employee to /activities
   }
