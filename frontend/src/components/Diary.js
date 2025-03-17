@@ -206,34 +206,34 @@ const Diary = () => {
         const token = localStorage.getItem('token');
         const actorId = localStorage.getItem('actor_id');
 
-        console.log("📌 Making API request to /diary/wip-tasks with actor_id:", actorId);
-        
+        if (!actorId) {
+            console.error("🔴 No actor_id found in localStorage");
+            return;
+        }
+
+        console.log("📌 Fetching WIP tasks for actor_id:", actorId);
+
         const response = await axios.get(`http://localhost:5000/diary/wip-tasks`, {
             params: { actor_id: actorId },
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
-            }
+            },
+            withCredentials: true  // Ensure CORS requests work
         });
 
-        console.log('🟢 API response status:', response.status);
-        console.log('🟢 WIP tasks raw response:', response.data);
-        
-        // Remove fallback data, we want to fix the real issue
-        const tasksArray = Array.isArray(response.data) ? response.data : [response.data];
-        
-        if (tasksArray.length === 0) {
-            console.log('⚠️ No tasks returned from API. Check backend query.');
+        if (response.status === 200) {
+            setTasks(response.data);
+            console.log("🟢 WIP Tasks fetched:", response.data);
+        } else {
+            console.error("⚠️ Unexpected response:", response);
         }
-        
-        setTasks(tasksArray);
-        return tasksArray;
     } catch (error) {
-        console.error('🔴 Error fetching WIP tasks:', error);
-        return [];
+        console.error("🔴 Error fetching WIP tasks:", error);
     }
 };
+
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <div style={{ padding: '20px' }}>

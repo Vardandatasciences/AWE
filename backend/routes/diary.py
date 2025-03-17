@@ -1,8 +1,11 @@
 from flask import Blueprint, request, jsonify
-from models import db, Diary1, Task
+from models import db, Diary1, Task, Actor
 from sqlalchemy import func
+from flask_cors import CORS
 
 diary_bp = Blueprint('diary', __name__)
+CORS(diary_bp, resources={r"/*": {"origins": "*"}})
+
 
 @diary_bp.route('/entries', methods=['GET'])
 def get_entries():
@@ -15,40 +18,51 @@ def get_entries():
         
     return jsonify([entry.to_dict() for entry in entries])
 
-@diary_bp.route('/diary/wip-tasks', methods=['GET'])
+@diary_bp.route('/wip-tasks', methods=['GET'])
 def get_wip_tasks():
     actor_id = request.args.get('actor_id')
     print(f"Received request for WIP tasks with actor_id: {actor_id}")
-    
+
+    if not actor_id:
+        return jsonify({"error": "Actor ID is required"}), 400
+
     try:
-        # Print query parameters for debugging
-        sql_query = """
-        SELECT task_id, task_name 
-        FROM aawe.tasks 
-        WHERE status = 'WIP' AND assigned_to = %s
-        """
-        print(f"Executing SQL: {sql_query} with params: {actor_id}")
-        
-        # Execute query
-        cursor = db.cursor()
-        cursor.execute(sql_query, (actor_id,))
-        tasks = cursor.fetchall()
-        
-        # Print results for debugging
-        print(f"Query returned {len(tasks)} results")
-        
-        # Format results
-        result = []
-        for task in tasks:
-            result.append({
-                'task_id': task[0],
-                'task_name': task[1]
-            })
-        
-        return jsonify(result)
+        # Convert actor_id to integer
+        actor_id = int(actor_id)
+
+        # Step 1: Get actor name from actors table
+        actor = db.session.execute(
+            db.select(Actor).filter_by(actor_id=actor_id)
+        ).scalar_one_or_none()
+
+        if not actor:
+            print(f"⚠️ No actor found with actor_id {actor_id}")
+            return jsonify({"error": "Actor not found"}), 404
+
+        actor_name = actor.actor_name  # Get actor's name
+        print(f"🟢 Found actor: {actor_name}")
+
+        # Step 2: Fetch tasks where assigned_to = actor's name
+        tasks = db.session.execute(
+            db.select(Task).filter_by(status="WIP", assigned_to=actor_name)
+        ).scalars().all()
+
+        if not tasks:
+            print(f"⚠️ No WIP tasks found for actor: {actor_name}")
+
+        # Convert ORM objects to JSON
+        task_list = [{"task_id": task.task_id, "task_name": task.task_name} for task in tasks]
+
+        return jsonify(task_list)
+
+    except ValueError:
+        print("❌ Invalid actor_id format")
+        return jsonify({"error": "Invalid actor_id"}), 400
     except Exception as e:
-        print(f"Error fetching WIP tasks: {str(e)}")
-        return jsonify([])
+        print(f"❌ Error fetching WIP tasks: {str(e)}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
+
 
 
 
