@@ -6,9 +6,9 @@ db = SQLAlchemy()
 class Actor(db.Model):
     __tablename__ = 'actors'
     
-    actor_id = db.Column(db.Integer, primary_key=True)
+    actor_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     actor_name = db.Column(db.String(255), nullable=False)
-    gender = db.Column(db.String(10))
+    gender = db.Column(db.String(1))
     DOB = db.Column(db.Date)
     mobile1 = db.Column(db.String(20), nullable=False)
     mobile2 = db.Column(db.String(20))
@@ -104,6 +104,7 @@ class Activity(db.Model):
     frequency = db.Column(db.Integer, default=0)
     due_by = db.Column(db.Date, default=datetime(2000, 1, 1))
     activity_type = db.Column(db.String(10), default='R')
+    status = db.Column(db.String(1), default='A')  # 'A' for Active, 'O' for Obsolete
     
     # Relationships
     tasks = db.relationship('Task', backref='activity', lazy=True)
@@ -119,7 +120,8 @@ class Activity(db.Model):
             'role_id': self.role_id,
             'frequency': self.frequency,
             'due_by': self.due_by.strftime('%Y-%m-%d') if self.due_by else None,
-            'activity_type': self.activity_type
+            'activity_type': self.activity_type,
+            'status': self.status
         }
 
 class Task(db.Model):

@@ -23,7 +23,8 @@ activities_bp = Blueprint('activities', __name__)
 @activities_bp.route('/activities', methods=['GET'])
 def get_activities():
     try:
-        activities = Activity.query.all()
+        # Modified to only get active activities
+        activities = Activity.query.filter_by(status='A').all()
         return jsonify([activity.to_dict() for activity in activities])
     except Exception as e:
         print("Error:", e)
@@ -57,10 +58,31 @@ def add_activity():
 @activities_bp.route('/delete_activity/<int:activity_id>', methods=['DELETE'])
 def delete_activity(activity_id):
     try:
+        # Get the activity
         activity = Activity.query.get_or_404(activity_id)
-        db.session.delete(activity)
+        
+        # Check for incomplete tasks
+        incomplete_tasks = Task.query.filter_by(
+            activity_id=activity_id
+        ).filter(
+            Task.status != 'COMPLETED'
+        ).first()
+        
+        if incomplete_tasks:
+            return jsonify({
+                "error": "Cannot delete activity",
+                "message": "There are incomplete tasks associated with this activity. Please complete all tasks before deleting."
+            }), 400
+        
+        # If all tasks are completed, update the activity status to 'O'
+        activity.status = 'O'
         db.session.commit()
-        return jsonify({"message": "Activity deleted successfully"}), 200
+        
+        return jsonify({
+            "message": "Activity deleted successfully",
+            "status": "success"
+        }), 200
+        
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -71,15 +93,25 @@ def update_activity():
         data = request.json
         activity = Activity.query.get_or_404(data['activity_id'])
         
-        activity.activity_name = data['activity_name']
-        activity.criticality = data['criticality']
-        activity.duration = data['duration']
-        activity.role_id = data['role_id']
-        activity.frequency = data['frequency']
-        activity.due_by = datetime.strptime(data['due_by'], '%Y-%m-%d').date() if data['due_by'] else None
+        # Update all fields
+        activity.activity_name = data.get('activity_name', activity.activity_name)
+        activity.standard_time = data.get('standard_time', activity.standard_time)
+        activity.act_des = data.get('act_des', activity.act_des)
+        activity.criticality = data.get('criticality', activity.criticality)
+        activity.duration = data.get('duration', activity.duration)
+        activity.role_id = data.get('role_id', activity.role_id)
+        activity.frequency = data.get('frequency', activity.frequency)
+        activity.activity_type = data.get('activity_type', activity.activity_type)
+        
+        # Handle due_by date conversion
+        if 'due_by' in data and data['due_by']:
+            activity.due_by = datetime.strptime(data['due_by'], '%Y-%m-%d').date()
         
         db.session.commit()
-        return jsonify({"message": "Activity updated successfully"}), 200
+        return jsonify({
+            "message": "Activity updated successfully",
+            "activity": activity.to_dict()
+        }), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500

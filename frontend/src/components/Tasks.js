@@ -20,7 +20,7 @@ const Tasks = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [viewMode, setViewMode] = useState('board');
+  const [viewMode, setViewMode] = useState('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showReassignModal, setShowReassignModal] = useState(false);
@@ -44,6 +44,9 @@ const Tasks = () => {
     completed: 0,
     pending: 0
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [tasksPerPage] = useState(15);
+  const [totalPages, setTotalPages] = useState(1);
  
   // Check if GIFs are loading correctly
   useEffect(() => {
@@ -93,7 +96,17 @@ const Tasks = () => {
       task.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredTasks(searchFiltered);
-  }, [tasks, searchTerm, filterMonth, filterStatus]);
+    // Update total pages when filtered tasks change
+    setTotalPages(Math.ceil(searchFiltered.length / tasksPerPage));
+    // Reset to first page when filters change
+    setCurrentPage(1);
+  }, [tasks, searchTerm, filterMonth, filterStatus, tasksPerPage]);
+ 
+  useEffect(() => {
+    if (tasks) {
+      setTotalPages(Math.ceil(tasks.length / tasksPerPage));
+    }
+  }, [tasks, tasksPerPage]);
  
   const changeTaskStatus = (taskId, newStatus) => {
     console.log(`Direct status change requested for task ${taskId} to ${newStatus}`);
@@ -470,32 +483,36 @@ const Tasks = () => {
           </div>
  
           <div className="task-footer">
-          {/* Remove this activity tag that's showing duplicate information */}
-          {/* <span className="activity-tag">
-            <i className="fas fa-tasks"></i>
-            {task.title || 'No Activity'}
-          </span> */}
-          
-          {/* Add status dropdown here */}
-          <div className="status-dropdown">
-  <select
-    value={task.status === 'todo' ? 'Yet to Start' :
-           task.status === 'pending' ? 'Pending' :
-           task.status === 'in-progress' ? 'WIP' :
-           'Completed'}
-    onChange={(e) => changeTaskStatus(task.id, e.target.value)}
-    className="status-select"
-    disabled={!isAdmin && task.status === 'completed'}
-  >
-    <option value="Yet to Start">Yet to Start</option>
-    <option value="WIP">In Progress</option>
-    <option value="Pending">Pending</option>
-    <option value="Completed">Completed</option>
-  </select>
-</div>
+            {!isAdmin ? (
+              <div className="status-dropdown">
+                <select
+                  value={task.status === 'todo' ? 'Yet to Start' :
+                         task.status === 'pending' ? 'Pending' :
+                         task.status === 'in-progress' ? 'WIP' :
+                         'Completed'}
+                  onChange={(e) => changeTaskStatus(task.id, e.target.value)}
+                  className="status-select"
+                  disabled={task.status === 'completed'}
+                >
+                  <option value="Yet to Start">Yet to Start</option>
+                  <option value="WIP">In Progress</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+            ) : (
+              <div className="task-status-badge">
+                <span className={`status-badge ${task.status}`}>
+                  {task.status === 'todo' ? 'Yet to Start' :
+                   task.status === 'pending' ? 'Pending' :
+                   task.status === 'in-progress' ? 'In Progress' :
+                   'Completed'}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    )}
+      )}
     </Draggable>
   );
  
@@ -566,42 +583,20 @@ const Tasks = () => {
     </div>
   );
  
-  // Enhanced StatCard component with a clean three-part layout
+  // Enhanced StatCard component optimized for horizontal layout
   const StatCard = ({ type, count, total, title, subtitle, gifSrc, iconClass, onClick, isActive }) => {
     const [gifLoaded, setGifLoaded] = useState(false);
     const [gifError, setGifError] = useState(false);
-    const progressRef = useRef(null);
-    const circleRef = useRef(null);
-    const [animatedCount, setAnimatedCount] = useState(0);
     const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
 
-    // Set the progress value as a CSS variable for animation
+    // Animate count number
+    const [animatedCount, setAnimatedCount] = useState(0);
+    
     useEffect(() => {
-      if (progressRef.current) {
-        progressRef.current.style.setProperty('--progress', `${percentage}`);
-        // Set the data-percentage attribute for the ::after content
-        progressRef.current.setAttribute('data-percentage', percentage);
-      }
-      
-      // Force animation restart by removing and adding the element
-      if (circleRef.current) {
-        const parent = circleRef.current.parentNode;
-        const oldElement = circleRef.current;
-        const newElement = oldElement.cloneNode(true);
-        
-        // Apply the animation directly
-        setTimeout(() => {
-          newElement.style.strokeDasharray = `${percentage}, 100`;
-        }, 100);
-        
-        parent.replaceChild(newElement, oldElement);
-        circleRef.current = newElement;
-      }
-      
       // Animate count number
       let start = 0;
       const end = count;
-      const duration = 2000;
+      const duration = 1500;
       const startTime = Date.now();
       
       if (end > 0) {
@@ -622,7 +617,7 @@ const Tasks = () => {
         
         return () => clearInterval(timer);
       }
-    }, [count, total, percentage]);
+    }, [count]);
 
     return (
       <div className={`stat-card ${type}-stat ${isActive ? 'active' : ''}`} onClick={onClick}>
@@ -656,24 +651,6 @@ const Tasks = () => {
             <span>{subtitle}</span>
           </div>
         </div>
-        
-        {/* Right part - Progress circle */}
-        <div className="stat-progress" ref={progressRef} data-percentage={percentage}>
-          <svg viewBox="0 0 36 36" className="circular-chart">
-            <path className="circle-bg"
-              d="M18 2.0845
-                a 15.9155 15.9155 0 0 1 0 31.831
-                a 15.9155 15.9155 0 0 1 0 -31.831"
-            />
-            <path 
-              ref={circleRef}
-              className={`circle ${type}-circle`}
-              d="M18 2.0845
-                a 15.9155 15.9155 0 0 1 0 31.831
-                a 15.9155 15.9155 0 0 1 0 -31.831"
-            />
-          </svg>
-        </div>
       </div>
     );
   };
@@ -702,6 +679,77 @@ const Tasks = () => {
     setFilterStatus('pending');
     // Scroll to the task list
     document.querySelector('.task-cards-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+ 
+  const getCurrentPageTasks = () => {
+    const indexOfLastTask = currentPage * tasksPerPage;
+    const indexOfFirstTask = indexOfLastTask - tasksPerPage;
+    return filteredTasks.slice(indexOfFirstTask, indexOfLastTask);
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
+
+  const handlePrevPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handlePageClick = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const Pagination = () => {
+    const pages = [];
+    for (let i = 1; i <= totalPages; i++) {
+      pages.push(
+        <button
+          key={i}
+          className={`pagination-button ${currentPage === i ? 'active' : ''}`}
+          onClick={() => handlePageClick(i)}
+        >
+          {i}
+        </button>
+      );
+    }
+
+    return (
+      <div className="pagination-container">
+        <button
+          className="pagination-button"
+          onClick={handlePrevPage}
+          disabled={currentPage === 1}
+        >
+          <i className="fas fa-chevron-left"></i> Previous
+        </button>
+        
+        {totalPages <= 5 ? (
+          pages
+        ) : (
+          <>
+            {currentPage > 2 && <button className="pagination-button">1</button>}
+            {currentPage > 3 && <span>...</span>}
+            {pages.slice(Math.max(0, currentPage - 2), Math.min(currentPage + 1, totalPages))}
+            {currentPage < totalPages - 2 && <span>...</span>}
+            {currentPage < totalPages - 1 && (
+              <button className="pagination-button">{totalPages}</button>
+            )}
+          </>
+        )}
+
+        <button
+          className="pagination-button"
+          onClick={handleNextPage}
+          disabled={currentPage === totalPages}
+        >
+          Next <i className="fas fa-chevron-right"></i>
+        </button>
+        
+        <span className="page-info">
+          Page {currentPage} of {totalPages}
+        </span>
+      </div>
+    );
   };
  
   return (
@@ -846,39 +894,38 @@ const Tasks = () => {
             <i className="fas fa-sync-alt"></i> Retry
           </button>
         </div>
-      ) : viewMode === 'board' ? (
+      ) : filteredTasks.length > 0 ? (
         <div className="task-cards-grid">
-          {filteredTasks.length > 0 ? (
-            filteredTasks.map(task => (
-              <div 
-                key={task.id} 
-                className={`task-card ${task.criticality?.toLowerCase()} ${isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'delayed' : ''}`}
-              >
-                <div className="task-card-header">
-                  <span className={`priority-indicator ${task.criticality?.toLowerCase()}`}>
-                    {task.criticality}
-                  </span>
-                  
-                  {/* Add delayed badge between priority and reassign button */}
-                  {isTaskDelayed(task.due_date) && task.status !== 'completed' && (
-                    <span className="delayed-badge">
-                      <i className="fas fa-exclamation-circle"></i> DELAYED
-                    </span>
-                  )}
-                  
-                  <div className="task-actions">
-                    {isAdmin && (
-                      <button
-                        className="reassign-button"
-                        onClick={() => openReassignModal(task)}
-                      >
-                        <i className="fas fa-user-plus"></i>
-                        Reassign
-                      </button>
-                    )}
-                  </div>
-                </div>
+          {getCurrentPageTasks().map(task => (
+            <div 
+              key={task.id} 
+              className={`task-card ${task.criticality?.toLowerCase()} ${isTaskDelayed(task.due_date) && task.status !== 'completed' ? 'delayed' : ''}`}
+            >
+              <div className="task-card-header">
+                <span className={`priority-indicator ${task.criticality?.toLowerCase()}`}>
+                  {task.criticality}
+                </span>
                 
+                {isTaskDelayed(task.due_date) && task.status !== 'completed' && (
+                  <span className="delayed-badge">
+                    <i className="fas fa-exclamation-circle"></i> DELAYED
+                  </span>
+                )}
+                
+                <div className="task-actions">
+                  {isAdmin && (
+                    <button
+                      className="reassign-button"
+                      onClick={() => openReassignModal(task)}
+                    >
+                      <i className="fas fa-user-plus"></i>
+                      Reassign
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              <div className="task-card-body">
                 <h3 className="task-title">{task.task_name}</h3>
                 <div className="customer-info">
                   <i className="fas fa-building"></i>
@@ -897,7 +944,7 @@ const Tasks = () => {
                   </div>
                   <div className="detail-item">
                     <i className="fas fa-user"></i>
-                    <span> {task.assignee || 'Unassigned'}</span>
+                    <span>{task.assignee || 'Unassigned'}</span>
                   </div>
                   {isAdmin && (
                     <div className="detail-item">
@@ -906,15 +953,10 @@ const Tasks = () => {
                     </div>
                   )}
                 </div>
-                
-                {!isAdmin && (
-                <div className="task-footer">
-                  {/* Remove this activity tag that's showing duplicate information */}
-                  {/* <span className="activity-tag">
-                    <i className="fas fa-tasks"></i>
-                    {task.title || 'No Activity'}
-                  </span> */}
-                  
+              </div>
+              
+              <div className="task-footer">
+                {!isAdmin ? (
                   <div className="status-dropdown">
                     <select
                       value={task.status === 'todo' ? 'Yet to Start' :
@@ -931,19 +973,27 @@ const Tasks = () => {
                       <option value="Completed">Completed</option>
                     </select>
                   </div>
-                </div>
+                ) : (
+                  <div className="task-status-badge">
+                    <span className={`status-badge ${task.status}`}>
+                      {task.status === 'todo' ? 'Yet to Start' :
+                       task.status === 'pending' ? 'Pending' :
+                       task.status === 'in-progress' ? 'In Progress' :
+                       'Completed'}
+                    </span>
+                  </div>
                 )}
               </div>
-            ))
-          ) : (
-            <div className="empty-state">
-              <i className="fas fa-clipboard-list"></i>
-              <h3>No tasks found</h3>
-              <p>Try adjusting your filters or search criteria</p>
             </div>
-          )}
+          ))}
         </div>
-      ) : renderListView()}
+      ) : (
+        <div className="empty-state">
+          <i className="fas fa-clipboard-list"></i>
+          <h3>No tasks found</h3>
+          <p>Try adjusting your filters or search criteria</p>
+        </div>
+      )}
  
       {showReassignModal && selectedTask && (
         <div className="modal-overlay">
@@ -1029,6 +1079,8 @@ const Tasks = () => {
           </div>
         </div>
       )}
+      
+      {filteredTasks.length > tasksPerPage && <Pagination />}
     </div>
   );
 };

@@ -32,9 +32,20 @@ def add_actor():
         if not data.get('actor_name') or not data.get('mobile1') or not data.get('email_id'):
             return jsonify({"error": "Missing required fields"}), 400
         
+        # Format gender to match database column size (likely 'M' or 'F')
+        gender = data.get('gender')
+        if gender:
+            if gender.lower() == 'male':
+                gender = 'M'
+            elif gender.lower() == 'female':
+                gender = 'F'
+            else:
+                gender = gender[:1]  # Take first character if it's something else
+        
+        # Create a new actor without specifying actor_id (let it be auto-generated)
         new_actor = Actor(
             actor_name=data.get('actor_name'),
-            gender=data.get('gender'),
+            gender=gender,
             DOB=datetime.strptime(data.get('DOB'), '%Y-%m-%d').date() if data.get('DOB') else None,
             mobile1=data.get('mobile1'),
             mobile2=data.get('mobile2'),
@@ -48,10 +59,11 @@ def add_actor():
         db.session.add(new_actor)
         db.session.commit()
         
-        return jsonify({"message": "Actor added successfully"}), 201
+        return jsonify({"message": "Actor added successfully", "actor_id": new_actor.actor_id}), 201
     except Exception as e:
         db.session.rollback()
         print("Error:", e)
+        traceback.print_exc()  # Add traceback for better debugging
         return jsonify({"error": str(e)}), 500
 
 @actors_bp.route('/delete_actor/<int:actor_id>', methods=['DELETE'])
@@ -87,7 +99,13 @@ def update_actor():
         if 'status' in data:
             actor.status = data['status']
         if 'gender' in data:
-            actor.gender = data['gender']
+            gender = data['gender']
+            if gender.lower() == 'male':
+                actor.gender = 'M'
+            elif gender.lower() == 'female':
+                actor.gender = 'F'
+            else:
+                actor.gender = gender[:1]  # Take first character if it's something else
         
         db.session.commit()
         return jsonify({"message": "Actor updated successfully"}), 200

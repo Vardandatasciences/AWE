@@ -214,7 +214,21 @@ const Employee = () => {
         return;
       }
       
-      const response = await axios.put(endpoint, editedData);
+      // Format the data before sending to the backend
+      const dataToSend = { ...editedData };
+      
+      // If we're updating an actor and gender is in full form, convert it to single character
+      if (isActor && dataToSend.gender) {
+        if (dataToSend.gender.toLowerCase() === 'male') {
+          dataToSend.gender = 'M';
+        } else if (dataToSend.gender.toLowerCase() === 'female') {
+          dataToSend.gender = 'F';
+        } else if (dataToSend.gender.length > 1) {
+          dataToSend.gender = dataToSend.gender.charAt(0);
+        }
+      }
+      
+      const response = await axios.put(endpoint, dataToSend);
       
       if (response.status === 200) {
         // Update the local data
@@ -283,9 +297,9 @@ const Employee = () => {
     setIsAddingCustomer(true);
   };
  
-  const handleSuccess = (message) => {
+  const handleSuccess = (message, newId = null) => {
     setSuccessMessage(message);
-    // Refresh data
+    // Refresh data to ensure we get the newly created record with auto-generated ID
     fetchData(activeTab);
     // Clear success message after 3 seconds
     setTimeout(() => {
@@ -568,6 +582,17 @@ const Employee = () => {
                         placeholder="City"
                         className="form-input"
                       />
+                      {isActor && (
+                        <select
+                          value={editedData.gender || 'M'}
+                          onChange={(e) => setEditedData({...editedData, gender: e.target.value})}
+                          className="form-select"
+                        >
+                          <option value="M">Male</option>
+                          <option value="F">Female</option>
+                          <option value="O">Other</option>
+                        </select>
+                      )}
                       <select
                         value={editedData.status || 'A'}
                         onChange={(e) => setEditedData({...editedData, status: e.target.value})}

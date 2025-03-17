@@ -71,11 +71,22 @@ const Activities = () => {
         step.status === 'in-progress' && step.id === 3
     );
 
+    // Add these state variables in your component
+    const [currentPage, setCurrentPage] = useState(1);
+    const [activitiesPerPage] = useState(10);
+    const [totalPages, setTotalPages] = useState(1);
+
     useEffect(() => {
         fetchActivities();
         // fetchGroups();
         fetchEmployees();
     }, []);
+
+    useEffect(() => {
+        if (activities) {
+            setTotalPages(Math.ceil(activities.length / activitiesPerPage));
+        }
+    }, [activities, activitiesPerPage]);
 
     const fetchActivities = async () => {
         setLoading(true);
@@ -144,22 +155,27 @@ const Activities = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            let response;
             if (editingActivity) {
-                await axios.put(API_ENDPOINTS.UPDATE_ACTIVITY, formData);
-            } else {
-                await axios.post(API_ENDPOINTS.ADD_ACTIVITY, formData);
-                
-                // If we're in the workflow process, mark this step as completed
-                if (isInWorkflow) {
-                    completeStep(2);
-                    
-                    // Show the workflow guide again to guide to the next step
-                    setTimeout(() => {
-                        showWorkflowGuide();
-                    }, 500);
+                response = await axios.put('/update_activity', formData);
+                if (response.data.activity) {
+                    // Update the activity in the local state
+                    setActivities(activities.map(activity => 
+                        activity.activity_id === response.data.activity.activity_id 
+                            ? response.data.activity 
+                            : activity
+                    ));
                 }
+            } else {
+                response = await axios.post('/add_activity', formData);
+                // Refresh activities list after adding
+                fetchActivities();
             }
-            fetchActivities();
+            
+            // Show success message
+            alert(response.data.message);
+            
+            // Reset form and close modal
             setShowForm(false);
             setEditingActivity(null);
             setFormData({
@@ -172,40 +188,62 @@ const Activities = () => {
                 frequency: "0",
                 due_by: "",
                 activity_type: "R",
-                // group_id: "",
                 status: "A"
             });
+            
+            // If we're in the workflow process, mark this step as completed
+            if (isInWorkflow) {
+                completeStep(2);
+                setTimeout(() => {
+                    showWorkflowGuide();
+                }, 500);
+            }
         } catch (error) {
             console.error('Error saving activity:', error);
+            alert(error.response?.data?.error || 'Error saving activity');
         }
     };
 
     const handleEdit = (activity) => {
         setEditingActivity(activity);
         setFormData({
+            activity_id: activity.activity_id,
             activity_name: activity.activity_name,
             standard_time: activity.standard_time,
-            act_des: activity.act_des,
-            criticality: activity.criticality,
-            duration: activity.duration,
-            role_id: activity.role_id,
-            frequency: activity.frequency,
-            due_by: activity.due_by,
-            activity_type: activity.activity_type,
-            // group_id: activity.group_id,
-            status: activity.status
+            act_des: activity.act_des || '',
+            criticality: activity.criticality || 'Low',
+            duration: activity.duration || '',
+            role_id: activity.role_id || '',
+            frequency: activity.frequency || '0',
+            due_by: activity.due_by || '',
+            activity_type: activity.activity_type || 'R',
+            status: activity.status || 'A'
         });
         setShowForm(true);
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this activity?')) {
-            try {
-                await axios.delete(API_ENDPOINTS.DELETE_ACTIVITY(id));
-                fetchActivities();
-            } catch (error) {
-                console.error('Error deleting activity:', error);
+    const handleDelete = async (activityId) => {
+        if (!window.confirm('Are you sure you want to delete this activity?')) {
+            return;
+        }
+        
+        try {
+            const response = await axios.delete(`/delete_activity/${activityId}`);
+            
+            if (response.data.status === 'success') {
+                // Remove the activity from the local state
+                setActivities(activities.filter(activity => activity.activity_id !== activityId));
+                // Show success message
+                alert('Activity deleted successfully');
             }
+        } catch (error) {
+            if (error.response && error.response.data) {
+                // Show the specific error message from the backend
+                alert(error.response.data.message || 'Failed to delete activity');
+            } else {
+                alert('An error occurred while deleting the activity');
+            }
+            console.error('Error deleting activity:', error);
         }
     };
 
@@ -440,6 +478,83 @@ const fetchActivityReport = async (activityId) => {
         window.URL.revokeObjectURL(url);
     };
 
+    // Add this pagination logic function
+    const getCurrentPageActivities = () => {
+        const indexOfLastActivity = currentPage * activitiesPerPage;
+        const indexOfFirstActivity = indexOfLastActivity - activitiesPerPage;
+        return activities.slice(indexOfFirstActivity, indexOfLastActivity);
+    };
+
+    // Add these pagination handler functions
+    const handleNextPage = () => {
+        setCurrentPage(prev => Math.min(prev + 1, totalPages));
+    };
+
+    const handlePrevPage = () => {
+        setCurrentPage(prev => Math.max(prev - 1, 1));
+    };
+
+    const handlePageClick = (pageNumber) => {
+        setCurrentPage(pageNumber);
+    };
+
+    // Modify your existing render logic to use getCurrentPageActivities
+    const currentActivities = getCurrentPageActivities();
+
+    // Add this pagination component
+    const Pagination = () => {
+        const pages = [];
+        for (let i = 1; i <= totalPages; i++) {
+            pages.push(
+                <button
+                    key={i}
+                    className={`pagination-button ${currentPage === i ? 'active' : ''}`}
+                    onClick={() => handlePageClick(i)}
+                >
+                    {i}
+                </button>
+            );
+        }
+
+        return (
+            <div className="pagination-container">
+                <button
+                    className="pagination-button"
+                    onClick={handlePrevPage}
+                    disabled={currentPage === 1}
+                >
+                    <i className="fas fa-chevron-left"></i> Previous
+                </button>
+                
+                {totalPages <= 5 ? (
+                    pages
+                ) : (
+                    <>
+                        {currentPage > 2 && <button className="pagination-button">1</button>}
+                        {currentPage > 3 && <span>...</span>}
+                        {pages.slice(Math.max(0, currentPage - 2), Math.min(currentPage + 1, totalPages))}
+                        {currentPage < totalPages - 2 && <span>...</span>}
+                        {currentPage < totalPages - 1 && (
+                            <button className="pagination-button">{totalPages}</button>
+                        )}
+                    </>
+                )}
+
+                <button
+                    className="pagination-button"
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                >
+                    Next <i className="fas fa-chevron-right"></i>
+                </button>
+                
+                <span className="page-info">
+                    Page {currentPage} of {totalPages}
+                </span>
+            </div>
+        );
+    };
+
     return (
         <div className="activities-container">
             {/* <div className="page-header">
@@ -621,7 +736,7 @@ const fetchActivityReport = async (activityId) => {
                 </div>
             ) : filteredActivities.length > 0 ? (
                 <div className={viewMode === 'grid' ? 'activity-grid' : 'activity-list'}>
-                    {filteredActivities.map(activity => (
+                    {currentActivities.map(activity => (
                         <div 
                             key={activity.activity_id} 
                             className="activity-card"
@@ -645,17 +760,19 @@ const fetchActivityReport = async (activityId) => {
                                 <h3>{activity.activity_name}</h3>
                                 <p className="activity-description">{activity.act_des || 'No description provided'}</p>
                                 <div className="activity-details">
-                                    {/* <div className="detail-item">
-                                        <i className="fas fa-users"></i>
-                                        <span>{getGroupName(activity.group_id)}</span>
-                                    </div> */}
-                                    <div className="detail-item">
-                                        <i className="fas fa-clock"></i>
-                                        <span>Early Warning (in days): {activity.duration || 'N/A'}</span>
-                                    </div>
-                                    <div className="detail-item">
+                                    <div className="detail-item priority">
                                         <i className="fas fa-exclamation-circle"></i>
-                                        <span>Priority: {activity.criticality || 'Low'}</span>
+                                        <span>Priority</span>
+                                        <span className={`priority-badge ${activity.criticality?.toLowerCase() || 'low'}`}>
+                                            {activity.criticality || 'Low'}
+                                        </span>
+                                    </div>
+                                    <div className="detail-item warning">
+                                        <i className="fas fa-clock"></i>
+                                        <span>Early Warning</span>
+                                        <span className="warning-days">
+                                            {activity.duration || '0'} days
+                                        </span>
                                     </div>
                                     <div className="detail-item">
                                         <i className="fas fa-calendar-alt"></i>
@@ -665,6 +782,13 @@ const fetchActivityReport = async (activityId) => {
                             </div>
                             
                             <div className="activity-card-actions">
+                                <button 
+                                    className="edit-btn"
+                                    onClick={() => handleEdit(activity)}
+                                    title="Edit Activity"
+                                >
+                                    <i className="fas fa-edit"></i>
+                                </button>
                                 <button 
                                     className="status-btn" 
                                     onClick={(event) => handleStatusClick(event, activity)}
@@ -677,6 +801,13 @@ const fetchActivityReport = async (activityId) => {
                                     title="Download Activity Performance Report"
                                 >
                                     <i className="fas fa-download"></i>
+                                </button>
+                                <button 
+                                    className="delete-btn"
+                                    onClick={() => handleDelete(activity.activity_id)}
+                                    title="Delete Activity"
+                                >
+                                    <i className="fas fa-trash-alt"></i>
                                 </button>
                             </div>
                         </div>
@@ -710,6 +841,8 @@ const fetchActivityReport = async (activityId) => {
                     </button>
                 </div>
             )}
+
+            {activities.length > 0 && <Pagination />}
 
             {showForm && (
                 <div className="modal-overlay">
