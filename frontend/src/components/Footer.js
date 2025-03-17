@@ -9,8 +9,8 @@ const Footer = () => {
     <footer className="site-footer">
       <div className="footer-content">
         <div className="footer-section">
-          <h3>AWE</h3>
-          <p>Automated Workflow Experience - Simplifying task management and performance monitoring for businesses.</p>
+          <h3>ProSync</h3>
+          <p>Professional Work Sync - Simplifying task management and performance monitoring for businesses.</p>
           <div className="social-icons">
             <a href="#" aria-label="Facebook"><i className="fab fa-facebook-f"></i></a>
             <a href="#" aria-label="Twitter"><i className="fab fa-twitter"></i></a>
@@ -43,13 +43,13 @@ const Footer = () => {
           <address>
             <p><i className="fas fa-map-marker-alt"></i> 123 Business Avenue, Suite 100</p>
             <p><i className="fas fa-phone"></i> +1 (555) 123-4567</p>
-            <p><i className="fas fa-envelope"></i> info@awe-platform.com</p>
+            <p><i className="fas fa-envelope"></i> info@prosync-platform.com</p>
           </address>
         </div>
       </div>
       
       <div className="footer-bottom">
-        <p>&copy; {currentYear} AWE - Automated Workflow Experience. All rights reserved.</p>
+        <p>&copy; {currentYear} ProSync - Professional Work Sync. All rights reserved.</p>
         <div className="footer-legal">
           <a href="#">Privacy Policy</a>
           <a href="#">Terms of Service</a>

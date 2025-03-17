@@ -1077,16 +1077,14 @@ form {
     flex-direction: column;
     gap: 10px;
     text-align: center;
-
-
   }
 }
 
 /* Quick Stats Section */
 .quick-stats-section {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
   padding: 0 20px 30px;
   animation: fadeIn 0.5s ease-out;
 }
@@ -1094,13 +1092,14 @@ form {
 .stat-card {
   background: white;
   border-radius: 12px;
-  padding: 20px;
+  padding: 15px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   display: flex;
   align-items: center;
   position: relative;
   overflow: hidden;
   transition: all 0.3s ease;
+  min-width: 0;
 }
 
 .stat-card:hover {
@@ -1127,13 +1126,13 @@ form {
 }
 
 .stat-icon {
-  width: 60px;
-  height: 60px;
+  width: 50px;
+  height: 50px;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 20px;
+  margin-right: 15px;
   position: relative;
   z-index: 1;
 }
@@ -1185,7 +1184,7 @@ form {
 }
 
 .stat-count {
-  font-size: 2.2rem;
+  font-size: 1.8rem;
   font-weight: 700;
   color: #2c3e50;
   margin-right: 15px;
@@ -1303,16 +1302,127 @@ form {
   }
 }
 
+@media (max-width: 1400px) {
+  .quick-stats-section {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  
+  .stat-card {
+    padding: 12px;
+  }
+}
+
 @media (max-width: 1200px) {
   .quick-stats-section {
     grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+  }
+  
+  .stat-card {
+    padding: 15px;
   }
 }
 
 @media (max-width: 768px) {
   .quick-stats-section {
     grid-template-columns: 1fr;
-
+    padding: 0 15px 20px;
   }
+}
+
+/* Workflow Note Styles */
+.workflow-note {
+    margin: 20px 0;
+    padding: 15px 20px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+    animation: slideIn 0.5s ease-out;
+}
+
+.workflow-note::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: #00ff88;
+    animation: pulse 2s infinite;
+}
+
+.workflow-note p {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.workflow-note p::before {
+    content: '\f0a4'; /* Font Awesome arrow icon */
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    font-size: 1.2rem;
+    color: #00ff88;
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        transform: translateX(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.05);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .workflow-note {
+        margin: 15px 10px;
+        padding: 12px 15px;
+    }
+    
+    .workflow-note p {
+        font-size: 0.9rem;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .workflow-note {
+        background: linear-gradient(135deg, #2c3e50 0%, #1a1a1a 100%);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+}
+
+/* Hover Effect */
+.workflow-note:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
 }
 

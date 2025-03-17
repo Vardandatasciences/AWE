@@ -71,14 +71,28 @@ def update_actor():
         data = request.json
         actor = Actor.query.get_or_404(data['actor_id'])
         
-        actor.actor_name = data['actor_name']
-        actor.mobile1 = data['mobile1']
-        actor.email_id = data['email_id']
-        actor.group_id = data['group_id']
-        actor.role_id = data['role_id']
+        # Update all fields that might be sent from the frontend
+        if 'actor_name' in data:
+            actor.actor_name = data['actor_name']
+        if 'email_id' in data:
+            actor.email_id = data['email_id']
+        if 'mobile1' in data:
+            actor.mobile1 = data['mobile1']
+        if 'mobile2' in data:
+            actor.mobile2 = data['mobile2']
+        if 'group_id' in data:
+            actor.group_id = data['group_id']
+        if 'role_id' in data:
+            actor.role_id = data['role_id']
+        if 'status' in data:
+            actor.status = data['status']
+        if 'gender' in data:
+            actor.gender = data['gender']
         
         db.session.commit()
         return jsonify({"message": "Actor updated successfully"}), 200
     except Exception as e:
         db.session.rollback()
+        print("Error:", e)
+        traceback.print_exc()  # Print full traceback for better debugging
         return jsonify({"error": str(e)}), 500 

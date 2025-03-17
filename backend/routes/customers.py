@@ -101,16 +101,31 @@ def update_customer():
         data = request.json
         customer = Customer.query.get_or_404(data['customer_id'])
         
-        customer.customer_name = data['customer_name']
-        customer.email_id = data['email_id']
-        customer.group_id = data['group_id']
-        customer.mobile1 = data['mobile1']
-        customer.address = data['address']
-        customer.city = data['city']
-        customer.pincode = data['pincode']
+        # Update all fields that might be sent from the frontend
+        if 'customer_name' in data:
+            customer.customer_name = data['customer_name']
+        if 'email_id' in data:
+            customer.email_id = data['email_id']
+        if 'mobile1' in data:
+            customer.mobile1 = data['mobile1']
+        if 'mobile2' in data:
+            customer.mobile2 = data['mobile2']
+        if 'address' in data:
+            customer.address = data['address']
+        if 'city' in data:
+            customer.city = data['city']
+        if 'pincode' in data:
+            customer.pincode = data['pincode']
+        if 'country' in data:
+            customer.country = data['country']
+        if 'group_id' in data:
+            customer.group_id = data['group_id']
+        if 'status' in data:
+            customer.status = data['status']
         
         db.session.commit()
         return jsonify({"message": "Customer updated successfully"}), 200
     except Exception as e:
         db.session.rollback()
+        print("Error:", e)
         return jsonify({"error": str(e)}), 500 

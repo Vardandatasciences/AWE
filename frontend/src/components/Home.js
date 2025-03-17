@@ -48,16 +48,16 @@ const Home = () => {
 
     const user = JSON.parse(localStorage.getItem('user'));
 
-  if (user) {
-    if (user.role != 'admin') {
-      navigate('/tasks');  // Redirect Admin to Employee Page
+    if (user) {
+      if (user.role != 'admin') {
+        navigate('/tasks');  // Redirect Admin to Employee Page
+      } else {
+        showWorkflowGuide();     // Redirect User to Tasks Page
+      }
     } else {
-      showWorkflowGuide();     // Redirect User to Tasks Page
+      showWorkflowGuide();      // Redirect to Login if Not Authenticated
     }
-  } else {
-    showWorkflowGuide();      // Redirect to Login if Not Authenticated
-  }
-      
+
 
 
   };
@@ -75,10 +75,10 @@ const Home = () => {
           </div>
         </div>
         <div className="hero-content">
-          <h1>CA Financial Excellence</h1>
+          <h1>Professional Work Sync</h1>
           <p className="tagline">Streamline accounting processes. Enhance compliance. Maximize financial insights.</p>
           <div className="hero-buttons">
-            <button 
+            <button
               className="btn btn-primary"
               onClick={handleGetStartedClick}
             >
@@ -93,7 +93,7 @@ const Home = () => {
           <div className="gif-container primary-gif">
             <img src={taskManagementGif} alt="Task Management" className="hero-gif" />
             <div className="gif-overlay">
-              <span>Intelligent Financial Management</span>
+              <span>Intelligent Professional Work Synchronisation</span>
             </div>
           </div>
         </div>
@@ -139,10 +139,10 @@ const Home = () => {
       <section className="features animate-on-scroll" id="features" ref={featuresRef}>
         <div className="container">
           <div className="section-header">
-            <h2>CA Practice Management Solutions</h2>
+            <h2>Professional Work Management Solutions</h2>
             <p>Comprehensive tools designed for accounting professionals</p>
           </div>
-          
+
           <div className="feature-showcase">
             <div className="feature-content">
               <div className="feature-icon">
@@ -153,15 +153,16 @@ const Home = () => {
               <ul className="feature-list">
                 <li><i className="fas fa-check-circle"></i> Automated tax deadline tracking</li>
                 <li><i className="fas fa-check-circle"></i> Priority-based client scheduling</li>
-                <li><i className="fas fa-check-circle"></i> Real-time compliance monitoring</li>
-                <li><i className="fas fa-check-circle"></i> Document management system</li>
+                <li><i className="fas fa-check-circle"></i> Real-time audit monitoring</li>
+
+                {/* <li><i className="fas fa-check-circle"></i> Document management system</li> */}
               </ul>
             </div>
             <div className="feature-visual">
               <img src={taskManagementGif} alt="Tax Management" className="feature-gif" />
             </div>
           </div>
-          
+
           <div className="feature-showcase reverse">
             <div className="feature-content">
               <div className="feature-icon">
@@ -180,7 +181,7 @@ const Home = () => {
               <img src={analyticsGif} alt="Analytics Dashboard" className="feature-gif" />
             </div>
           </div>
-          
+
           <div className="feature-showcase">
             <div className="feature-content">
               <div className="feature-icon">
@@ -190,7 +191,7 @@ const Home = () => {
               <p>Foster teamwork and communication with integrated collaboration tools designed for modern workplaces.</p>
               <ul className="feature-list">
                 <li><i className="fas fa-check-circle"></i> Task commenting</li>
-                <li><i className="fas fa-check-circle"></i> File sharing</li>
+                {/* <li><i className="fas fa-check-circle"></i> File sharing</li> */}
                 <li><i className="fas fa-check-circle"></i> Team notifications</li>
                 <li><i className="fas fa-check-circle"></i> Activity feeds</li>
               </ul>
@@ -199,7 +200,7 @@ const Home = () => {
               <img src={teamworkGif} alt="Team Collaboration" className="feature-gif" />
             </div>
           </div>
-          
+
           <div className="feature-showcase reverse">
             <div className="feature-content">
               <div className="feature-icon">
@@ -228,7 +229,7 @@ const Home = () => {
             <h2>Real Business Impact</h2>
             <p>Measurable results that transform your organization</p>
           </div>
-          
+
           <div className="benefits-grid">
             <div className="benefit-card">
               <div className="benefit-stat">
@@ -238,7 +239,7 @@ const Home = () => {
               <h3>Productivity Increase</h3>
               <p>Teams report significant productivity gains within the first month</p>
             </div>
-            
+
             <div className="benefit-card">
               <div className="benefit-stat">
                 <span className="stat-number">65%</span>
@@ -247,7 +248,7 @@ const Home = () => {
               <h3>Reduced Errors</h3>
               <p>Fewer mistakes with automated workflows and validation</p>
             </div>
-            
+
             <div className="benefit-card">
               <div className="benefit-stat">
                 <span className="stat-number">30%</span>
@@ -256,7 +257,7 @@ const Home = () => {
               <h3>Time Savings</h3>
               <p>Less time spent on administrative and repetitive tasks</p>
             </div>
-            
+
             <div className="benefit-card">
               <div className="benefit-stat">
                 <span className="stat-number">85%</span>
@@ -269,7 +270,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Testimonials Section */}
+      {/* Testimonials Section
       <section className="testimonials animate-on-scroll" id="testimonials" ref={testimonialsRef}>
         <div className="container">
           <div className="section-header">
@@ -281,7 +282,7 @@ const Home = () => {
             <div className="testimonial-card">
               <div className="testimonial-content">
                 <i className="fas fa-quote-left"></i>
-                <p>"AWE has transformed how we manage our accounting processes. Tasks that used to take days now happen automatically, and our team can focus on what really matters."</p>
+                <p>"ProSync has transformed how we manage our accounting processes. Tasks that used to take days now happen automatically, and our team can focus on what really matters."</p>
               </div>
               <div className="testimonial-author">
                 <div className="author-avatar">
@@ -327,7 +328,7 @@ const Home = () => {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Call to Action with Animated Background */}
       <section className="cta">
@@ -338,10 +339,10 @@ const Home = () => {
           </div>
         </div>
         <div className="container">
-          <h2>Ready to Transform Your CA Practice?</h2>
+          <h2>Ready to Transform Your Professional Work Experience?</h2>
           <p>Join hundreds of accounting firms already optimizing their operations with our financial automation platform.</p>
           <div className="cta-buttons">
-            <button 
+            <button
               className="btn btn-primary btn-large"
               onClick={handleGetStartedClick}
             >

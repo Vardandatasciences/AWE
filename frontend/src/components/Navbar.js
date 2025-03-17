@@ -20,7 +20,7 @@ const Navbar = () => {
         <div className="navbar-logo">
           <Link to="/">
             <i className="fas fa-tasks"></i>
-            <span>AWE</span>
+            <span>ProSync</span>
           </Link>
         </div>
         
@@ -35,7 +35,7 @@ const Navbar = () => {
               <div className="user-avatar">
                 <i className="fas fa-user-circle"></i>
               </div>
-              <span className="user-name">{user?.name || 'User'}</span>
+              <span className="user-name">Ahmed</span>
               <i className={`fas fa-chevron-${showUserMenu ? 'up' : 'down'}`}></i>
               
               {showUserMenu && (
@@ -45,7 +45,7 @@ const Navbar = () => {
                       <i className="fas fa-user-circle"></i>
                     </div>
                     <div>
-                      <h4>{user?.name || 'User'}</h4>
+                      <h4>Ahmed</h4>
                       <p>{user?.email || ''}</p>
                       <span className="user-role">{user?.role || 'User'}</span>
                     </div>

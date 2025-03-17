@@ -7,11 +7,12 @@ import { API_ENDPOINTS } from '../config/api';
 import apiService from '../services/api.service';
 import { useAuth } from '../context/AuthContext';
 import yetToStart from '../assets/yet-to-start.gif';
-import inProgress from '../assets/in-progress.gif';
+import inProgress from '../assets/wip.gif';
 import completed from '../assets/completed.gif';
-import todoGif from '../assets/yet-to-start.gif'
-import progressGif from '../assets/in-progress.gif';
-import doneGif from '../assets/completed.gif';
+import todoGif from '../assets/Todo.gif'
+import progressGif from '../assets/wip.gif';
+import pendingGif from '../assets/pending.gif';
+import doneGif from '../assets/done.gif';
 import { useWorkflow } from '../context/WorkflowContext';
  
 const Tasks = () => {
@@ -504,7 +505,7 @@ const Tasks = () => {
         <thead>
           <tr>
             <th>Task Name</th>
-            <th>Customer</th>
+            <th>Client</th>
             <th>Status</th>
             <th>Due Date</th>
             {isAdmin && <th>Assignee</th>}
@@ -516,7 +517,7 @@ const Tasks = () => {
           {filteredTasks.map(task => (
             <tr key={task.id} className={`task-row ${task.criticality?.toLowerCase()}`}>
               <td data-label="Task Name">{task.task_name}</td>
-              <td data-label="Customer">{task.customer_name}</td>
+              <td data-label="Client">{task.customer_name}</td>
               <td data-label="Status">
               {!isAdmin && (
                 <select
@@ -544,6 +545,7 @@ const Tasks = () => {
                 </span>
               )}
               </td>
+              <td data-label="Due Date">{task.due_date || 'N/A'}</td>
               {isAdmin && <td data-label="Assignee">{task.assignee || 'Unassigned'}</td>}
               {isAdmin && <td data-label="Time">{task.time_taken || '0'} hours</td>}
               <td data-label="Actions">
@@ -733,7 +735,7 @@ const Tasks = () => {
           type="progress"
           count={stats.inProgress}
           total={stats.total}
-          title="WIP"
+          title="Work In Progress"
           subtitle="In Progress"
           gifSrc={progressGif}
           iconClass="fas fa-spinner fa-spin"
@@ -748,7 +750,7 @@ const Tasks = () => {
           total={stats.total}
           title="Pending"
           subtitle="Awaiting Action"
-          gifSrc={progressGif}
+          gifSrc={pendingGif}
           iconClass="fas fa-pause-circle"
           onClick={handleFilterByPending}
           isActive={filterStatus === 'pending'}
@@ -824,11 +826,11 @@ const Tasks = () => {
         </div>
        
         {/* Only show add/reassign button if user is admin, and moved outside the filter container */}
-        {isAdmin && (
+        {/* {isAdmin && (
           <button className="add-button" onClick={() => setShowReassignModal(true)}>
             <i className="fas fa-plus"></i> Reassign Task
           </button>
-        )}
+        )} */}
       </div>
  
       {loading ? (
@@ -880,7 +882,7 @@ const Tasks = () => {
                 <h3 className="task-title">{task.task_name}</h3>
                 <div className="customer-info">
                   <i className="fas fa-building"></i>
-                  <span>{task.customer_name || 'No Customer'}</span>
+                  <span>{task.customer_name || 'No Client'}</span>
                 </div>
                 <div className="task-details">
                   <div className="detail-item">

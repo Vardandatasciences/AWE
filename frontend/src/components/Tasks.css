@@ -5,6 +5,8 @@
     color: var(--text-color);
     background-color: #f8fafc;
     min-height: calc(100vh - 140px);
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* Professional color palette - refined for better aesthetics */
@@ -794,17 +796,19 @@
 
 /* Completely redesigned stat cards with a clean three-part layout */
 .quick-stats-section {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  display: flex;
+  gap: 15px;
   margin-bottom: 20px;
   position: relative;
+  width: 100%;
 }
 
 .stat-card {
+  flex: 1;
+  min-width: 240px;
   background: white;
   border-radius: 12px;
-  padding: 20px;
+  padding: 15px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
   position: relative;
   overflow: visible;
@@ -814,7 +818,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 120px;
+  height: 110px;
 }
 
 .stat-card:hover {
@@ -838,8 +842,8 @@
 /* Left part - GIF/Icon */
 .stat-icon {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -852,8 +856,8 @@
 }
 
 .stat-gif {
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
   object-fit: contain;
   border-radius: 50%;
   background-color: white;
@@ -929,10 +933,10 @@
 }
 
 .stat-count {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
   line-height: 1;
-  margin-bottom: 5px;
+  margin-bottom: 2px;
   animation: countUp 1.5s ease-out forwards;
 }
 
@@ -949,14 +953,14 @@
 }
 
 .stat-title {
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: #64748b;
   margin: 0;
   font-weight: 600;
 }
 
 .stat-subtitle {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #94a3b8;
   margin-top: 2px;
   display: flex;
@@ -985,8 +989,8 @@
 
 /* Right part - Progress circle */
 .stat-progress {
-  width: 60px;
-  height: 60px;
+  width: 50px;
+  height: 50px;
   position: relative;
   flex-shrink: 0;
   display: flex;
@@ -1105,65 +1109,255 @@
 /* These animations are removed for cleaner look */
 
 /* Responsive adjustments */
-@media (max-width: 1200px) {
+@media (max-width: 1400px) {
   .quick-stats-section {
-    gap: 15px;
+    gap: 10px;
   }
   
   .stat-card {
-    padding: 15px;
+    min-width: 220px;
+    padding: 12px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .quick-stats-section {
+    flex-wrap: wrap;
   }
   
-  .stat-icon {
-    width: 70px;
-    height: 70px;
-  }
-  
-  .stat-gif {
-    width: 70px;
-    height: 70px;
-  }
-  
-  .stat-count {
-    font-size: 2.2rem;
-  }
-  
-  .stat-progress {
-    width: 50px;
-    height: 50px;
+  .stat-card {
+    flex: 1 1 calc(50% - 10px);
+    min-width: calc(50% - 10px);
   }
 }
 
 @media (max-width: 768px) {
-  .quick-stats-section {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
   .stat-card {
-    height: 100px;
-  }
-  
-  .stat-icon {
-    width: 60px;
-    height: 60px;
-  }
-  
-  .stat-gif {
-    width: 60px;
-    height: 60px;
-  }
-  
-  .stat-count {
-    font-size: 2rem;
+    flex: 1 1 100%;
+    min-width: 100%;
   }
 }
 
-@media (max-width: 480px) {
-  .quick-stats-section {
-    grid-template-columns: 1fr;
+/* Professional Table/List View Styling */
+.task-list-view {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  margin-top: 20px;
+}
+
+.task-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+
+.task-table thead {
+  background: #f8fafc;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.task-table th {
+  padding: 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.task-table tbody tr {
+  border-bottom: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.task-table tbody tr:hover {
+  background-color: #f1f5f9;
+}
+
+.task-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.task-table td {
+  padding: 16px;
+  color: #334155;
+  vertical-align: middle;
+}
+
+/* Task Name Column */
+.task-table td:first-child {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+/* Status Badge Styling */
+.status-badge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-badge::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-badge.todo {
+  background-color: #fee2e2;
+  color: #ef4444;
+}
+
+.status-badge.todo::before {
+  background-color: #ef4444;
+}
+
+.status-badge.in-progress {
+  background-color: #fef3c7;
+  color: #f59e0b;
+}
+
+.status-badge.in-progress::before {
+  background-color: #f59e0b;
+}
+
+.status-badge.completed {
+  background-color: #dcfce7;
+  color: #10b981;
+}
+
+.status-badge.completed::before {
+  background-color: #10b981;
+}
+
+.status-badge.pending {
+  background-color: #e0e7ff;
+  color: #6366f1;
+}
+
+.status-badge.pending::before {
+  background-color: #6366f1;
+}
+
+/* Due Date Column */
+.task-table td[data-label="Due Date"] {
+  white-space: nowrap;
+  color: #64748b;
+}
+
+/* Assignee Column */
+.task-table td[data-label="Assignee"] {
+  color: #64748b;
+}
+
+/* Actions Column */
+.task-table td[data-label="Actions"] {
+  text-align: right;
+}
+
+/* Reassign Button in Table */
+.task-table .reassign-button {
+  padding: 8px 16px;
+  font-size: 13px;
+  background: #3b82f6;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.task-table .reassign-button:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+/* Priority Indicators in Table */
+.task-row.high td:first-child {
+  border-left: 4px solid #ef4444;
+}
+
+.task-row.medium td:first-child {
+  border-left: 4px solid #f59e0b;
+}
+
+.task-row.low td:first-child {
+  border-left: 4px solid #10b981;
+}
+
+/* Responsive Table */
+@media screen and (max-width: 1024px) {
+  .task-table {
+    display: block;
   }
-  
-  .stat-card {
-    height: 90px;
+
+  .task-table thead {
+    display: none;
   }
+
+  .task-table tbody {
+    display: block;
+  }
+
+  .task-table tr {
+    display: block;
+    margin-bottom: 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+  }
+
+  .task-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .task-table td:last-child {
+    border-bottom: none;
+  }
+
+  .task-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #475569;
+    margin-right: 16px;
+  }
+
+  .task-table td[data-label="Actions"] {
+    justify-content: flex-end;
+  }
+}
+
+/* Empty State in List View */
+.task-list-view .empty-state {
+  padding: 40px;
+  text-align: center;
+  background: white;
+}
+
+.task-list-view .empty-state i {
+  font-size: 48px;
+  color: #cbd5e1;
+  margin-bottom: 16px;
+}
+
+.task-list-view .empty-state h3 {
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.task-list-view .empty-state p {
+  color: #64748b;
 }

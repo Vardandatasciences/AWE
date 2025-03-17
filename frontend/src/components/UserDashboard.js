@@ -5,7 +5,7 @@ const UserDashboard = () => {
     <div>
       {/* Navbar with only "AWE" */}
       <nav style={{ backgroundColor: "#1f3b50", padding: "10px", color: "white" }}>
-        <h2 style={{ marginLeft: "20px" }}>AWE</h2>
+        <h2 style={{ marginLeft: "20px" }}>ProSync</h2>
       </nav>
 
       {/* Task Categories */}

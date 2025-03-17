@@ -34,8 +34,8 @@ const Dashboard = ({ onGetStarted }) => {
   return (
     <div className="dashboard-container">
       <div className="dashboard-header">
-        <h1>Welcome to AWE Dashboard</h1>
-        <p>Manage your activities, employees, and customers all in one place</p>
+        <h1>Welcome to ProSync Dashboard</h1>
+        <p>Manage your activities, auditors, and clients all in one place</p>
       </div>
 
       {isAdmin && (
@@ -44,9 +44,9 @@ const Dashboard = ({ onGetStarted }) => {
             <h2>Welcome, Admin!</h2>
             <p>Get started with your workflow by following these steps:</p>
             <ul>
-              <li>Create new customers</li>
+              <li>Create new clients</li>
               <li>Set up activities</li>
-              <li>Assign employees to activities</li>
+              <li>Assign auditors to activities</li>
             </ul>
             <button 
               className="get-started-button"
@@ -64,7 +64,7 @@ const Dashboard = ({ onGetStarted }) => {
       <div className="dashboard-stats">
         {/* Your dashboard statistics */}
         <div className="stat-card">
-          <h3>Customers</h3>
+          <h3>Clients</h3>
           <p className="stat-number">0</p>
           <Link to="/customers" className="stat-link">View All</Link>
         </div>
@@ -74,7 +74,7 @@ const Dashboard = ({ onGetStarted }) => {
           <Link to="/activities" className="stat-link">View All</Link>
         </div>
         <div className="stat-card">
-          <h3>Employees</h3>
+          <h3>Auditors</h3>
           <p className="stat-number">0</p>
           <Link to="/employees" className="stat-link">View All</Link>
         </div>
@@ -85,7 +85,7 @@ const Dashboard = ({ onGetStarted }) => {
         <div className="action-buttons">
           <Link to="/add-customer" className="action-button">
             <span className="action-icon">+</span>
-            <span>Add Customer</span>
+            <span>Add Client</span>
           </Link>
           <Link to="/add-activity" className="action-button">
             <span className="action-icon">+</span>
@@ -93,7 +93,7 @@ const Dashboard = ({ onGetStarted }) => {
           </Link>
           <Link to="/assign-employee" className="action-button">
             <span className="action-icon">+</span>
-            <span>Assign Employee</span>
+            <span>Assign Auditor</span>
           </Link>
         </div>
       </div>

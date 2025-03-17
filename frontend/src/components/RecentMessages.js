@@ -59,14 +59,16 @@ const RecentMessages = () => {
   return (
     <div className="recent-messages-container">
       <div className="recent-messages-header">
-        <h2>
-          <span className="icon">✉️</span> Recent Sent Messages
+        <h2 className="recent-messages-title">
+          <i className="fas fa-envelope"></i>
+          Recent Sent Messages
+          <button className="retry-button" onClick={fetchRecentMessages}>
+            <i className="fas fa-sync-alt"></i>
+            
+          </button>
         </h2>
-        <button className="refresh-button" onClick={fetchRecentMessages}>
-          <span className="icon">↻</span> Retry
-        </button>
       </div>
-
+      
       {loading ? (
         <div className="loading-container">
           <div className="message-spinner"></div>
@@ -81,13 +83,13 @@ const RecentMessages = () => {
           </button>
         </div>
       ) : recentMessages.length === 0 ? (
-        <div className="no-messages-container">
-          <span className="icon">📭</span>
-          <p>No sent messages found</p>
+        <div className="no-messages">
+          <i className="fas fa-inbox"></i>
+          <p>No messages have been sent yet</p>
         </div>
       ) : (
         <div className="message-list">
-          <table className="message-table">
+          <table className="recent-messages-table">
             <thead>
               <tr>
                 <th>Message</th>

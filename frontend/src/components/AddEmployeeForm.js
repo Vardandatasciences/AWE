@@ -109,7 +109,7 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
   
   return (
     <div className="form-container">
-      <h2><i className="fas fa-user-plus"></i> Add New Employee</h2>
+      <h2><i className="fas fa-user-plus"></i> Add New Auditor</h2>
       
       {error && (
         <div className="error-message">
@@ -273,7 +273,7 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
                 value={formData.role_id}
                 onChange={handleChange}
               >
-                <option value="22">Employee</option>
+                <option value="22">Auditor</option>
                 <option value="11">Administrator</option>
               </select>
             </div>
@@ -309,7 +309,7 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
             ) : (
               <>
                 <i className="fas fa-save"></i>
-                <span>Save Employee</span>
+                <span>Save Auditor</span>
               </>
             )}
           </button>

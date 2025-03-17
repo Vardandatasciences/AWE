@@ -1038,22 +1038,22 @@
 }
 
 @keyframes fadeInDown {
-  from { 
+  from {
     opacity: 0;
     transform: translateY(-20px);
   }
-  to { 
+  to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
 @keyframes fadeInUp {
-  from { 
+  from {
     opacity: 0;
     transform: translateY(20px);
   }
-  to { 
+  to {
     opacity: 1;
     transform: translateY(0);
   }
@@ -1092,18 +1092,18 @@
   .quick-stats-section {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+ 
   .unified-controls {
     flex-direction: column;
     padding: 15px;
   }
-  
+ 
   .tabs {
     width: 100%;
     justify-content: center;
     margin-bottom: 15px;
   }
-  
+ 
   .search-filter-container {
     width: 100%;
     justify-content: space-between;
@@ -1114,37 +1114,38 @@
   .quick-stats-section {
     grid-template-columns: 1fr;
   }
-  
+ 
   .unified-controls {
     flex-direction: column;
   }
-  
+ 
   .search-filter-container {
     flex-direction: column;
     align-items: stretch;
     width: 100%;
   }
-  
+ 
   .search-box {
     width: 100%;
     margin-bottom: 10px;
   }
-  
+ 
   .filter-options {
     width: 100%;
     justify-content: space-between;
   }
-  
+ 
   .card-grid {
     grid-template-columns: 1fr;
   }
-  
+ 
   .add-button {
     width: 100%;
     justify-content: center;
   }
-  
+ 
   .action-buttons {
     grid-template-columns: 1fr;
   }
-} 
+}
+

@@ -89,8 +89,8 @@ const Report = () => {
             },
             {
                 id: 4,
-                title: 'Customer Engagement Metrics',
-                description: 'Analysis of customer engagement with assigned tasks',
+                title: 'Client Engagement Metrics',
+                description: 'Analysis of client engagement with assigned tasks',
                 type: 'customer',
                 createdAt: '2023-06-15',
                 status: 'completed',
@@ -100,7 +100,7 @@ const Report = () => {
             {
                 id: 5,
                 title: 'Overdue Tasks Report',
-                description: 'List of all overdue tasks and responsible employees',
+                description: 'List of all overdue tasks and responsible auditors',
                 type: 'task',
                 createdAt: '2023-07-05',
                 status: 'completed',
@@ -275,7 +275,7 @@ const Report = () => {
                 <h1>
                     <i className="fas fa-file-alt"></i> Reports
                 </h1>
-                <p>Access and download reports for tasks, activities, and employee performance</p>
+                <p>Access and download reports for tasks, activities, and auditor performance</p>
             </div>
 
             <div className="report-filters">
@@ -297,9 +297,9 @@ const Report = () => {
                     >
                         <option value="all">All Reports</option>
                         <option value="task">Task Reports</option>
-                        <option value="employee">Employee Reports</option>
+                        <option value="employee">Audit Reports</option>
                         <option value="activity">Activity Reports</option>
-                        <option value="customer">Customer Reports</option>
+                        <option value="customer">Client Reports</option>
                     </select>
                 </div>
                 

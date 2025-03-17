@@ -64,7 +64,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
     const errors = {};
     
     if (!formData.customer_name.trim()) {
-      errors.customer_name = 'Customer name is required';
+      errors.customer_name = 'Client name is required';
     }
     
     if (!formData.mobile1.trim()) {
@@ -125,7 +125,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
         // Mark the first step (Create Customer) as completed
         completeStep(1);
         
-        onSuccess('Customer added successfully!');
+        onSuccess('Client added successfully!');
         
         // Close the form
         onClose();
@@ -145,7 +145,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
   
   return (
     <div className="form-container">
-      <h2><i className="fas fa-building"></i> Add New Customer</h2>
+      <h2><i className="fas fa-building"></i> Add New Client</h2>
       
       {error && (
         <div className="error-message">
@@ -158,7 +158,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
         <div className="form-grid">
           <div className="form-group">
             <label htmlFor="customer_name">
-              Customer Name <span className="required">*</span>
+              ClientName <span className="required">*</span>
             </label>
             <div className="input-with-icon">
               <i className="fas fa-building"></i>
@@ -168,7 +168,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
                 name="customer_name"
                 value={formData.customer_name}
                 onChange={handleChange}
-                placeholder="Enter customer name"
+                placeholder="Enter client name"
                 className={formErrors.customer_name ? 'error' : ''}
               />
             </div>
@@ -176,7 +176,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
           </div>
           
           <div className="form-group">
-            <label htmlFor="customer_type">Customer Type</label>
+            <label htmlFor="customer_type">Client Type</label>
             <div className="input-with-icon">
               <i className="fas fa-tag"></i>
               <select
@@ -389,7 +389,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
             ) : (
               <>
                 <i className="fas fa-save"></i>
-                <span>Save Customer</span>
+                <span>Save Client</span>
               </>
             )}
           </button>

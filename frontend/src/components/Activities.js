@@ -312,35 +312,7 @@ const fetchActivityReport = async (activityId) => {
         }
     };
 
-    // Add function to handle report button click
-    const handleReportClick = (activity) => {
-        setSelectedActivityReport(activity);
-        fetchActivityReport(activity.activity_id);
-        setShowReportModal(true);
-    };
 
-    // Add function to handle pie chart segment click
-    const handlePieSegmentClick = (status) => {
-        setSelectedStatus(status === selectedStatus ? null : status);
-    };
-
-    // Add function to download report
-    const handleDownloadReport = async (activityId) => {
-        try {
-            const response = await axios.get(`/generate_activity_report?activity_id=${activityId}`, {
-                responseType: 'blob'
-            });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `activity_report_${activityId}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch (error) {
-            console.error('Error downloading report:', error);
-        }
-    };
 
     const handleAddActivity = async (activityData) => {
         try {
@@ -479,9 +451,13 @@ const fetchActivityReport = async (activityId) => {
             {isInWorkflow && (
                 <div className="workflow-note">
                     {isInEmployeeAssignmentStep ? (
-                        <p>You're in step 3 of the workflow. Please assign an employee to an activity to continue.</p>
+                        <p className="workflow-message">
+                            You're in step 3 of the workflow. Please assign an auditor to an activity to continue.
+                        </p>
                     ) : (
-                        <p>You're in step 2 of the workflow. Please create an activity to continue.</p>
+                        <p className="workflow-message">
+                            You're in step 2 of the workflow. Please create an activity to continue.
+                        </p>
                     )}
                 </div>
             )}
@@ -564,7 +540,7 @@ const fetchActivityReport = async (activityId) => {
                             <div className="stat-details">
                                 <div className="stat-detail">
                                     <span className="detail-dot customer"></span>
-                                    <span>Customer Activities</span>
+                                    <span>Client Activities</span>
                                 </div>
                             </div>
                         </div>
@@ -675,7 +651,7 @@ const fetchActivityReport = async (activityId) => {
                                     </div> */}
                                     <div className="detail-item">
                                         <i className="fas fa-clock"></i>
-                                        <span>Duration: {activity.duration || 'N/A'}</span>
+                                        <span>Early Warning (in days): {activity.duration || 'N/A'}</span>
                                     </div>
                                     <div className="detail-item">
                                         <i className="fas fa-exclamation-circle"></i>
@@ -693,7 +669,7 @@ const fetchActivityReport = async (activityId) => {
                                     className="status-btn" 
                                     onClick={(event) => handleStatusClick(event, activity)}
                                 >
-                                    <i className="fas fa-users"></i> Mapping
+                                    <i className="fas fa-users"></i> Assign
                                 </button>
                                 <button 
                                     className="download-btn"
@@ -759,7 +735,7 @@ const fetchActivityReport = async (activityId) => {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Standard Time:</label>
+                                <label>Estimated Time to complete (in hours):</label>
                                 <input
                                     type="number"
                                     name="standard_time"
@@ -791,7 +767,7 @@ const fetchActivityReport = async (activityId) => {
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Duration:</label>
+                                <label>Early Warning (in days):</label>
                                 <input
                                     type="number"
                                     name="duration"
@@ -802,14 +778,12 @@ const fetchActivityReport = async (activityId) => {
                             </div>
                             <div className="form-group">
                                 <label>Role ID:</label>
-                                <input>
-                                    type="number"
+                                <select
                                     name="role_id"
                                     value={formData.role_id}
                                     onChange={handleInputChange}
                                     required
-                                </input>
-                                <select>
+                                >
                                     <option value="">Select Role</option>
                                     <option value="11">Admin</option>
                                     <option value="22">User</option>
@@ -913,7 +887,7 @@ const fetchActivityReport = async (activityId) => {
                         <div className="modal-header">
                             <h2>
                                 <i className="fas fa-project-diagram"></i>
-                                Activity Mapping
+                                Activity Assignment
                                 {selectedActivity && <span> - {selectedActivity.activity_name}</span>}
                             </h2>
                             <button className="close-btn" onClick={closeActivityMapping}>
@@ -932,14 +906,14 @@ const fetchActivityReport = async (activityId) => {
                             {mappingLoading ? (
                                 <div className="loading-container">
                                     <div className="spinner"></div>
-                                    <p>Loading mappings...</p>
+                                    <p>Loading assignments...</p>
                                 </div>
                             ) : (
                                 <table className="mapping-table">
                                     <thead>
                                         <tr>
-                                            <th>CUSTOMER NAME</th>
-                                            <th>ASSIGNED EMPLOYEE</th>
+                                            <th>CLIENT NAME</th>
+                                            <th>ASSIGNED AUDITOR</th>
                                             <th>ACTION</th>
                                         </tr>
                                     </thead>
@@ -970,7 +944,7 @@ const fetchActivityReport = async (activityId) => {
                                         ) : (
                                             <tr>
                                                 <td colSpan="3" className="no-data">
-                                                    No mappings found for this activity
+                                                    No assignments found for this activity
                                                 </td>
                                             </tr>
                                         )}
@@ -1011,7 +985,7 @@ const fetchActivityReport = async (activityId) => {
                                 }
                             </h2>
                             <div className="standard-time">
-                                Standard Time: {standardTime} hours
+                            Estimated Time to complete: {standardTime} hours
                             </div>
                             <button 
                                 className="close-btn" 
@@ -1026,7 +1000,7 @@ const fetchActivityReport = async (activityId) => {
                                 <table>
                                     <thead>
                                         <tr>
-                                            <th>Employee ID</th>
+                                            <th>Auditor ID</th>
                                             <th>Name</th>
                                             <th>Task ID</th>
                                             <th>Time Taken</th>

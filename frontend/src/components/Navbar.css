@@ -37,6 +37,7 @@
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0.5px;
+  margin-left: 10px;
 }
 
 /* Navigation menu */
@@ -76,16 +77,18 @@
 .navbar-actions {
   display: flex;
   align-items: center;
+  position: relative;
 }
 
 .user-profile {
+  position: relative;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  cursor: pointer;
-  padding: 6px 12px;
-  border-radius: 6px;
-  transition: background-color 0.2s ease;
-  position: relative;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 }
 
 .user-profile:hover {
@@ -118,13 +121,15 @@
   position: absolute;
   top: 100%;
   right: 0;
-  width: 280px;
-  background-color: white;
+  background: white;
   border-radius: 8px;
-  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
-  margin-top: 10px;
-  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 280px;
+  z-index: 1000;
   overflow: hidden;
+  animation: fadeIn 0.2s ease-out;
+  border: 1px solid #e2e8f0;
+  margin-top: 8px;
 }
 
 .user-dropdown::before {
@@ -132,9 +137,13 @@
   position: absolute;
   top: -8px;
   right: 20px;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 8px solid white;
+  width: 16px;
+  height: 16px;
+  background: white;
+  transform: rotate(45deg);
+  border-top: 1px solid #e2e8f0;
+  border-left: 1px solid #e2e8f0;
+  z-index: -1;
 }
 
 .user-info {
