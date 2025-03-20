@@ -55,8 +55,8 @@ const Diary = () => {
 
     if (!actorId) {
         console.warn("⚠️ No actor ID found in localStorage, setting default...");
-        localStorage.setItem('actor_id', 'Khairu'); // Set a default for testing
-        actorId = 'Khairu';
+        localStorage.setItem('actor_id', '1020'); // Set a default for testing
+        actorId = '1020';
     }
 
     console.log("🚀 Actor ID found:", actorId);
@@ -72,8 +72,14 @@ const Diary = () => {
         
         // Then fetch entries
         const actorId = localStorage.getItem('actor_id');
+        const token = localStorage.getItem('token');
         const entriesResponse = await axios.get('http://localhost:5000/diary/entries', {
-          params: { actor_id: actorId }
+          params: { actor_id: actorId },
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          withCredentials: true
         });
         console.log(entriesResponse)
         
@@ -116,7 +122,8 @@ const Diary = () => {
         
         // Now create the new entry
         const newEntry = {
-            id: Date.now(),
+            id: Date.now(), // Temporary ID for frontend tracking
+            actor_id: actorId, // Ensure actor_id is set
             date: new Date(),
             start_time: null,
             end_time: null,
@@ -124,6 +131,7 @@ const Diary = () => {
             remarks: ''
         };
 
+        console.log("Adding new entry:", newEntry);
         setEntries(prev => [...prev, newEntry]);
     } catch (error) {
         console.error('🔴 Error adding entry:', error);
@@ -140,14 +148,30 @@ const Diary = () => {
     try {
       const token = localStorage.getItem('token');
       const actorId = localStorage.getItem('actor_id');
-      const formattedEntries = entries.map(entry => ({
-        ...entry,
-        date: entry.date ? format(entry.date, 'yyyy-MM-dd') : null,
-        start_time: entry.start_time ? format(entry.start_time, 'HH:mm') : null,
-        end_time: entry.end_time ? format(entry.end_time, 'HH:mm') : null
-      }));
       
-      await axios.post('http://localhost:5000/diary/save',
+      if (!actorId) {
+        console.error("No actor ID found when trying to save entries");
+        alert("Unable to save entries: No user ID found");
+        return;
+      }
+      
+      console.log("Saving entries for actor ID:", actorId);
+      
+      // Format entries for saving
+      const formattedEntries = entries.map(entry => {
+        console.log("Processing entry:", entry);
+        return {
+          ...entry,
+          actor_id: actorId, // Ensure actor_id is set for each entry
+          date: entry.date ? format(entry.date, 'yyyy-MM-dd') : null,
+          start_time: entry.start_time ? format(entry.start_time, 'HH:mm') : null,
+          end_time: entry.end_time ? format(entry.end_time, 'HH:mm') : null
+        };
+      });
+      
+      console.log("Formatted entries to save:", formattedEntries);
+      
+      const saveResponse = await axios.post('http://localhost:5000/diary/save',
         {
           entries: formattedEntries,
           actor_id: actorId
@@ -156,26 +180,38 @@ const Diary = () => {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          withCredentials: true
         }
       );
       
-      // Refresh entries after save
-      const response = await axios.get('http://localhost:5000/diary/entries', {
-        params: { actor_id: actorId },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      console.log("Save response:", saveResponse);
       
-      const updatedEntries = response.data.map(entry => ({
-        ...entry,
-        date: entry.date ? new Date(entry.date) : null,
-        start_time: entry.start_time ? parse(entry.start_time, 'HH:mm', new Date()) : null,
-        end_time: entry.end_time ? parse(entry.end_time, 'HH:mm', new Date()) : null
-      }));
-      
-      setEntries(updatedEntries);
+      if (saveResponse.status === 200) {
+        alert("Entries saved successfully!");
+        
+        // Refresh entries after save
+        const response = await axios.get('http://localhost:5000/diary/entries', {
+          params: { actor_id: actorId },
+          headers: { 'Authorization': `Bearer ${token}` },
+          withCredentials: true
+        });
+        
+        const updatedEntries = response.data.map(entry => ({
+          ...entry,
+          date: entry.date ? new Date(entry.date) : null,
+          start_time: entry.start_time ? parse(entry.start_time, 'HH:mm', new Date()) : null,
+          end_time: entry.end_time ? parse(entry.end_time, 'HH:mm', new Date()) : null
+        }));
+        
+        setEntries(updatedEntries);
+      } else {
+        console.error("Unexpected response when saving entries:", saveResponse);
+        alert("Error saving entries. Please try again.");
+      }
     } catch (error) {
       console.error('Error saving entries:', error);
+      alert("Failed to save entries: " + (error.response?.data?.message || error.message));
     }
   };
  
@@ -189,8 +225,13 @@ const Diary = () => {
       try {
         if (selectedEntry.id > 0) {
           const actorId = localStorage.getItem('actor_id');
+          const token = localStorage.getItem('token');
           await axios.delete(`http://localhost:5000/diary/entries/${selectedEntry.id}?actor_id=${actorId}`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            withCredentials: true
           });
         }
         setEntries(entries.filter(entry => entry.id !== selectedEntry.id));
@@ -220,7 +261,7 @@ const Diary = () => {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            withCredentials: true  // Ensure CORS requests work
+            withCredentials: true  // Keep this for cookies/auth if needed
         });
 
         if (response.status === 200) {
@@ -309,15 +350,13 @@ const Diary = () => {
         const updatedEntries = [...entries];
         updatedEntries[index].task = e.target.value;
         setEntries(updatedEntries);
+        console.log(`Updated task for entry ${index} to:`, e.target.value);
     }}
     fullWidth
     size="small"
     displayEmpty
 >
     <MenuItem value="" disabled>Select a task</MenuItem>
-    {entry.task && !tasks.some(task => task.task_id === entry.task) && (
-        <MenuItem value={entry.task}>ID: {entry.task}</MenuItem>
-    )}
     {tasks && tasks.length > 0 ? (
         tasks.map((task) => (
             <MenuItem key={task.task_id} value={task.task_id}>
@@ -326,6 +365,10 @@ const Diary = () => {
         ))
     ) : (
         <MenuItem disabled>No WIP tasks available</MenuItem>
+    )}
+    {/* Keep the existing task if it's not in the current tasks list */}
+    {entry.task && !tasks.some(task => task.task_id === entry.task) && (
+        <MenuItem value={entry.task}>ID: {entry.task}</MenuItem>
     )}
 </Select>
 

@@ -30,6 +30,7 @@ const Tasks = () => {
   const [newDueDate, setNewDueDate] = useState('');
   const [filterMonth, setFilterMonth] = useState('all'); // 'all', 'current', 'previous', 'next', 'last3'
   const [selectedAssignee, setSelectedAssignee] = useState('');
+  const [searchField, setSearchField] = useState('all'); // Add search field state: 'all', 'task', 'customer', 'assignee'
   const { user, isAdmin } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [gifsLoaded, setGifsLoaded] = useState({
@@ -44,6 +45,9 @@ const Tasks = () => {
     completed: 0,
     pending: 0
   });
+  const [showRemarksModal, setShowRemarksModal] = useState(false);
+  const [remarks, setRemarks] = useState('');
+  const [taskForRemarks, setTaskForRemarks] = useState(null);
  
   // Check if GIFs are loading correctly
   useEffect(() => {
@@ -85,15 +89,47 @@ const Tasks = () => {
     fetchTasks();
     fetchEmployees();
   }, []);
+
+  // Add a debounced search effect
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      // Only fetch from backend if search term is at least 2 characters
+      // or if it's empty (to reset the search)
+      if (searchTerm.length >= 2 || searchTerm === '') {
+        fetchTasks();
+      }
+    }, 500); // 500ms delay for debouncing
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, searchField]);
  
   useEffect(() => {
     const monthFiltered = getFilteredTasks();
-    const searchFiltered = monthFiltered.filter(task =>
-      task.task_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      task.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const searchFiltered = monthFiltered.filter(task => {
+      if (searchTerm === '') return true;
+      
+      const term = searchTerm.toLowerCase();
+      
+      // Filter based on selected search field
+      switch(searchField) {
+        case 'task':
+          return task.task_name?.toLowerCase().includes(term);
+        case 'customer':
+          return task.customer_name?.toLowerCase().includes(term);
+        case 'assignee':
+          return task.assignee?.toLowerCase().includes(term);
+        case 'all':
+        default:
+          // Search in all fields
+          return (
+            task.task_name?.toLowerCase().includes(term) ||
+            task.customer_name?.toLowerCase().includes(term) ||
+            task.assignee?.toLowerCase().includes(term)
+          );
+      }
+    });
     setFilteredTasks(searchFiltered);
-  }, [tasks, searchTerm, filterMonth, filterStatus]);
+  }, [tasks, searchTerm, filterMonth, filterStatus, searchField]);
  
   const changeTaskStatus = (taskId, newStatus) => {
     console.log(`Direct status change requested for task ${taskId} to ${newStatus}`);
@@ -104,32 +140,18 @@ const Tasks = () => {
     // Prevent non-admin users from changing completed tasks
     if (!isAdmin && task && task.status === 'completed') {
       console.log('Non-admin user attempted to change a completed task. Operation blocked.');
-      return; // Exit the function early
+      return;
+    }
+
+    // If status is being changed to Pending, show remarks modal
+    if (newStatus === 'Pending') {
+      setTaskForRemarks({ id: taskId, newStatus });
+      setShowRemarksModal(true);
+      return;
     }
     
-    // Map the UI-friendly status to the backend status values
-    let backendStatus = newStatus; // Already in the correct format for backend
-    
-    // Update the task in the UI immediately for better user experience
-    const updatedTasks = tasks.map(task => {
-      if (task.id === taskId) {
-        // Map backend status to frontend column
-        const frontendStatus =
-          newStatus === 'Yet to Start' ? 'todo' :
-          newStatus === 'WIP' ? 'in-progress' :
-          newStatus === 'Pending' ? 'pending' :
-          'Completed';
-        
-        console.log(`Updating task ${taskId} in UI from ${task.status} to ${frontendStatus}`);
-        return { ...task, status: frontendStatus };
-      }
-      return task;
-    });
-    
-    setTasks(updatedTasks);
-    
-    // Call the API to update the status in the backend
-    handleStatusChange(taskId, backendStatus);
+    // For other statuses, proceed as normal
+    handleStatusChange(taskId, newStatus);
   };
  
   const fetchTasks = async () => {
@@ -140,8 +162,21 @@ const Tasks = () => {
       const userId = userData.user_id;
       const roleId = userData.role_id || (userData.role === 'admin' ? '11' : '22');
      
-      // Make API request with user info as query parameters
-      const response = await axios.get(`http://localhost:5000/tasks?user_id=${userId}&role_id=${roleId}`);
+      // Build query parameters including search filters
+      let queryParams = `user_id=${userId}&role_id=${roleId}`;
+      
+      // Add search parameters if they exist
+      if (searchTerm) {
+        queryParams += `&search=${encodeURIComponent(searchTerm)}&field=${searchField}`;
+      }
+     
+      // Make API request with user info and search parameters
+      const response = await axios.get(`http://localhost:5000/tasks?${queryParams}`);
+      
+      // Log a sample task to check if remarks are included
+      if (response.data.length > 0) {
+        console.log("Sample task from API:", response.data[0]);
+      }
      
       const tasksWithIds = response.data.map(task => {
         const mappedStatus = getColumnForStatus(task.status);
@@ -273,43 +308,46 @@ const Tasks = () => {
     }
   };
  
-  const handleStatusChange = async (taskId, newStatus) => {
+  const handleStatusChange = async (taskId, newStatus, remarks = null) => {
     console.log(`Updating task ${taskId} status from UI: ${newStatus} to backend: ${newStatus}`);
     
     try {
-      // Get user info from localStorage
       const userData = JSON.parse(localStorage.getItem('user')) || {};
       const userId = userData.user_id;
       const roleId = userData.role_id || (userData.role === 'admin' ? '11' : '22');
       
-      // Make sure we're using the full URL with http://
       const apiUrl = `http://localhost:5000/tasks/${taskId}?user_id=${userId}&role_id=${roleId}`;
-      console.log(`Making API request to: ${apiUrl}`);
+      
+      const updateData = { 
+        status: newStatus,
+        remarks: remarks || '' // Always include remarks field, empty string if not provided
+      };
       
       const response = await axios.patch(
         apiUrl,
-        { status: newStatus },
+        updateData,
         { 
-          headers: { 
-            'Content-Type': 'application/json',
-            // Add any auth headers if needed
-          },
-          // Important: Enable CORS for this request
+          headers: { 'Content-Type': 'application/json' },
           withCredentials: false
         }
       );
       
       console.log('Task update response:', response.data);
       
-      // Show success message
-      displaySuccess("Task status updated successfully!");
+      // Update local task data with the response
+      if (response.data.success) {
+        setTasks(prevTasks => prevTasks.map(task => 
+          task.id === taskId 
+            ? { ...task, status: newStatus, remarks: remarks || task.remarks }
+            : task
+        ));
+      }
       
-      // Refresh tasks to ensure we have the latest data
-      fetchTasks();
+      displaySuccess("Task status updated successfully!");
+      fetchTasks(); // Refresh tasks to get latest data
       
     } catch (err) {
       console.error('Error updating task status:', err);
-      // Revert the optimistic update if the API call fails
       fetchTasks();
       setError('Failed to update task status. Please try again.');
       setTimeout(() => setError(null), 3000);
@@ -390,6 +428,8 @@ const Tasks = () => {
     setSelectedAssignee('');
     setShowReassignModal(true);
     fetchEmployees();
+    console.log("Selected task for reassign:", task);
+    console.log("Task remarks:", task.remarks);
   };
  
   // Add this helper function to check if a task is delayed
@@ -494,6 +534,14 @@ const Tasks = () => {
   </select>
 </div>
         </div>
+        {isAdmin && task.status === 'Pending' && (
+          <div className="task-remarks">
+            <div className="detail-item remarks-item">
+              <i className="fas fa-comment"></i>
+              <span className="remarks-text">Remarks: {task.remarks || 'None'}</span>
+            </div>
+          </div>
+        )}
       </div>
     )}
     </Draggable>
@@ -704,6 +752,23 @@ const Tasks = () => {
     document.querySelector('.task-cards-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
  
+  // Add new function to handle remarks submission
+  const handleRemarksSubmit = async () => {
+    if (!remarks.trim()) {
+      alert('Please enter remarks before proceeding');
+      return;
+    }
+
+    try {
+      await handleStatusChange(taskForRemarks.id, taskForRemarks.newStatus, remarks);
+      setShowRemarksModal(false);
+      setRemarks('');
+      setTaskForRemarks(null);
+    } catch (error) {
+      console.error('Error updating task with remarks:', error);
+    }
+  };
+ 
   return (
     <div className="tasks-container">
       {success && (
@@ -775,10 +840,20 @@ const Tasks = () => {
             <i className="fas fa-search"></i>
             <input
               type="text"
-              placeholder="Search tasks..."
+              placeholder={`Search ${searchField === 'all' ? 'all fields' : searchField + 's'}...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            <select 
+              value={searchField}
+              onChange={(e) => setSearchField(e.target.value)}
+              className="search-field-selector"
+            >
+              <option value="all">All Fields</option>
+              <option value="task">Task Name</option>
+              <option value="customer">Customer</option>
+              <option value="assignee">Assignee</option>
+            </select>
           </div>
          
           <div className="filter-group">
@@ -933,6 +1008,14 @@ const Tasks = () => {
                   </div>
                 </div>
                 )}
+                {isAdmin && task.status === 'Pending' && (
+                  <div className="task-remarks">
+                    <div className="detail-item remarks-item">
+                      <i className="fas fa-comment"></i>
+                      <span className="remarks-text">Remarks: {task.remarks || 'None'}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           ) : (
@@ -964,6 +1047,14 @@ const Tasks = () => {
                 <p className="customer-name">
                   <i className="fas fa-building"></i> {selectedTask.customer_name}
                 </p>
+                
+                {/* Always show remarks section, but with "None" if no remarks */}
+                <div className="remarks-display">
+                  <h5><i className="fas fa-comment"></i> Remarks</h5>
+                  <p className="remarks-content">
+                    {selectedTask.remarks ? selectedTask.remarks : 'None'}
+                  </p>
+                </div>
               </div>
              
               <div className="form-group">
@@ -1029,8 +1120,56 @@ const Tasks = () => {
           </div>
         </div>
       )}
+ 
+      {showRemarksModal && (
+        <div className="modal-overlay">
+          <div className="reassign-modal">
+            <div className="modal-header">
+              <h3>Add Remarks</h3>
+              <button className="close-btn" onClick={() => setShowRemarksModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="modal-content">
+              <div className="form-group">
+                <label htmlFor="remarks">Please enter remarks for pending status:</label>
+                <textarea
+                  id="remarks"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  placeholder="Enter your remarks here..."
+                  rows="4"
+                  className="remarks-textarea"
+                />
+              </div>
+            </div>
+            
+            <div className="modal-actions">
+              <button
+                className="cancel-btn"
+                onClick={() => {
+                  setShowRemarksModal(false);
+                  setRemarks('');
+                  setTaskForRemarks(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="save-btn"
+                onClick={handleRemarksSubmit}
+                disabled={!remarks.trim()}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
  
 export default Tasks;
+

@@ -14,6 +14,8 @@ import Login from './components/Login';
 import Unauthorized from './components/Unauthorized';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
+import Profile from './components/Profile';
+
 // import ChangePassword from './ChangePassword';
 import Diary from './components/Diary';
 import WorkflowGuide from './components/WorkflowGuide';
@@ -22,6 +24,7 @@ import WorkflowTest from './components/WorkflowTest';
 import AddCustomerForm from './components/AddCustomerForm';
 import { WorkflowProvider, useWorkflow } from './context/WorkflowContext';
 import './App.css';
+
 
 // Create a global variable to store the workflow guide state handler
 let globalSetShowWorkflowGuide = null;
@@ -129,6 +132,14 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
         <Route path="/login" element={<Login />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/workflow-test" element={<WorkflowTest />} />
+        
+        <Route path="/profile" element={
+              <ProtectedRoute>
+                <main className="main-content">
+                  <Profile />
+                </main>
+              </ProtectedRoute>
+            } />
 
         {/* Add route for customer add page */}
         <Route path="/customers/add" element={

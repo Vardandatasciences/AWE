@@ -63,9 +63,9 @@ def process_message_queue(app):
                 current_date = now.date()
                 current_time = now.time()
 
-                print(current_date,current_time)
+                # print(current_date,current_time)
                 
-                print(f"Checking for messages at {now.strftime('%Y-%m-%d %H:%M:%S')}")
+                # print(f"Checking for messages at {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
                 
                 # Find messages that are scheduled for now or earlier
@@ -77,7 +77,7 @@ def process_message_queue(app):
                 ).all()
 
                 # groups = Group.query.all()
-                print(messages_to_send)
+                # print(messages_to_send)
                 
                 if messages_to_send:
                     print(f"Found {len(messages_to_send)} messages to process")
@@ -104,10 +104,10 @@ def process_message_queue(app):
                     db.session.commit()
                 
                 # Sleep for 5 seconds before checking again
-                time.sleep(5)
+                time.sleep(30)
             except Exception as e:
                 print(f"Error processing message queue: {e}")
-                time.sleep(5)  # Still sleep on error to avoid tight loop
+                time.sleep(30)  # Still sleep on error to avoid tight loop
 
 def start_email_thread(app=None):
     """Start the background thread for email processing"""

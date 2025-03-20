@@ -22,7 +22,12 @@ def get_tasks():
         user_id = request.args.get('user_id')
         role_id = request.args.get('role_id')
         
+        # Get search filters if provided
+        search_term = request.args.get('search', '')
+        search_field = request.args.get('field', 'all')  # 'all', 'task', 'customer', 'assignee'
+        
         print(f"User ID: {user_id}, Role ID: {role_id}")
+        print(f"Search: {search_term}, Field: {search_field}")
         
         # If admin, get all tasks, otherwise filter by user's assigned tasks
         if role_id == "11":  # Admin role
@@ -35,6 +40,33 @@ def get_tasks():
                 # If no user_id provided, return empty list
                 return jsonify([])
         
+        # Apply search filters in Python rather than SQL for flexibility
+        filtered_tasks = []
+        for task in tasks:
+            # Skip filtering if no search term
+            if not search_term:
+                filtered_tasks.append(task)
+                continue
+                
+            # Convert search term to lowercase for case-insensitive comparison
+            term = search_term.lower()
+            
+            # Apply filter based on search field
+            if search_field == 'task':
+                if task.task_name and term in task.task_name.lower():
+                    filtered_tasks.append(task)
+            elif search_field == 'customer':
+                if task.customer_name and term in task.customer_name.lower():
+                    filtered_tasks.append(task)
+            elif search_field == 'assignee':
+                if task.assigned_to and term in task.assigned_to.lower():
+                    filtered_tasks.append(task)
+            else:  # 'all' or any other value
+                if (task.task_name and term in task.task_name.lower()) or \
+                   (task.customer_name and term in task.customer_name.lower()) or \
+                   (task.assigned_to and term in task.assigned_to.lower()):
+                    filtered_tasks.append(task)
+        
         return jsonify([{
             'id': task.task_id,
             'task_name': task.task_name,
@@ -46,8 +78,9 @@ def get_tasks():
             'initiator': task.initiator,
             'time_taken': task.duration,
             'customer_name': task.customer_name,
-            'title': task.task_name
-        } for task in tasks])
+            'title': task.task_name,
+            'remarks': task.remarks
+        } for task in filtered_tasks])
     except Exception as e:
         print("Error fetching tasks:", e)
         return jsonify({'error': 'Failed to fetch tasks'}), 500
@@ -279,9 +312,14 @@ def update_task(task_id):
         
         # Update the task
         if 'status' in data:
-            # Ensure we're using the correct status values
+            # Update status
             task.status = data['status']
             print(f"Updating task status to: {task.status}")
+            
+            # Update remarks if provided
+            if 'remarks' in data:
+                task.remarks = data['remarks']
+                print(f"Adding remarks: {data['remarks']}")
         
         # Handle reassignment
         if 'assignee' in data:
@@ -409,7 +447,12 @@ AWE Team"""
 
             send_email_task(subject, assigned_actor_email, content, task.task_id)
            
-        return jsonify({"success": True, "message": "Task updated successfully"}), 200
+        # Return the updated task data in the response
+        return jsonify({
+            "success": True, 
+            "message": "Task updated successfully",
+            "task": task.to_dict()
+        }), 200
     except Exception as e:
         db.session.rollback()
         print(f"🚨 ERROR in update_task: {e}")

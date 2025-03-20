@@ -141,12 +141,12 @@ class Task(db.Model):
     duration = db.Column(db.Float)
     stage_id = db.Column(db.Integer, default=1)
     activity_type = db.Column(db.String(10))
+    remarks = db.Column(db.Text)
 
     def to_dict(self):
         return {
             'task_id': self.task_id,
             'task_name': self.task_name,
-
             'criticality': self.criticality,
             'customer_name': self.customer_name,
             'duedate': self.duedate.strftime('%Y-%m-%d') if self.duedate else None,
@@ -160,7 +160,8 @@ class Task(db.Model):
             'initiator': self.initiator,
             'duration': self.duration,
             'stage_id': self.stage_id,
-            'activity_type': self.activity_type
+            'activity_type': self.activity_type,
+            'remarks': self.remarks
         }
 
 class ActivityAssignment(db.Model):
@@ -270,5 +271,44 @@ class Diary1(db.Model):
             "task": self.task,
             "remarks": self.remarks
         }
+        
+    @staticmethod
+    def from_dict(data):
+        """Create or update a Diary1 instance from dictionary data"""
+        from datetime import datetime
+        
+        diary = Diary1()
+        
+        if 'id' in data and data['id']:
+            diary.id = data['id']
+            
+        if 'actor_id' in data and data['actor_id']:
+            diary.actor_id = data['actor_id']
+            
+        if 'date' in data and data['date']:
+            if isinstance(data['date'], str):
+                diary.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+            else:
+                diary.date = data['date']
+                
+        if 'start_time' in data and data['start_time']:
+            if isinstance(data['start_time'], str):
+                diary.start_time = datetime.strptime(data['start_time'], '%H:%M').time()
+            else:
+                diary.start_time = data['start_time']
+                
+        if 'end_time' in data and data['end_time']:
+            if isinstance(data['end_time'], str):
+                diary.end_time = datetime.strptime(data['end_time'], '%H:%M').time()
+            else:
+                diary.end_time = data['end_time']
+                
+        if 'task' in data:
+            diary.task = data['task']
+            
+        if 'remarks' in data:
+            diary.remarks = data['remarks']
+            
+        return diary
 
     
