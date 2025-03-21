@@ -13,6 +13,8 @@ from routes.analysis import analysis_bp
 from routes.auth import auth_bp
 from routes.frequency import frequency_bp
 from routes.diary import diary_bp
+from flask_bcrypt import Bcrypt
+
 app = Flask(__name__)
 app.config.from_object(Config)
 # Enable CORS for all routes
@@ -21,6 +23,7 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 # Initialize extensions
 db.init_app(app)
 jwt = JWTManager(app)
+bcrypt = Bcrypt(app)
  
 # Register blueprints
 app.register_blueprint(activities_bp)

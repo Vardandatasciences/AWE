@@ -73,7 +73,7 @@ const Activities = () => {
 
     // Add these state variables in your component
     const [currentPage, setCurrentPage] = useState(1);
-    const [activitiesPerPage] = useState(10);
+    const [activitiesPerPage] = useState(12);
     const [totalPages, setTotalPages] = useState(1);
 
     useEffect(() => {
@@ -482,7 +482,7 @@ const fetchActivityReport = async (activityId) => {
     const getCurrentPageActivities = () => {
         const indexOfLastActivity = currentPage * activitiesPerPage;
         const indexOfFirstActivity = indexOfLastActivity - activitiesPerPage;
-        return activities.slice(indexOfFirstActivity, indexOfLastActivity);
+        return filteredActivities.slice(indexOfFirstActivity, indexOfLastActivity);
     };
 
     // Add these pagination handler functions
@@ -498,8 +498,12 @@ const fetchActivityReport = async (activityId) => {
         setCurrentPage(pageNumber);
     };
 
-    // Modify your existing render logic to use getCurrentPageActivities
-    const currentActivities = getCurrentPageActivities();
+    // Make sure the filteredActivities are used for pagination
+    useEffect(() => {
+        if (filteredActivities) {
+            setTotalPages(Math.ceil(filteredActivities.length / activitiesPerPage));
+        }
+    }, [filteredActivities, activitiesPerPage]);
 
     // Add this pagination component
     const Pagination = () => {
@@ -736,7 +740,7 @@ const fetchActivityReport = async (activityId) => {
                 </div>
             ) : filteredActivities.length > 0 ? (
                 <div className={viewMode === 'grid' ? 'activity-grid' : 'activity-list'}>
-                    {currentActivities.map(activity => (
+                    {getCurrentPageActivities().map(activity => (
                         <div 
                             key={activity.activity_id} 
                             className="activity-card"
@@ -842,7 +846,7 @@ const fetchActivityReport = async (activityId) => {
                 </div>
             )}
 
-            {activities.length > 0 && <Pagination />}
+            {filteredActivities.length > activitiesPerPage && <Pagination />}
 
             {showForm && (
                 <div className="modal-overlay">

@@ -78,7 +78,7 @@ def adjust_to_previous_working_day(date):
     return date
 
 
-def schedule_email_reminder(subject, content, email, task_name, due_date, customer_name, reminder_date, task_id):
+def schedule_email_reminder(subject, task, email, reminder_date, email_type):
     """Schedule an email reminder by adding it to the database"""
     try:
         # Ensure reminder_date is a date object
@@ -90,12 +90,13 @@ def schedule_email_reminder(subject, content, email, task_name, due_date, custom
         
         # Create a new reminder record
         new_reminder = ReminderMail(
-            task_id=task_id,
-            message_des=f"{task_name} for {customer_name}",
+            task_id=task.task_id,
+            message_des=f"{task.task_name} for {task.customer_name}",
             date=reminder_date,
             time=reminder_time,
             email_id=email,
-            status="Pending"
+            status="Pending",
+            email_type=email_type  # Store the email type for rendering the correct template later
         )
         
         db.session.add(new_reminder)
@@ -135,63 +136,548 @@ def calculate_reminder_date(due_date, duration):
         
     return reminder_date
 
-def send_email_task(subject, body, to_email,task_id):
-    from_email = 'loukyarao68@gmail.com'
-    password = 'vafx kqve dwmj mvjv'
-
-    msg = MIMEMultipart()
-    msg['From'] = from_email
-    msg['To'] = to_email  # Ensure this is a valid email address
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
-
+def send_styled_email(subject, recipient, task, email_type='reassignment'):
+    """
+    Send a professionally styled HTML email for task operations
+    email_type can be: 'assignment', 'reassignment', 'status_update', 'reminder', or 'due_today'
+    """
     try:
-        # Establish connection to SMTP server
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(from_email, password)
-        text = msg.as_string()
+        # Email configuration
+        sender_email = "loukyarao68@gmail.com"
+        password = "vafx kqve dwmj mvjv"
+        
+        # Create message container with the correct format for HTML emails
+        msg = MIMEMultipart()
+        msg['Subject'] = subject
+        msg['From'] = sender_email
+        msg['To'] = recipient
+        
+        # Prepare HTML content based on email type
+        if email_type == 'assignment':
+            # HTML content for new assignment
+            html_body = f'''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>New Task Assignment</title>
+            </head>
+            <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: #333333; background-color: #f7f7f7;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+                    <!-- Header with ProSync Logo -->
+                    <tr>
+                        <td style="background: linear-gradient(to right, #3498db, #2980b9); padding: 20px; text-align: center; color: white;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: bold;">ProSync</h1>
+                            <h2 style="margin: 10px 0 0 0; font-size: 20px; font-weight: normal;">New Task Assignment</h2>
+                        </td>
+                    </tr>
+                    
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 30px 20px;">
+                            <p style="font-size: 16px; margin-bottom: 20px;">Dear <strong>{task.assigned_to}</strong>,</p>
+                            
+                            <div style="background-color: #e8f4fc; border-left: 4px solid #3498db; padding: 15px; margin: 20px 0;">
+                                <p style="margin: 0; font-size: 15px;">A new task <strong>"{task.task_name}"</strong> has been assigned to you for customer <strong>"{task.customer_name}"</strong>.</p>
+                            </div>
+                            
+                            <!-- Task Details Table -->
+                            <table border="0" cellpadding="8" cellspacing="0" width="100%" style="background-color: #f8fafc; border-radius: 6px; margin: 20px 0;">
+                                <tr>
+                                    <td width="35%" style="font-weight: bold; color: #555555;">Task Name:</td>
+                                    <td><strong>{task.task_name}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold; color: #555555;">Task ID:</td>
+                                    <td>{task.task_id}</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold; color: #555555;">Customer:</td>
+                                    <td>{task.customer_name}</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold; color: #555555;">Criticality:</td>
+                                    <td style="color: {'#e74c3c' if task.criticality and task.criticality.lower() == 'high' else '#f39c12' if task.criticality and task.criticality.lower() == 'medium' else '#27ae60'};"><strong>{task.criticality}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold; color: #555555;">Due Date:</td>
+                                    <td>{task.duedate.strftime('%d %b, %Y') if task.duedate else 'Not specified'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold; color: #555555;">Status:</td>
+                                    <td>{task.status}</td>
+                                </tr>
+                            </table>
+                            
+                            <p style="margin: 20px 0;">This task has been added to your calendar. Please review the details and begin work at your earliest convenience.</p>
+                            
+                            <!-- Action Button -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 30px 0;">
+                                <tr>
+                                    <td>
+                                        <a href="http://localhost:3000/tasks" style="display: inline-block; background-color: #3498db; color: white; padding: 12px 25px; text-decoration: none; border-radius: 4px; font-weight: bold;">View Task Details</a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f1f5f9; padding: 15px; text-align: center; color: #666666; font-size: 12px;">
+                            <p style="margin: 5px 0;">Best regards,<br>ProSync Team</p>
+                            <p style="margin: 10px 0 0 0;">This is an automated message. Please do not reply to this email.</p>
+                            <p style="margin: 5px 0;">&copy; {datetime.now().year} ProSync. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+            '''
+            
+            # Plain text version as fallback
+            text_body = f'''
+Dear {task.assigned_to},
 
-        # Send email
-        server.sendmail(from_email, to_email, text)
-        server.quit()
+A new task '{task.task_name}' has been assigned to you for customer '{task.customer_name}'.
 
-        logging.info(f'Email sent to {to_email}')
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Criticality: {task.criticality}
+- Due Date: {task.duedate.strftime('%Y-%m-%d') if task.duedate else 'Not specified'}
+- Status: {task.status}
 
-        # Logging success in the database
-        try:
-            with db.engine.connect() as connection:
-                db.session.query(ReminderMail).filter_by(
-                    message_des=body,
-                    email_id=to_email,
-                    date=datetime.now().date(),
-                    time=datetime.now().time(),
-                    task_id=task_id
-                ).update({'status': 'Sent'})
- 
-                db.session.commit()
-                logging.info(f"Reminder mails updated to 'Sent' for email to {to_email}")
-        except Exception as update_error:
-            logging.error(f"Error updating reminder mails status: {update_error}")
+This task has been added to your calendar. Please review the details and begin work at your earliest convenience.
 
+You can view the task at: http://localhost:3000/tasks
+
+Best regards,
+ProSync Team
+            '''
+            
+        elif email_type == 'reassignment':
+            html_body = f'''
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1); }
+                    .header { background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 20px; text-align: center; }
+                    .header h1 { margin: 0; font-size: 24px; }
+                    .logo { font-weight: bold; font-size: 28px; margin-bottom: 10px; }
+                    .content { padding: 20px 30px; }
+                    .task-details { background-color: #f1f5f9; border-radius: 6px; padding: 15px; margin: 15px 0; }
+                    .detail-row { margin-bottom: 8px; display: flex; }
+                    .detail-label { font-weight: bold; width: 120px; color: #555; }
+                    .footer { text-align: center; padding: 15px; background-color: #f1f5f9; color: #666; font-size: 12px; }
+                    .button { display: inline-block; background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-top: 15px; font-weight: bold; }
+                    .critical-high { color: #e74c3c; }
+                    .critical-medium { color: #f39c12; }
+                    .critical-low { color: #27ae60; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">ProSync</div>
+                        <h1>Task Reassignment Notification</h1>
+                    </div>
+                    <div class="content">
+                        <p>Hello {task.assigned_to},</p>
+                        <p>A task has been reassigned to you in the ProSync system.</p>
+                        
+                        <div class="task-details">
+                            <div class="detail-row">
+                                <div class="detail-label">Task Name:</div>
+                                <div>{task.task_name}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Task ID:</div>
+                                <div>{task.task_id}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Customer:</div>
+                                <div>{task.customer_name}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Criticality:</div>
+                                <div class="{'critical-high' if task.criticality and task.criticality.lower() == 'high' else 'critical-medium' if task.criticality and task.criticality.lower() == 'medium' else 'critical-low'}">{task.criticality}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Due Date:</div>
+                                <div>{task.duedate.strftime('%d %b, %Y') if task.duedate else 'Not specified'}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Status:</div>
+                                <div>{task.status}</div>
+                            </div>
+                        </div>
+                        
+                        <p>Please review this task and ensure it is completed by the due date.</p>
+                        
+                        <a href="http://localhost:3000/tasks" class="button">View Task</a>
+                    </div>
+                    <div class="footer">
+                        <p>This is an automated message from ProSync. Please do not reply to this email.</p>
+                        <p>&copy; {datetime.now().year} ProSync. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            '''
+            
+            # Plain text version as fallback
+            text_body = f'''
+Hello {task.assigned_to},
+
+A task has been reassigned to you in the ProSync system.
+
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Customer: {task.customer_name}
+- Criticality: {task.criticality}
+- Due Date: {task.duedate.strftime('%d %b, %Y') if task.duedate else 'Not specified'}
+- Status: {task.status}
+
+Please review this task and ensure it is completed by the due date.
+
+You can view the task at: http://localhost:3000/tasks
+
+Best regards,
+ProSync Team
+            '''
+            
+        elif email_type == 'status_update':
+            html_body = f'''
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1); }
+                    .header { background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 20px; text-align: center; }
+                    .header h1 { margin: 0; font-size: 24px; }
+                    .logo { font-weight: bold; font-size: 28px; margin-bottom: 10px; }
+                    .content { padding: 20px 30px; }
+                    .task-details { background-color: #f1f5f9; border-radius: 6px; padding: 15px; margin: 15px 0; }
+                    .detail-row { margin-bottom: 8px; display: flex; }
+                    .detail-label { font-weight: bold; width: 120px; color: #555; }
+                    .footer { text-align: center; padding: 15px; background-color: #f1f5f9; color: #666; font-size: 12px; }
+                    .button { display: inline-block; background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-top: 15px; font-weight: bold; }
+                    .critical-high { color: #e74c3c; }
+                    .critical-medium { color: #f39c12; }
+                    .critical-low { color: #27ae60; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">ProSync</div>
+                        <h1>Task Status Update</h1>
+                    </div>
+                    <div class="content">
+                        <p>Hello {task.assigned_to},</p>
+                        <p>The status of your task has been updated in the ProSync system.</p>
+                        
+                        <div class="task-details">
+                            <div class="detail-row">
+                                <div class="detail-label">Task Name:</div>
+                                <div>{task.task_name}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Task ID:</div>
+                                <div>{task.task_id}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Customer:</div>
+                                <div>{task.customer_name}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Criticality:</div>
+                                <div class="{'critical-high' if task.criticality and task.criticality.lower() == 'high' else 'critical-medium' if task.criticality and task.criticality.lower() == 'medium' else 'critical-low'}">{task.criticality}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Due Date:</div>
+                                <div>{task.duedate.strftime('%d %b, %Y') if task.duedate else 'Not specified'}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">New Status:</div>
+                                <div><strong>{task.status}</strong></div>
+                            </div>
+                        </div>
+                        
+                        <p>Please check your ProSync dashboard for more details.</p>
+                        
+                        <a href="http://localhost:3000/tasks" class="button">View Dashboard</a>
+                    </div>
+                    <div class="footer">
+                        <p>This is an automated message from ProSync. Please do not reply to this email.</p>
+                        <p>&copy; {datetime.now().year} ProSync. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            '''
+            
+            # Plain text version as fallback
+            text_body = f'''
+Hello {task.assigned_to},
+
+The status of your task has been updated in the ProSync system.
+
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Customer: {task.customer_name}
+- Criticality: {task.criticality}
+- Due Date: {task.duedate.strftime('%d %b, %Y') if task.duedate else 'Not specified'}
+- New Status: {task.status}
+
+Please check your ProSync dashboard for more details.
+
+You can view the task at: http://localhost:3000/tasks
+
+Best regards,
+ProSync Team
+            '''
+            
+        elif email_type == 'reminder':
+            html_body = f'''
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1); }
+                    .header { background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 20px; text-align: center; }
+                    .header h1 { margin: 0; font-size: 24px; }
+                    .logo { font-weight: bold; font-size: 28px; margin-bottom: 10px; }
+                    .content { padding: 20px 30px; }
+                    .task-details { background-color: #f1f5f9; border-radius: 6px; padding: 15px; margin: 15px 0; }
+                    .detail-row { margin-bottom: 8px; display: flex; }
+                    .detail-label { font-weight: bold; width: 120px; color: #555; }
+                    .footer { text-align: center; padding: 15px; background-color: #f1f5f9; color: #666; font-size: 12px; }
+                    .button { display: inline-block; background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-top: 15px; font-weight: bold; }
+                    .critical-high { color: #e74c3c; }
+                    .critical-medium { color: #f39c12; }
+                    .critical-low { color: #27ae60; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">ProSync</div>
+                        <h1>Task Reminder</h1>
+                    </div>
+                    <div class="content">
+                        <p>Hello {task.assigned_to},</p>
+                        <p>This is a friendly reminder about your upcoming task deadline.</p>
+                        
+                        <div class="task-details">
+                            <div class="detail-row">
+                                <div class="detail-label">Task Name:</div>
+                                <div>{task.task_name}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Task ID:</div>
+                                <div>{task.task_id}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Customer:</div>
+                                <div>{task.customer_name}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Criticality:</div>
+                                <div class="{'critical-high' if task.criticality and task.criticality.lower() == 'high' else 'critical-medium' if task.criticality and task.criticality.lower() == 'medium' else 'critical-low'}">{task.criticality}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Due Date:</div>
+                                <div>{task.duedate.strftime('%d %b, %Y') if task.duedate else 'Not specified'}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Status:</div>
+                                <div>{task.status}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="countdown">
+                            Task is due in a few days!
+                        </div>
+                        
+                        <p>Please ensure this task is completed on time. If you need any assistance, please contact your supervisor.</p>
+                        
+                        <a href="http://localhost:3000/tasks" class="button">Check Task</a>
+                    </div>
+                    <div class="footer">
+                        <p>This is an automated message from ProSync. Please do not reply to this email.</p>
+                        <p>&copy; {datetime.now().year} ProSync. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            '''
+            
+            # Plain text version as fallback
+            text_body = f'''
+Hello {task.assigned_to},
+
+This is a friendly reminder about your upcoming task deadline.
+
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Customer: {task.customer_name}
+- Criticality: {task.criticality}
+- Due Date: {task.duedate.strftime('%d %b, %Y') if task.duedate else 'Not specified'}
+- Status: {task.status}
+
+Task is due in a few days!
+
+Please ensure this task is completed on time. If you need any assistance, please contact your supervisor.
+
+You can check the task at: http://localhost:3000/tasks
+
+Best regards,
+ProSync Team
+            '''
+            
+        elif email_type == 'due_today':
+            html_body = f'''
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1); }
+                    .header { background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 20px; text-align: center; }
+                    .header h1 { margin: 0; font-size: 24px; }
+                    .logo { font-weight: bold; font-size: 28px; margin-bottom: 10px; }
+                    .content { padding: 20px 30px; }
+                    .task-details { background-color: #f1f5f9; border-radius: 6px; padding: 15px; margin: 15px 0; }
+                    .detail-row { margin-bottom: 8px; display: flex; }
+                    .detail-label { font-weight: bold; width: 120px; color: #555; }
+                    .footer { text-align: center; padding: 15px; background-color: #f1f5f9; color: #666; font-size: 12px; }
+                    .button { display: inline-block; background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-top: 15px; font-weight: bold; }
+                    .critical-high { color: #e74c3c; }
+                    .critical-medium { color: #f39c12; }
+                    .critical-low { color: #27ae60; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">ProSync</div>
+                        <h1>TASK DUE TODAY</h1>
+                    </div>
+                    <div class="content">
+                        <p>Hello {task.assigned_to},</p>
+                        
+                        <div class="urgent">
+                            <p><strong>Important:</strong> Your task "{task.task_name}" for customer "{task.customer_name}" is due today!</p>
+                        </div>
+                        
+                        <div class="task-details">
+                            <div class="detail-row">
+                                <div class="detail-label">Task Name:</div>
+                                <div>{task.task_name}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Task ID:</div>
+                                <div>{task.task_id}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Customer:</div>
+                                <div>{task.customer_name}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Criticality:</div>
+                                <div class="{'critical-high' if task.criticality and task.criticality.lower() == 'high' else 'critical-medium' if task.criticality and task.criticality.lower() == 'medium' else 'critical-low'}">{task.criticality}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Status:</div>
+                                <div>{task.status}</div>
+                            </div>
+                        </div>
+                        
+                        <p>Please complete this task today. If you have already completed it, please update the status in the system.</p>
+                        
+                        <a href="http://localhost:3000/tasks" class="button">Go to Task</a>
+                    </div>
+                    <div class="footer">
+                        <p>This is an automated message from ProSync. Please do not reply to this email.</p>
+                        <p>&copy; {datetime.now().year} ProSync. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            '''
+            
+            # Plain text version as fallback
+            text_body = f'''
+Hello {task.assigned_to},
+
+Important: Your task "{task.task_name}" for customer "{task.customer_name}" is due today!
+
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Customer: {task.customer_name}
+- Criticality: {task.criticality}
+- Status: {task.status}
+
+Please complete this task today. If you have already completed it, please update the status in the system.
+
+You can go to the task at: http://localhost:3000/tasks
+
+Best regards,
+ProSync Team
+            '''
+        
+        # Attach plain text and HTML parts
+        text_part = MIMEText(text_body, 'plain')
+        html_part = MIMEText(html_body, 'html')
+        
+        # The order is important - attach plain text first, then HTML
+        msg.attach(text_part)
+        msg.attach(html_part)
+        
+        # Send the email
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender_email, password)
+            server.send_message(msg)
+            
+        print(f"✅ Email sent successfully to {recipient}")
+        return True
     except Exception as e:
-        logging.error(f'Failed to send email to {to_email}: {e}')
+        print(f"❌ Failed to send email: {str(e)}")
+        traceback.print_exc()  # Add detailed traceback for debugging
+        return False
 
-        # Logging failure in the database
+def send_email_task(subject, to_email, task, email_type='reminder'):
+    """Send an email notification about a task"""
+    try:
+        # Use the styled email function
+        success = send_styled_email(subject, to_email, task, email_type)
+        
+        # Log the email status in the database
         try:
-            with db.engine.connect() as connection:
+            if success:
                 db.session.query(ReminderMail).filter_by(
-                    message_des=body,
                     email_id=to_email,
-                    date=datetime.now().date(),
-                    time=datetime.now().time(),
-                    task_id=task_id
-                ).update({'status': f'Failed: {e}'})
- 
-                db.session.commit()
-                logging.info(f"Reminder mails updated to 'Failed' for email to {to_email}")
+                    task_id=task.task_id,
+                    status="Pending"
+                ).update({'status': 'Sent'})
+            else:
+                db.session.query(ReminderMail).filter_by(
+                    email_id=to_email,
+                    task_id=task.task_id,
+                    status="Pending"
+                ).update({'status': 'Failed'})
+                
+            db.session.commit()
         except Exception as update_error:
-            logging.error(f"Error updating reminder mails status after failure: {update_error}")
+            logging.error(f"Error updating reminder status: {update_error}")
+            
+        return success
+    except Exception as e:
+        logging.error(f"Error in send_email_task: {e}")
+        return False
 
 def send_email(subject, recipient, body):
     """Send an email using SMTP"""
@@ -311,104 +797,41 @@ def update_task(task_id):
         # Send notifications based on what changed
         # If the assignee changed, send a reassignment notification
         if original_actor_id != task.actor_id or original_duedate != task.duedate:
-            subject = f"AWE-Task Reassigned: {task.task_name}"
-            content = f"""Dear {task.assigned_to},
-
-A task has been reassigned to you:
-
-- Task Name: {task.task_name}
-- Task ID: {task.task_id}
-- Criticality: {task.criticality}
-- Due Date: {task.duedate.strftime('%Y-%m-%d')}
-- Status: {task.status}
-- Customer: {task.customer_name}
-
-Please review this task and complete it by the due date.
-
-Best regards,
-AWE Team"""
-
-            # Send email notification
-            send_email_task(subject, content, assigned_actor_email, task.task_id)
+            subject = f"ProSync - Task Reassigned: {task.task_name}"
+            
+            # Send styled email notification
+            send_styled_email(subject, assigned_actor_email, task, 'reassignment')
             
             # Schedule new reminders for the reassigned person
             if original_duedate != task.duedate or original_assigned_to != task.assigned_to:
                 # Calculate reminder date based on due date and duration
                 reminder_date = calculate_reminder_date(task.duedate, task.duration)
-               
-                # Early reminder email
-                reminder_email_subject = f"AWE-Reminder for '{task.task_name}' for '{task.customer_name}'"
-                reminder_email_content = f"""Hello {task.assigned_to},
-
-The task '{task.task_name}' for '{task.customer_name}' is due on '{task.duedate}'.
-
-- Task Name: {task.task_name}
-- Task ID: {task.task_id}
-- Criticality: {task.criticality}
-- Status: {task.status}
-
-Please review the task and complete it before the due date.
-
-Regards,
-AWE Team"""
-
+                
+                # Schedule reminder email
                 schedule_email_reminder(
-                    reminder_email_subject,
-                    reminder_email_content,
+                    f"ProSync - Reminder: {task.task_name}",
+                    task,
                     assigned_actor_email,
-                    task.task_name,
-                    task.duedate,
-                    task.customer_name,
                     reminder_date,
-                    task.task_id
+                    'reminder'
                 )
-
-                # Due date reminder email
-                due_email_subject = f"AWE-Due of '{task.task_name}' for '{task.customer_name}'"
-                due_email_content = f"""Hello {task.assigned_to},
-
-The task '{task.task_name}' for '{task.customer_name}' is due today.
-
-- Task Name: {task.task_name}
-- Task ID: {task.task_id}
-- Criticality: {task.criticality}
-- Status: {task.status}
-
-Please review the task and complete it today.
-Ignore if completed.
-
-Regards,
-AWE Team"""
-
+                
+                # Schedule due date email
                 schedule_email_reminder(
-                    due_email_subject,
-                    due_email_content,
+                    f"ProSync - Due Today: {task.task_name}",
+                    task,
                     assigned_actor_email,
-                    task.task_name,
                     task.duedate,
-                    task.customer_name,
-                    task.duedate,
-                    task.task_id
+                    'due_today'
                 )
-       
+                
         # If only the status changed, send a status update notification
         elif original_status != task.status:
-            subject = f"AWE-Task Status Updated: {task.task_name}"
-            content = f"""Dear {task.assigned_to},
-
-The status of task '{task.task_name}' for customer '{task.customer_name}' has been updated.
-
-- Task Name: {task.task_name}
-- Task ID: {task.task_id}
-- Criticality: {task.criticality}
-- Due Date: {task.duedate}
-- Status: {task.status} (Previously: {original_status})
-
-Best regards,
-AWE Team"""
-
-            send_email_task(subject, assigned_actor_email, content, task.task_id)
-           
+            subject = f"ProSync - Task Status Update: {task.task_name}"
+            
+            # Send styled email notification
+            send_styled_email(subject, assigned_actor_email, task, 'status_update')
+            
         return jsonify({"success": True, "message": "Task updated successfully"}), 200
     except Exception as e:
         db.session.rollback()
@@ -426,29 +849,74 @@ def create_task():
             return jsonify({'error': 'Only administrators can create tasks'}), 403
             
         data = request.json
+        
+        # Create the new task
         new_task = Task(
             task_name=data['title'],
-            status=data.get('status', 'todo'),
-            priority=data.get('priority', 'medium'),
+            status=data.get('status', 'Yet to Start'),  # Use the correct status values
+            criticality=data.get('criticality', 'Medium'),
             actor_id=data.get('assignee'),
-            due_date=datetime.strptime(data['due_date'], '%Y-%m-%d') if data.get('due_date') else None,
-            activity_id=data.get('activity_id')
+            duedate=datetime.strptime(data['due_date'], '%Y-%m-%d').date() if data.get('due_date') else None,
+            activity_id=data.get('activity_id'),
+            customer_name=data.get('customer_name', 'General'),
+            initiator=data.get('initiator', 'Admin')
         )
+        
+        # If an assignee is provided, get the assignee name
+        assignee_email = None
+        if data.get('assignee'):
+            assignee = Actor.query.filter_by(actor_id=data['assignee']).first()
+            if assignee:
+                new_task.assigned_to = assignee.actor_name
+                assignee_email = assignee.email_id
+        
+        # Add the task to the database
         db.session.add(new_task)
         db.session.commit()
         
+        # Send assignment email if there's an assignee
+        if assignee_email:
+            subject = f"ProSync - New Task Assignment: {new_task.task_name}"
+            send_styled_email(subject, assignee_email, new_task, 'assignment')
+            
+            # Also schedule reminder emails
+            if new_task.duedate:
+                # Calculate reminder date
+                reminder_date = calculate_reminder_date(new_task.duedate, new_task.duration)
+                
+                # Schedule the reminder email
+                schedule_email_reminder(
+                    f"ProSync - Reminder: {new_task.task_name}",
+                    new_task,
+                    assignee_email,
+                    reminder_date,
+                    'reminder'
+                )
+                
+                # Schedule due date reminder
+                schedule_email_reminder(
+                    f"ProSync - Due Today: {new_task.task_name}",
+                    new_task,
+                    assignee_email,
+                    new_task.duedate,
+                    'due_today'
+                )
+        
+        # Return the created task data
         return jsonify({
             'id': new_task.task_id,
             'title': new_task.task_name,
             'status': new_task.status,
-            'priority': new_task.priority,
+            'criticality': new_task.criticality,
             'assignee': new_task.actor_id,
-            'due_date': new_task.due_date.isoformat() if new_task.due_date else None
+            'due_date': new_task.duedate.isoformat() if new_task.duedate else None,
+            'email_sent': assignee_email is not None
         }), 201
     except Exception as e:
         db.session.rollback()
-        print("Error creating task:", e)
-        return jsonify({'error': 'Failed to create task'}), 500
+        print(f"Error creating task: {e}")
+        traceback.print_exc()  # Add traceback for better debugging
+        return jsonify({'error': f'Failed to create task: {str(e)}'}), 500
 
 @tasks_bp.route('/assign_activity', methods=['POST'])
 def assign_activity():
