@@ -3,9 +3,11 @@ from models import db, Diary1, Task, Actor
 from sqlalchemy import func
 from flask_cors import CORS
 from datetime import datetime
+from flask import make_response
+
 
 diary_bp = Blueprint('diary', __name__)
-CORS(diary_bp, resources={r"/*": {"origins": "http://localhost:3000", "supports_credentials": True}})
+CORS(diary_bp, supports_credentials=True, origins="http://localhost:3000")
 
 
 @diary_bp.route('/entries', methods=['GET'])
@@ -21,47 +23,43 @@ def get_entries():
 
 @diary_bp.route('/wip-tasks', methods=['GET'])
 def get_wip_tasks():
-    actor_id = request.args.get('actor_id')
-    print(f"Received request for WIP tasks with actor_id: {actor_id}")
-
-    if not actor_id:
-        return jsonify({"error": "Actor ID is required"}), 400
-
     try:
-        # Convert actor_id to integer
-        actor_id = int(actor_id)
+        actor_id = request.args.get('actor_id')
+        if not actor_id:
+            return jsonify({"error": "Actor ID is required"}), 400
 
-        # Step 1: Get actor name from actors table
-        actor = db.session.execute(
-            db.select(Actor).filter_by(actor_id=actor_id)
-        ).scalar_one_or_none()
+        # Fetch only WIP tasks and include the customer name directly from tasks table
+        wip_tasks = (
+            db.session.query(
+                Task.task_id, 
+                Task.task_name, 
+                Task.customer_name  # Ensure this column exists in the 'tasks' table
+            )
+            .filter(Task.actor_id == actor_id, Task.status == 'WIP')
+            .all()
+        )
 
-        if not actor:
-            print(f"⚠️ No actor found with actor_id {actor_id}")
-            return jsonify({"error": "Actor not found"}), 404
+        if not wip_tasks:
+            return jsonify({"message": "No WIP tasks found"}), 200
 
-        actor_name = actor.actor_name  # Get actor's name
-        print(f"🟢 Found actor: {actor_name}")
+        # Format the response: "Task Name - Customer"
+        task_list = [
+            {
+                "task_id": task.task_id,
+                "task_name": f"{task.task_name} - {task.customer_name}" if task.customer_name else task.task_name
+            }
+            for task in wip_tasks
+        ]
 
-        # Step 2: Fetch tasks where assigned_to = actor's name
-        tasks = db.session.execute(
-            db.select(Task).filter_by(status="WIP", assigned_to=actor_name)
-        ).scalars().all()
+        response = make_response(jsonify(task_list))
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:3000"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
 
-        if not tasks:
-            print(f"⚠️ No WIP tasks found for actor: {actor_name}")
-
-        # Convert ORM objects to JSON
-        task_list = [{"task_id": task.task_id, "task_name": task.task_name} for task in tasks]
-
-        return jsonify(task_list)
-
-    except ValueError:
-        print("❌ Invalid actor_id format")
-        return jsonify({"error": "Invalid actor_id"}), 400
     except Exception as e:
-        print(f"❌ Error fetching WIP tasks: {str(e)}")
-        return jsonify({"error": "Internal Server Error"}), 500
+        return jsonify({"error": str(e)}), 500
+
+
 
 @diary_bp.route('/save', methods=['POST'])
 def save_entries():

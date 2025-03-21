@@ -15,26 +15,27 @@ from routes.auth import auth_bp
 from routes.forgotpassword import forgotpassword_bp
 from routes.profile import profile_bp
 from routes.changepassword import changepassword_bp
- 
+from routes.diary import diary_bp
+
 app = Flask(__name__)
 app.config.from_object(Config)
- 
+
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login'
- 
+
 @login_manager.user_loader
 def load_user(user_id):
     return Actor.query.get(int(user_id))
- 
-# Enable CORS for all routes
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
- 
+
+# ✅ Enable CORS globally for all routes
+CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
+
 # Initialize extensions
 db.init_app(app)
 jwt = JWTManager(app)
- 
+
 # Register blueprints
 app.register_blueprint(activities_bp)
 app.register_blueprint(actors_bp)
@@ -47,14 +48,14 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(forgotpassword_bp)
 app.register_blueprint(profile_bp)
 app.register_blueprint(changepassword_bp)
- 
+app.register_blueprint(diary_bp, url_prefix='/diary')
+
 # Initialize the email thread
 init_app(app)
- 
+
 @app.route('/')
 def index():
     return "AAWE API Server is running"
- 
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
- 

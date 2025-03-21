@@ -7,12 +7,42 @@ const AssignActivity = ({ activityId, onClose }) => {
   const [customers, setCustomers] = useState([]);
   const [selectedAssignee, setSelectedAssignee] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState("");
+  const [frequency, setFrequency] = useState(""); 
+  const actor_id = localStorage.getItem('actor_id');
+  const actor_name= localStorage.getItem('actor_name');
+  console.log("User User ID:", actor_id);
+  console.log("User User Name:", actor_name)
+
+
+  useEffect(() => {
+    const actorId = localStorage.getItem("actor_id");
+    const actorName = localStorage.getItem("actor_name");
+
+    if (!actorId || !actorName) {
+        console.warn("⚠️ Local Storage values are missing! Ensure they are set properly.");
+    } else {
+        console.log("✅ Retrieved from Local Storage: ", { actorId, actorName });
+    }
+}, []);
+
 
   useEffect(() => {
     // Fetch assignees from the actors table
     axios.get("http://127.0.0.1:5000/actors_assign")
-      .then(response => setAssignees(response.data))
-      .catch(error => console.error("Error fetching assignees:", error));
+    .then(response => {
+      console.log("🔹 Raw API Response:", response.data); // ✅ Log original data from API
+      
+      const filteredAssignees = response.data.filter(actor => {
+        console.log(`Checking actor: ${actor.actor_name}, role_id: ${actor.role_id}`); // Debugging each actor
+        return actor.role_id !== 11;
+      });
+
+      console.log("✅ Filtered Assignees:", filteredAssignees); // ✅ Log filtered data
+
+      setAssignees([]); // ✅ First, clear old state to prevent caching issues
+      
+    })
+    .catch(error => console.error("❌ Error fetching assignees:", error));
 
     // Fetch customers from the customers table
     axios.get("http://127.0.0.1:5000/customers_assign")
@@ -20,21 +50,48 @@ const AssignActivity = ({ activityId, onClose }) => {
       .catch(error => console.error("Error fetching customers:", error));
   }, []);
 
+  useEffect(() => {
+    if (activityId) {
+      axios.get(`http://localhost:3000/get_frequency/${activityId}`)
+        .then(response => {
+          if (response.data && response.data.frequency) {
+            setFrequency(response.data.frequency);
+          } else {
+            console.warn("Frequency not found, using default value.");
+            setFrequency("Unknown");
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching frequency:", error);
+          setFrequency("Unknown");  // Set default if API fails
+        });
+    }
+  }, [activityId]);
+  
+
   const handleAssign = () => {
     if (!selectedAssignee || !selectedCustomer) {
       alert("Please select both an assignee and a customer.");
       return;
     }
-
+  
+    // Retrieve assigning user's info from local storage
+    const actor_id = localStorage.getItem("actor_id");
+    const actor_name = localStorage.getItem("actor_name");
+  
+    console.log("Assigning activity...");
+    console.log("Assigned by (Local Storage):", actor_id, actor_name);
+  
     const assignmentData = {
       activity_id: activityId,
       assignee_id: selectedAssignee,
       customer_id: selectedCustomer,
+      // Not sending actor_id/name to backend as per your request
     };
-
+  
     axios.post("http://127.0.0.1:5000/assign_activity", assignmentData)
       .then(response => {
-        alert("Activity assigned successfully!");
+        alert(`Activity assigned successfully by ${actor_name}`);
         onClose();
       })
       .catch(error => {
@@ -42,6 +99,7 @@ const AssignActivity = ({ activityId, onClose }) => {
         alert("Failed to assign activity.");
       });
   };
+  
 
   return (
     <div className="modal-overlay">
@@ -54,11 +112,14 @@ const AssignActivity = ({ activityId, onClose }) => {
             <div className="custom-select">
             <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)}>
   <option value="">Select Assignee</option>
-  {assignees.map((actor) => (
-    <option key={actor.actor_id} value={actor.actor_id}>
+  {assignees.map((actor) => {
+     console.log("Rendering in dropdown:", actor);
+     return (
+      <option key={actor.actor_id} value={actor.actor_id}>
       {actor.actor_name}
     </option>
-  ))}
+     );
+    })}
 </select>
 
 

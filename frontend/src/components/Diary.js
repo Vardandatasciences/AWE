@@ -261,7 +261,7 @@ const Diary = () => {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            withCredentials: true  // Keep this for cookies/auth if needed
+            withCredentials: true  // Important for CORS credentials
         });
 
         if (response.status === 200) {
@@ -274,6 +274,8 @@ const Diary = () => {
         console.error("🔴 Error fetching WIP tasks:", error);
     }
 };
+
+
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -360,17 +362,14 @@ const Diary = () => {
     {tasks && tasks.length > 0 ? (
         tasks.map((task) => (
             <MenuItem key={task.task_id} value={task.task_id}>
-                {task.task_name}
+                {task.task_name} {/* Already formatted as "Task Name for Customer" */}
             </MenuItem>
         ))
     ) : (
         <MenuItem disabled>No WIP tasks available</MenuItem>
     )}
-    {/* Keep the existing task if it's not in the current tasks list */}
-    {entry.task && !tasks.some(task => task.task_id === entry.task) && (
-        <MenuItem value={entry.task}>ID: {entry.task}</MenuItem>
-    )}
 </Select>
+
 
 
 </TableCell>

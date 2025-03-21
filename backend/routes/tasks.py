@@ -511,6 +511,12 @@ def assign_activity():
             customer_id=data['customer_id']
         )
         
+        task = Task.query.filter_by(activity_id=data['activity_id']).first()
+        if task:
+            task.actor_id = data['assignee_id']
+            task.assigned_to = Actor.query.get(data['assignee_id']).actor_name  # Get assigned actor name
+            task.assigned_timestamp = datetime.utcnow()  # Store current timestamp
+        
         db.session.add(new_assignment)
         db.session.commit()
         

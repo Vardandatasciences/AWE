@@ -17,8 +17,14 @@ def get_actors():
 @actors_bp.route('/actors_assign', methods=['GET'])
 def get_actors_assign():
     try:
-        actors = Actor.query.with_entities(Actor.actor_name).all()
-        return jsonify([{"actor_name": actor.actor_name} for actor in actors])
+        # Fetch actors but exclude those with role_id = 11
+        actors = Actor.query.filter(Actor.role_id != 11, Actor.status != 'O').all()
+        
+        return jsonify([
+    {"actor_id": actor.actor_id, "actor_name": actor.actor_name, "role_id": actor.role_id} 
+    for actor in actors
+])
+
     except Exception as e:
         print("Error:", e)
         return jsonify({"error": str(e)}), 500

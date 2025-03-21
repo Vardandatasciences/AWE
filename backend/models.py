@@ -136,12 +136,13 @@ class Task(db.Model):
     link = db.Column(db.String(255))
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.activity_id'))
     time_taken = db.Column(db.Float)
-    actual_date = db.Column(db.Date) 
+    actual_date = db.Column(db.Date)
     initiator = db.Column(db.String(255))
     duration = db.Column(db.Float)
     stage_id = db.Column(db.Integer, default=1)
     activity_type = db.Column(db.String(10))
     remarks = db.Column(db.Text)
+    assigned_timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # NEW COLUMN
 
     def to_dict(self):
         return {
@@ -161,8 +162,10 @@ class Task(db.Model):
             'duration': self.duration,
             'stage_id': self.stage_id,
             'activity_type': self.activity_type,
-            'remarks': self.remarks
+            'remarks': self.remarks,
+            'assigned_timestamp': self.assigned_timestamp.strftime('%Y-%m-%d %H:%M:%S') if self.assigned_timestamp else None
         }
+
 
 class ActivityAssignment(db.Model):
     __tablename__ = 'activity_assignments'

@@ -491,6 +491,7 @@ const Tasks = () => {
                 Task Link
               </a>
             </div>
+            
             <div className="detail-item">
               <i className="fas fa-calendar"></i>
               <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
