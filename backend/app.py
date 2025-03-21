@@ -14,6 +14,8 @@ from routes.auth import auth_bp
 from routes.frequency import frequency_bp
 from routes.diary import diary_bp
 from flask_bcrypt import Bcrypt
+from routes.forgotpassword import forgotpassword_bp
+
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -36,6 +38,7 @@ app.register_blueprint(analysis_bp, url_prefix='/analysis')
 app.register_blueprint(auth_bp)
 app.register_blueprint(frequency_bp)
 app.register_blueprint(diary_bp, url_prefix='/diary')
+app.register_blueprint(forgotpassword_bp)
 # Initialize the email thread
 init_app(app)
  
