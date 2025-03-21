@@ -24,8 +24,6 @@ const Navbar = () => {
           </Link>
         </div>
         
-
-        
         <div className="navbar-actions">
           {isAuthenticated ? (
             <div 

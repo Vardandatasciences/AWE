@@ -7,6 +7,7 @@ from dash import Dash
 from dash import html
 from dash import dcc
 from routes.tasks import tasks_bp
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from models import db, Actor, Group, Customer, Activity, Task, ActivityAssignment, Message, Report, Analytics
 
@@ -44,6 +45,23 @@ def get_tasks():
         'due_date': task.due_date.isoformat() if task.due_date else None
     } for task in tasks])
 
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
+@app.route('/api/profile', methods=['GET'])
+@jwt_required()
+def get_profile():
+    current_user_email = get_jwt_identity()  # Get logged-in user's email from token
+    user = Actor.query.filter_by(email_id=current_user_email).first()
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    return jsonify({
+        "actor_id": user.actor_id,
+        "actor_name": user.actor_name,
+        "email_id": user.email_id,
+        "role_id": user.role_id
+    })
 
 
 @app.route('/tasks/<int:task_id>', methods=['PATCH'])

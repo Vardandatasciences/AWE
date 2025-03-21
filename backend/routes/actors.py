@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Actor
+from models import db, Actor, Task
 from datetime import datetime
 import traceback
 from flask_bcrypt import Bcrypt
@@ -100,8 +100,14 @@ def get_actors():
 @actors_bp.route('/actors_assign', methods=['GET'])
 def get_actors_assign():
     try:
-        actors = Actor.query.with_entities(Actor.actor_name).all()
-        return jsonify([{"actor_name": actor.actor_name} for actor in actors])
+        # Fetch actors but exclude those with role_id = 11
+        actors = Actor.query.filter(Actor.role_id != 11, Actor.status != 'O').all()
+        
+        return jsonify([
+    {"actor_id": actor.actor_id, "actor_name": actor.actor_name, "role_id": actor.role_id} 
+    for actor in actors
+])
+
     except Exception as e:
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
@@ -220,4 +226,59 @@ def update_actor():
         db.session.rollback()
         print("Error:", e)
         traceback.print_exc()  # Print full traceback for better debugging
+        return jsonify({"error": str(e)}), 500
+
+@actors_bp.route('/deactivate_actor', methods=['PUT'])
+def deactivate_actor():
+    try:
+        data = request.json
+        actor_id = data.get('actor_id')
+        
+        if not actor_id:
+            return jsonify({"error": "Actor ID is required"}), 400
+            
+        # Get the actor
+        actor = Actor.query.get_or_404(actor_id)
+        actor_name = actor.actor_name
+        
+        # Change actor status to inactive ('O')
+        actor.status = 'O'
+        
+        # Find all tasks assigned to this actor (not just active ones)
+        # First, get active tasks that need to be moved to pending
+        active_tasks = Task.query.filter_by(actor_id=actor_id, status='A').all()
+        
+        # Collect task details for the response
+        task_details = []
+        for task in active_tasks:
+            # Change status to pending
+            task.status = 'Pending'  # Changed from 'P' to 'Pending'
+            
+            # Add to task details
+            task_details.append({
+                'task_id': task.task_id,
+                'task_name': task.task_name if hasattr(task, 'task_name') else f"Task #{task.task_id}",
+                'activity_id': task.activity_id if hasattr(task, 'activity_id') else None,
+                'due_date': task.due_date.strftime('%Y-%m-%d') if hasattr(task, 'due_date') and task.due_date else None,
+                'status': 'Pending'  # Changed from 'P' to 'Pending'
+            })
+        
+        # Log the number of tasks found for debugging
+        print(f"Found {len(active_tasks)} active tasks for actor {actor_id}")
+        print(f"Changed status to 'Pending' for all tasks")
+        
+        db.session.commit()
+        
+        return jsonify({
+            "message": f"Actor '{actor_name}' deactivated successfully and tasks moved to pending",
+            "affected_tasks": len(task_details),
+            "task_details": task_details,
+            "actor_id": actor_id,
+            "actor_name": actor_name
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print("Error:", e)
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500 

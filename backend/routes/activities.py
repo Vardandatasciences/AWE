@@ -158,18 +158,6 @@ def get_activity_mappings(activity_id):
         return jsonify({"error": str(e)}), 500
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 def calculate_new_duedate(start_date, iteration, frequency):
     """Calculate the new due date based on frequency."""
     return start_date + timedelta(days=(365 // frequency) * iteration)
@@ -352,6 +340,16 @@ def adjust_due_date(date, criticality):
         return date  # Return original date if an error occurs
 
 
+@activities_bp.route('/get_frequency/<int:activity_id>', methods=['GET'])
+def get_frequency(activity_id):
+    try:
+        activity = Activity.query.filter_by(activity_id=activity_id).first()
+        if not activity:
+            return jsonify({'error': 'Activity not found'}), 404
+        
+        return jsonify({'frequency': activity.frequency}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 
@@ -386,8 +384,12 @@ def assign_activity():
         activity = Activity.query.filter_by(activity_id=activity_id).first()
         if not activity:
             return jsonify({'success': False, 'message': '❌ Invalid Activity'}), 400
-        
-        initiator = session.get('actor_name', "system")
+
+        if data.get('actor_id'):
+            actor = Actor.query.filter_by(actor_id=data.get('actor_id')).first()
+            initiator = actor.actor_name if actor else None
+        else:
+            initiator = None
         if not initiator:
             return jsonify({'success': False, 'message': '❌ Initiator not found. Please log in again.'}), 400
 
@@ -432,12 +434,15 @@ def assign_activity():
             due_date = datetime.now() + timedelta(days=int(frequency))
             
             # Generate a unique task ID
-            task_id = f"{activity_id}{customer_id}{due_date.strftime('%d%m%Y')}{assigned_actor_id}"
+            task_id = f"{activity_id}{customer_id}{due_date.strftime('%d%m%Y')}"
+            
+            # Get current timestamp for assignment
+            current_timestamp = datetime.now()
             
             # Create the task
             new_task = Task(
                 task_id=task_id,
-                task_name=f"{activity.activity_name} for {customer.customer_name}",
+                task_name=activity.activity_name,
                 criticality=criticality,
                 duration=duration,
                 status=status,
@@ -449,7 +454,8 @@ def assign_activity():
                 activity_id=activity_id,
                 initiator=initiator,
                 activity_type=activity_type,
-                stage_id=1
+                stage_id=1,
+                assigned_timestamp=current_timestamp  # Add the timestamp here
             )
             db.session.add(new_task)
             db.session.commit()

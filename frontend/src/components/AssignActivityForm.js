@@ -13,12 +13,16 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const actor_id = localStorage.getItem('actor_id');
+    const actor_name= localStorage.getItem('actor_name');
+    console.log("User User ID:", actor_id);
+    console.log("User User Name:", actor_name)
 
     useEffect(() => {
         const loadData = async () => {
             try {
                 // Load employees first
-                const employeesResponse = await axios.get('/actors');
+                const employeesResponse = await axios.get('/actors_assign');
                 setEmployees(employeesResponse.data);
                 
                 // Set default assignee if employees exist
@@ -93,6 +97,8 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             formDataToSend.append('link', formData.link);
             formDataToSend.append('frequency', formData.frequency);
             formDataToSend.append('status', formData.status);
+            formDataToSend.append('actor_id', actor_id);
+            formDataToSend.append('actor_name', actor_name);
             
             // Call the API to assign the activity
             const response = await axios.post('/assign_activity', formDataToSend);

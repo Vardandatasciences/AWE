@@ -9,6 +9,7 @@ import threading
 import os
 from models import ReminderMail, HolidayMaster
 from flask_cors import cross_origin
+import traceback
 
 from datetime import datetime, timedelta, time
 
@@ -22,7 +23,12 @@ def get_tasks():
         user_id = request.args.get('user_id')
         role_id = request.args.get('role_id')
         
+        # Get search filters if provided
+        search_term = request.args.get('search', '')
+        search_field = request.args.get('field', 'all')  # 'all', 'task', 'customer', 'assignee'
+        
         print(f"User ID: {user_id}, Role ID: {role_id}")
+        print(f"Search: {search_term}, Field: {search_field}")
         
         # If admin, get all tasks, otherwise filter by user's assigned tasks
         if role_id == "11":  # Admin role
@@ -35,6 +41,33 @@ def get_tasks():
                 # If no user_id provided, return empty list
                 return jsonify([])
         
+        # Apply search filters in Python rather than SQL for flexibility
+        filtered_tasks = []
+        for task in tasks:
+            # Skip filtering if no search term
+            if not search_term:
+                filtered_tasks.append(task)
+                continue
+                
+            # Convert search term to lowercase for case-insensitive comparison
+            term = search_term.lower()
+            
+            # Apply filter based on search field
+            if search_field == 'task':
+                if task.task_name and term in task.task_name.lower():
+                    filtered_tasks.append(task)
+            elif search_field == 'customer':
+                if task.customer_name and term in task.customer_name.lower():
+                    filtered_tasks.append(task)
+            elif search_field == 'assignee':
+                if task.assigned_to and term in task.assigned_to.lower():
+                    filtered_tasks.append(task)
+            else:  # 'all' or any other value
+                if (task.task_name and term in task.task_name.lower()) or \
+                   (task.customer_name and term in task.customer_name.lower()) or \
+                   (task.assigned_to and term in task.assigned_to.lower()):
+                    filtered_tasks.append(task)
+        
         return jsonify([{
             'id': task.task_id,
             'task_name': task.task_name,
@@ -46,8 +79,9 @@ def get_tasks():
             'initiator': task.initiator,
             'time_taken': task.duration,
             'customer_name': task.customer_name,
-            'title': task.task_name
-        } for task in tasks])
+            'title': task.task_name,
+            'remarks': task.remarks
+        } for task in filtered_tasks])
     except Exception as e:
         print("Error fetching tasks:", e)
         return jsonify({'error': 'Failed to fetch tasks'}), 500
@@ -88,16 +122,24 @@ def schedule_email_reminder(subject, task, email, reminder_date, email_type):
         # Convert reminder_date to datetime with time component for the reminder
         reminder_time = time(9, 0)  # 9:00 AM
         
-        # Create a new reminder record
-        new_reminder = ReminderMail(
-            task_id=task.task_id,
-            message_des=f"{task.task_name} for {task.customer_name}",
-            date=reminder_date,
-            time=reminder_time,
-            email_id=email,
-            status="Pending",
-            email_type=email_type  # Store the email type for rendering the correct template later
-        )
+        # Check if email_type is a valid field in ReminderMail model
+        reminder_kwargs = {
+            'task_id': task.task_id,
+            'message_des': f"{task.task_name} for {task.customer_name}",
+            'date': reminder_date,
+            'time': reminder_time,
+            'email_id': email,
+            'status': "Pending"
+        }
+        
+        # Only add email_type if the model supports it
+        try:
+            # Try to add email_type to see if model supports it
+            new_reminder = ReminderMail(**reminder_kwargs, email_type=email_type)
+        except TypeError:
+            # If TypeError, model doesn't have email_type field, create without it
+            print(f"Note: ReminderMail model doesn't support 'email_type', creating without it")
+            new_reminder = ReminderMail(**reminder_kwargs)
         
         db.session.add(new_reminder)
         db.session.commit()
@@ -154,7 +196,7 @@ def send_styled_email(subject, recipient, task, email_type='reassignment'):
         
         # Prepare HTML content based on email type
         if email_type == 'assignment':
-            # HTML content for new assignment
+            # HTML content for new assignment with proper escaping of CSS curly braces
             html_body = f'''
             <!DOCTYPE html>
             <html>
@@ -162,6 +204,13 @@ def send_styled_email(subject, recipient, task, email_type='reassignment'):
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>New Task Assignment</title>
+                <style>
+                    body {{ margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: #333333; background-color: #f7f7f7; }}
+                    table {{ max-width: 600px; margin: 0 auto; background-color: #ffffff; }}
+                    td.header {{ background: linear-gradient(to right, #3498db, #2980b9); padding: 20px; text-align: center; color: white; }}
+                    h1 {{ margin: 0; font-size: 28px; font-weight: bold; }}
+                    h2 {{ margin: 10px 0 0 0; font-size: 20px; font-weight: normal; }}
+                </style>
             </head>
             <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: #333333; background-color: #f7f7f7;">
                 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
@@ -261,20 +310,20 @@ ProSync Team
             <html>
             <head>
                 <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1); }
-                    .header { background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 20px; text-align: center; }
-                    .header h1 { margin: 0; font-size: 24px; }
-                    .logo { font-weight: bold; font-size: 28px; margin-bottom: 10px; }
-                    .content { padding: 20px 30px; }
-                    .task-details { background-color: #f1f5f9; border-radius: 6px; padding: 15px; margin: 15px 0; }
-                    .detail-row { margin-bottom: 8px; display: flex; }
-                    .detail-label { font-weight: bold; width: 120px; color: #555; }
-                    .footer { text-align: center; padding: 15px; background-color: #f1f5f9; color: #666; font-size: 12px; }
-                    .button { display: inline-block; background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-top: 15px; font-weight: bold; }
-                    .critical-high { color: #e74c3c; }
-                    .critical-medium { color: #f39c12; }
-                    .critical-low { color: #27ae60; }
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1); }}
+                    .header {{ background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 20px; text-align: center; }}
+                    .header h1 {{ margin: 0; font-size: 24px; }}
+                    .logo {{ font-weight: bold; font-size: 28px; margin-bottom: 10px; }}
+                    .content {{ padding: 20px 30px; }}
+                    .task-details {{ background-color: #f1f5f9; border-radius: 6px; padding: 15px; margin: 15px 0; }}
+                    .detail-row {{ margin-bottom: 8px; display: flex; }}
+                    .detail-label {{ font-weight: bold; width: 120px; color: #555; }}
+                    .footer {{ text-align: center; padding: 15px; background-color: #f1f5f9; color: #666; font-size: 12px; }}
+                    .button {{ display: inline-block; background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-top: 15px; font-weight: bold; }}
+                    .critical-high {{ color: #e74c3c; }}
+                    .critical-medium {{ color: #f39c12; }}
+                    .critical-low {{ color: #27ae60; }}
                 </style>
             </head>
             <body>
@@ -646,7 +695,7 @@ ProSync Team
         return True
     except Exception as e:
         print(f"❌ Failed to send email: {str(e)}")
-        traceback.print_exc()  # Add detailed traceback for debugging
+        traceback.print_exc()
         return False
 
 def send_email_task(subject, to_email, task, email_type='reminder'):
@@ -765,9 +814,14 @@ def update_task(task_id):
         
         # Update the task
         if 'status' in data:
-            # Ensure we're using the correct status values
+            # Update status
             task.status = data['status']
             print(f"Updating task status to: {task.status}")
+            
+            # Update remarks if provided
+            if 'remarks' in data:
+                task.remarks = data['remarks']
+                print(f"Adding remarks: {data['remarks']}")
         
         # Handle reassignment
         if 'assignee' in data:
@@ -935,6 +989,12 @@ def assign_activity():
             assignee_id=data['assignee_id'],
             customer_id=data['customer_id']
         )
+        
+        task = Task.query.filter_by(activity_id=data['activity_id']).first()
+        if task:
+            task.actor_id = data['assignee_id']
+            task.assigned_to = Actor.query.get(data['assignee_id']).actor_name  # Get assigned actor name
+            task.assigned_timestamp = datetime.utcnow()  # Store current timestamp
         
         db.session.add(new_assignment)
         db.session.commit()
