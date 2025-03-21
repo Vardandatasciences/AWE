@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'chart.js/auto';
-import './Analysis.css';
-import SubNav from './SubNav';
+import './Analysis.css'; // Reuse the same CSS
+import SubNav from './SubNav'; // Import the SubNav component
 
 const statusColors = {
   'Completed': '#28a745',
@@ -11,10 +11,10 @@ const statusColors = {
   'Due': '#17a2b8',
   'Due with Delay': '#ffcc00',
   'Total': '#63B3ED',
-  'Pending': '#6f42c1',  // Changed from #6c757d to light blue (#63B3ED)
+  'Pending': '#6f42c1'
 };
 
-function Analysis() {
+function UserAnalysis() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({});
   const [tableData, setTableData] = useState([]);
@@ -25,15 +25,72 @@ function Analysis() {
   });
   const [activityFilter, setActivityFilter] = useState('All');
   const [periodFilter, setPeriodFilter] = useState('All');
+  const [userId, setUserId] = useState(null);
+  const [initialDataFetched, setInitialDataFetched] = useState(false);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [activityFilter, periodFilter]);
+    // Get user ID from localStorage
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUserId) {
+      console.log("Found user ID in localStorage:", storedUserId);
+      setUserId(storedUserId);
+    } else {
+      // Try to get user info from the backend as fallback
+      console.warn("User ID not found in localStorage, trying to get from session");
+      
+      // Fetch current user info from a session endpoint
+      fetch('http://localhost:5000/current_user')
+        .then(res => res.json())
+        .then(data => {
+          if (data.user_id) {
+            console.log("Got user ID from session:", data.user_id);
+            setUserId(data.user_id);
+            localStorage.setItem('userId', data.user_id);
+            localStorage.setItem('userRole', data.role);
+          } else {
+            console.error("Could not determine user ID");
+          }
+        })
+        .catch(err => {
+          console.error("Error getting current user:", err);
+        });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (userId && !initialDataFetched) {
+      console.log("Initial data fetch with userId:", userId);
+      fetchDashboardData();
+      setInitialDataFetched(true);
+    }
+  }, [userId, initialDataFetched]);
+
+  useEffect(() => {
+    if (userId && initialDataFetched) {
+      console.log("Filter changed, fetching new data");
+      fetchDashboardData();
+    }
+  }, [activityFilter, periodFilter, userId, initialDataFetched]);
 
   const fetchDashboardData = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/analysis/task-stats?activity=${activityFilter}&period=${periodFilter}`);
+      setLoading(true); // Ensure loading state is set while fetching
+      console.log(`Fetching data for userId: ${userId}, activity: ${activityFilter}, period: ${periodFilter}`);
+      
+      const url = `http://localhost:5000/analysis/user-task-stats?activity=${activityFilter}&period=${periodFilter}&userId=${userId}`;
+      console.log("Fetching from URL:", url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        console.error("Error response from server:", response.status, response.statusText);
+        setLoading(false);
+        return;
+      }
+      
       const data = await response.json();
+      console.log("Received dashboard data:", data);
+      
       setData(data);
       
       // Destroy existing charts before creating new ones
@@ -43,9 +100,26 @@ function Analysis() {
       charts.forEach(chart => chart?.destroy());
 
       // Initialize charts with the new data
-      if (data.pie_chart) renderPieChart(data.pie_chart);
-      if (data.bar_chart) renderBarChart(data.bar_chart);
-      if (data.criticality_chart) renderCriticalityChart(data.criticality_chart);
+      if (data.pie_chart && Object.keys(data.pie_chart).length > 0) {
+        renderPieChart(data.pie_chart);
+        console.log("Pie chart rendered");
+      } else {
+        console.log("No pie chart data available");
+      }
+      
+      if (data.bar_chart && data.bar_chart.labels && data.bar_chart.labels.length > 0) {
+        renderBarChart(data.bar_chart);
+        console.log("Bar chart rendered");
+      } else {
+        console.log("No bar chart data available");
+      }
+      
+      if (data.criticality_chart && data.criticality_chart.labels && data.criticality_chart.labels.length > 0) {
+        renderCriticalityChart(data.criticality_chart);
+        console.log("Criticality chart rendered");
+      } else {
+        console.log("No criticality chart data available");
+      }
 
       setLoading(false);
     } catch (error) {
@@ -56,20 +130,17 @@ function Analysis() {
 
   const fetchTaskDetails = async (filterType, filterValue, status) => {
     try {
-      let url = `http://localhost:5000/analysis/task-details?filterType=${filterType}&filterValue=${filterValue}&activity=${activityFilter}&period=${periodFilter}`;
+      let url = `http://localhost:5000/analysis/user-task-details?filterType=${filterType}&filterValue=${filterValue}&activity=${activityFilter}&period=${periodFilter}&userId=${userId}`;
       
       if (status) {
         url += `&activityType=${status}`;
       }
-
-      console.log('Fetching from URL:', url);
 
       const response = await fetch(url);
       const data = await response.json();
       
       if (Array.isArray(data)) {
         setTableData(data);
-        console.log('Received table data:', data);
       } else if (data.error) {
         console.error("Error from server:", data.error);
         setTableData([]);
@@ -93,7 +164,7 @@ function Analysis() {
 
   const updateBarChartByStatus = async (selectedStatus) => {
     try {
-      const response = await fetch(`http://localhost:5000/analysis/filtered-bar-data?status=${selectedStatus}&activity=${activityFilter}&period=${periodFilter}`);
+      const response = await fetch(`http://localhost:5000/analysis/user-filtered-bar-data?status=${selectedStatus}&activity=${activityFilter}&period=${periodFilter}&userId=${userId}`);
       const data = await response.json();
       
       const barChart = Chart.getChart('barChart');
@@ -127,8 +198,43 @@ function Analysis() {
 
   const renderPieChart = (pieData) => {
     const ctx = document.getElementById('pieChart')?.getContext('2d');
-    if (!ctx) return;
-
+    if (!ctx) {
+      console.error("Cannot find pie chart canvas element");
+      return;
+    }
+    
+    if (!pieData || Object.keys(pieData).length === 0) {
+      console.log("No pie chart data to render");
+      // Create an empty chart or a placeholder message
+      new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: ['No Data'],
+          datasets: [{
+            data: [1],
+            backgroundColor: ['#f8f9fa']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right'
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return 'No tasks found for this period';
+                }
+              }
+            }
+          }
+        }
+      });
+      return;
+    }
+    
     new Chart(ctx, {
       type: 'pie',
       data: {
@@ -174,7 +280,7 @@ function Analysis() {
       data: {
         labels: barData.labels,
         datasets: [{
-          label: 'All Tasks',
+          label: 'My Tasks',
           data: barData.data,
           backgroundColor: statusColors['Total']
         }]
@@ -282,7 +388,7 @@ function Analysis() {
       <SubNav />
       <div className="analysis-wrapper">
         {loading ? (
-          <div className="loading">Loading...</div>
+          <div className="loading">Loading your dashboard...</div>
         ) : (
           <div className="dashboard">
             <div className="left-section" style={{
@@ -290,16 +396,16 @@ function Analysis() {
               padding: '15px',
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'center',  // Center vertically
-              alignItems: 'center',      // Center horizontally
-              minHeight: '100%'         // Take full height
+              justifyContent: 'center',
+              alignItems: 'center',
+              minHeight: '100%'
             }}>
               <div className="stats-container" style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '10px',            // Add consistent spacing between boxes
+                gap: '10px',
                 width: '100%',
-                maxWidth: '280px'       // Limit maximum width for better appearance
+                maxWidth: '280px'
               }}>
                 <div className="box total" style={{
                   padding: '15px',
@@ -311,11 +417,11 @@ function Analysis() {
                   transition: 'transform 0.2s',
                   cursor: 'pointer'
                 }}>
-                  <span style={{ fontWeight: '500' }}>Total Tasks</span>
+                  <span style={{ fontWeight: '500' }}>My Total Tasks</span>
                   <span style={{ 
                     fontWeight: 'bold',
                     fontSize: '1.2em' 
-                  }}>{data.total_activities}</span>
+                  }}>{data.total_activities || 0}</span>
                 </div>
 
                 <div className="box completed" style={{
@@ -332,7 +438,7 @@ function Analysis() {
                   <span style={{ 
                     fontWeight: 'bold',
                     fontSize: '1.2em' 
-                  }}>{data.completed_activities}</span>
+                  }}>{data.completed_activities || 0}</span>
                 </div>
 
                 <div className="box completed-delay" style={{
@@ -349,7 +455,7 @@ function Analysis() {
                   <span style={{ 
                     fontWeight: 'bold',
                     fontSize: '1.2em' 
-                  }}>{data.completed_with_delay}</span>
+                  }}>{data.completed_with_delay || 0}</span>
                 </div>
 
                 <div className="box ongoing" style={{
@@ -366,7 +472,7 @@ function Analysis() {
                   <span style={{ 
                     fontWeight: 'bold',
                     fontSize: '1.2em' 
-                  }}>{data.ongoing_activities}</span>
+                  }}>{data.ongoing_activities || 0}</span>
                 </div>
 
                 <div className="box ongoing-delay" style={{
@@ -383,7 +489,7 @@ function Analysis() {
                   <span style={{ 
                     fontWeight: 'bold',
                     fontSize: '1.2em' 
-                  }}>{data.ongoing_with_delay}</span>
+                  }}>{data.ongoing_with_delay || 0}</span>
                 </div>
 
                 <div className="box due" style={{
@@ -400,7 +506,7 @@ function Analysis() {
                   <span style={{ 
                     fontWeight: 'bold',
                     fontSize: '1.2em' 
-                  }}>{data.yet_to_start}</span>
+                  }}>{data.yet_to_start || 0}</span>
                 </div>
 
                 <div className="box due-delay" style={{
@@ -417,7 +523,7 @@ function Analysis() {
                   <span style={{ 
                     fontWeight: 'bold',
                     fontSize: '1.2em' 
-                  }}>{data.yet_to_start_with_delay}</span>
+                  }}>{data.yet_to_start_with_delay || 0}</span>
                 </div>
                 <div className="box pending" style={{
     padding: '15px',
@@ -435,7 +541,6 @@ function Analysis() {
         fontSize: '1.2em' 
     }}>{data.pending_tasks}</span>
 </div>
-
               </div>
             </div>
 
@@ -467,23 +572,62 @@ function Analysis() {
 
               <div className="charts-container">
                 <div className="chart-box">
-                  <h4>Task Status Distribution</h4>
+                  <h4>My Task Status Distribution</h4>
                   <div className="chart-container">
-                    <canvas id="pieChart"></canvas>
+                    {data.total_activities > 0 ? (
+                      <canvas id="pieChart"></canvas>
+                    ) : (
+                      <div className="no-data-message" style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        height: '100%',
+                        color: '#666',
+                        fontStyle: 'italic'
+                      }}>
+                        Select a different time period to view your tasks
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="chart-box">
-                  <h4>Task Distribution</h4>
+                  <h4>My Task Distribution</h4>
                   <div className="chart-container">
-                    <canvas id="barChart"></canvas>
+                    {data.total_activities > 0 ? (
+                      <canvas id="barChart"></canvas>
+                    ) : (
+                      <div className="no-data-message" style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        height: '100%',
+                        color: '#666',
+                        fontStyle: 'italic'
+                      }}>
+                        Select a different time period to view your tasks
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="chart-and-table-container">
                   <div className="chart-section">
                     <div className="chart-box">
-                      <h4>Task Criticality Analysis</h4>
+                      <h4>My Task Criticality Analysis</h4>
                       <div className="chart-container">
-                        <canvas id="criticalityChart"></canvas>
+                        {data.total_activities > 0 ? (
+                          <canvas id="criticalityChart"></canvas>
+                        ) : (
+                          <div className="no-data-message" style={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100%',
+                            color: '#666',
+                            fontStyle: 'italic'
+                          }}>
+                            Select a different time period to view your tasks
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -493,11 +637,11 @@ function Analysis() {
                       display: 'flex',
                       flexDirection: 'column'
                     }}>
-                      <h4>Task Details {selectedFilter.value ? ` - ${selectedFilter.value}` : ''}</h4>
+                      <h4>My Task Details {selectedFilter.value ? ` - ${selectedFilter.value}` : ''}</h4>
                       <div className="table-wrapper" style={{ 
                         flexGrow: 1,
                         overflow: 'auto',
-                        maxHeight: 'calc(100% - 40px)'  // Subtract header height
+                        maxHeight: 'calc(100% - 40px)'
                       }}>
                         {tableData.length > 0 ? (
                           <table>
@@ -540,4 +684,4 @@ function Analysis() {
   );
 }
 
-export default Analysis; 
+export default UserAnalysis; 

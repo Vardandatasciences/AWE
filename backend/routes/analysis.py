@@ -21,40 +21,37 @@ engine = create_engine(
 # Function to categorize tasks
 def categorize_tasks(df):
     current_date = pd.Timestamp.today().date()
-
-    # Check if 'status' column exists, if not use 'task_status' column instead
     status_column = 'status' if 'status' in df.columns else 'task_status'
-    
-    # Create a copy of the DataFrame to avoid modifying the original
+
     result_df = df.copy()
-    
-    # Ensure duedate column exists and is in date format
+
+    # Ensure 'duedate' is in date format
     if 'duedate' in result_df.columns:
         result_df['duedate'] = pd.to_datetime(result_df['duedate']).dt.date
-    
-    # Ensure actual_date column exists
+
+    # Ensure 'actual_date' column exists and is in date format
     if 'actual_date' not in result_df.columns:
         result_df['actual_date'] = pd.NaT
     else:
         result_df['actual_date'] = pd.to_datetime(result_df['actual_date'], errors='coerce').fillna(pd.NaT)
 
-    # Apply conditions to categorize tasks
-    if status_column in result_df.columns and 'duedate' in result_df.columns:
-        result_df['task_status'] = np.select(
-            [
-                (result_df[status_column] == 'WIP') & (result_df['duedate'] >= current_date),
-                (result_df[status_column] == 'WIP') & (result_df['duedate'] < current_date),  # Ongoing with Delay
-                (result_df[status_column] == 'completed') & (result_df['actual_date'] <= result_df['duedate']),
-                (result_df[status_column] == 'completed') & (result_df['actual_date'] > result_df['duedate']),  # Completed with Delay
-                (result_df[status_column] == 'Yet to Start') & (result_df['duedate'] >= current_date),
-                (result_df[status_column] == 'Yet to Start') & (result_df['duedate'] < current_date)  # Yet to Start with Delay
-            ],
-            [
-                'Ongoing', 'Ongoing with Delay', 'Completed', 'Completed with Delay', 'Due', 'Due with Delay'
-            ],
-            default='Unknown'
-        )
-    
+    # Apply categorization logic
+    result_df['task_status'] = np.select(
+        [
+            (result_df[status_column] == 'Pending'),  # Pending directly from DB
+            (result_df[status_column] == 'WIP') & (result_df['duedate'] >= current_date),  # Ongoing
+            (result_df[status_column] == 'WIP') & (result_df['duedate'] < current_date),  # Ongoing with Delay
+            (result_df[status_column] == 'completed') & (result_df['actual_date'] <= result_df['duedate']),  # Completed
+            (result_df[status_column] == 'completed') & (result_df['actual_date'] > result_df['duedate']),  # Completed with Delay
+            (result_df[status_column] == 'Yet to Start') & (result_df['duedate'] >= current_date),  # Due
+            (result_df[status_column] == 'Yet to Start') & (result_df['duedate'] < current_date)  # Due with Delay
+        ],
+        [
+            'Pending', 'Ongoing', 'Ongoing with Delay', 'Completed', 'Completed with Delay', 'Due', 'Due with Delay'  # Corrected list length
+        ],
+        default='Unknown'  # In case none of the conditions match
+    )
+
     return result_df
 
 # Function to apply both activity and period filters
@@ -352,6 +349,12 @@ def index():
                         <span>Due with Delay</span>
                         <span id="due-delay">0</span>
                     </div>
+                    <div class="box pending">
+                        <span>Pending</span>
+                        <span id="pending-tasks">0</span>
+                    </div>
+
+
                 </div>
             </div>
 
@@ -411,6 +414,8 @@ def index():
                 document.getElementById('ongoing-delay').textContent = data.ongoing_with_delay;
                 document.getElementById('due-tasks').textContent = data.yet_to_start;
                 document.getElementById('due-delay').textContent = data.yet_to_start_with_delay;
+                document.getElementById('pending-tasks').textContent = data.pending_tasks;
+
 
                 // Update charts
                 updatePieChart(data.pie_chart);
@@ -550,6 +555,7 @@ def task_stats():
             'ongoing_with_delay': int(df[df['task_status'] == 'Ongoing with Delay']['task_count'].sum()),
             'yet_to_start': int(df[df['task_status'] == 'Due']['task_count'].sum()),
             'yet_to_start_with_delay': int(df[df['task_status'] == 'Due with Delay']['task_count'].sum()),
+            'pending_tasks': int(df[df['task_status'] == 'Pending']['task_count'].sum()),
             'pie_chart': pie_chart_data,
             'bar_chart': bar_chart,
             'criticality_chart': criticality_chart
@@ -675,3 +681,385 @@ def task_details():
 # @analysis_bp.route('/analysis/')
 # def dash_board():
 #     return dash_app.index() 
+
+# Add this new route for user-specific dashboard data
+@analysis_bp.route('/user-task-stats')
+def user_task_stats():
+    try:
+        # Get filter parameters and user ID from the request
+        activity_filter = request.args.get('activity', 'All')
+        period_filter = request.args.get('period', 'All')
+        user_id = request.args.get('userId')
+        
+        print(f"User task stats requested for user {user_id}, activity: {activity_filter}, period: {period_filter}")
+        
+        if not user_id:
+            return jsonify({'error': 'User ID is required'})
+
+        # Ensure user_id is the correct type
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            # If it can't be converted to int, keep it as string
+            user_id = str(user_id)
+
+        # SQL Query with FIXED COLUMN NAME (actor_id instead of assigned_to)
+        query = """
+            SELECT t.task_name, t.duedate, t.status, a.activity_type, t.criticality, COUNT(*) as task_count,
+                CASE WHEN t.status = 'completed' THEN t.actual_date ELSE NULL END as actual_date
+            FROM tasks t
+            LEFT JOIN activities a ON t.activity_id = a.activity_id
+            WHERE t.actor_id = %s
+            GROUP BY t.task_name, t.duedate, t.status, a.activity_type, t.criticality, t.actual_date
+        """
+        
+        with engine.connect() as connection:
+            result = connection.execute(query, (user_id,))
+            df = pd.DataFrame(result.fetchall(), columns=result.keys())
+            
+        # If no data for this user, return empty stats
+        if df.empty:
+            return jsonify({
+                'total_activities': 0,
+                'completed_activities': 0,
+                'completed_with_delay': 0,
+                'ongoing_activities': 0,
+                'ongoing_with_delay': 0,
+                'yet_to_start': 0,
+                'yet_to_start_with_delay': 0,
+                'pie_chart': {},
+                'bar_chart': {"labels": [], "data": []},
+                'criticality_chart': {'labels': [], 'datasets': []}
+            })
+
+        # Convert date columns to datetime
+        df['duedate'] = pd.to_datetime(df['duedate']).dt.date
+        df['actual_date'] = pd.to_datetime(df['actual_date'], errors='coerce').fillna(pd.NaT)
+
+        # Apply both filters correctly
+        df = apply_filters(df, activity_filter, period_filter) 
+
+        # Categorize tasks after filtering
+        df = categorize_tasks(df)
+
+        # Pie Chart Data
+        pie_chart_data = {
+            status: int(df[df['task_status'] == status]['task_count'].sum()) 
+            for status in df['task_status'].unique()
+        }
+
+        # Bar Chart Data
+        bar_chart_data = df.groupby('task_name')['task_count'].sum().reset_index()
+        bar_chart = {
+            "labels": bar_chart_data["task_name"].tolist(),
+            "data": bar_chart_data["task_count"].astype(int).tolist()
+        }
+
+        # Criticality Data
+        # Modify the fetch_task_counts_by_criticality function to include user filter
+        criticality_query = """
+        SELECT t.criticality, t.duedate, a.activity_type, t.status as status, COUNT(*) as task_count,
+           CASE WHEN t.status = 'completed' THEN t.actual_date ELSE NULL END as actual_date
+        FROM tasks t
+        JOIN activities a ON t.activity_id = a.activity_id
+        WHERE t.actor_id = %s
+        GROUP BY t.criticality, t.duedate, a.activity_type, t.status, t.actual_date
+        """
+        with engine.connect() as connection:
+            result = connection.execute(criticality_query, (user_id,))
+            criticality_df = pd.DataFrame(result.fetchall(), columns=result.keys())
+        
+        if not criticality_df.empty:
+            criticality_df = apply_filters(criticality_df, activity_filter, period_filter)
+            criticality_df = categorize_tasks(criticality_df)
+
+            grouped_df = criticality_df.groupby(['criticality', 'task_status'])['task_count'].sum().reset_index()
+            criticality_values = sorted(grouped_df['criticality'].unique())
+
+            task_statuses = ['Completed', 'Completed with Delay', 'Ongoing', 'Ongoing with Delay', 'Due', 'Due with Delay']
+            colors = {
+                'Completed': '#28a745', 'Completed with Delay': '#fd7e14',
+                'Ongoing': '#007bff', 'Ongoing with Delay': '#dc3545',
+                'Due': '#17a2b8', 'Due with Delay': '#ffcc00'
+            }
+
+            datasets = [{
+                'label': status,
+                'data': [int(grouped_df[(grouped_df['criticality'] == crit) & 
+                        (grouped_df['task_status'] == status)]['task_count'].sum()) 
+                        for crit in criticality_values],
+                'backgroundColor': colors.get(status, '#6c757d')
+            } for status in task_statuses]
+
+            criticality_chart = {'labels': criticality_values, 'datasets': datasets}
+        else:
+            criticality_chart = {'labels': [], 'datasets': []}
+
+        # Response JSON
+        return jsonify({
+            'total_activities': int(df['task_count'].sum()),
+            'completed_activities': int(df[df['task_status'] == 'Completed']['task_count'].sum()),
+            'completed_with_delay': int(df[df['task_status'] == 'Completed with Delay']['task_count'].sum()),
+            'ongoing_activities': int(df[df['task_status'] == 'Ongoing']['task_count'].sum()),
+            'ongoing_with_delay': int(df[df['task_status'] == 'Ongoing with Delay']['task_count'].sum()),
+            'yet_to_start': int(df[df['task_status'] == 'Due']['task_count'].sum()),
+            'yet_to_start_with_delay': int(df[df['task_status'] == 'Due with Delay']['task_count'].sum()),
+            'pending_tasks': int(df[df['task_status'] == 'Pending']['task_count'].sum()), 
+            'pie_chart': pie_chart_data,
+            'bar_chart': bar_chart,
+            'criticality_chart': criticality_chart
+        })
+    
+    except Exception as e:
+        print(f"Error in user_task_stats: {str(e)}")
+        return jsonify({'error': str(e)})
+
+# Add a user-specific task details route
+@analysis_bp.route('/user-task-details')
+def user_task_details():
+    try:
+        filter_type = request.args.get('filterType')
+        filter_value = request.args.get('filterValue')
+        activity_type = request.args.get('activityType', 'All')
+        activity_filter = request.args.get('activity', 'All')
+        period_filter = request.args.get('period', 'All')
+        user_id = request.args.get('userId')
+        
+        if not user_id:
+            return jsonify({'error': 'User ID is required'})
+            
+        if not filter_type or not filter_value:
+            return jsonify([])
+        
+        # Get the base query with all tasks for this user
+        query = """
+        SELECT t.task_id, t.task_name, t.duedate, t.status, t.criticality, a.activity_type, t.assigned_to,
+            CASE WHEN t.status = 'completed' THEN t.actual_date ELSE NULL END as actual_date
+        FROM tasks t
+        JOIN activities a ON t.activity_id = a.activity_id
+        WHERE t.actor_id = %s
+        """
+        
+        # Apply activity filter if needed
+        if activity_filter != 'All':
+            if activity_filter == 'Regulatory':
+                query += " AND a.activity_type = 'R'"
+            elif activity_filter == 'Internal':
+                query += " AND a.activity_type = 'I'"
+            elif activity_filter == 'Customer':
+                query += " AND a.activity_type = 'C'"
+            else:
+                query += f" AND a.activity_type = '{activity_filter}'"
+        
+        # Get the data from the database
+        with engine.connect() as connection:
+            result = connection.execute(query, (user_id,))
+            df = pd.DataFrame(result.fetchall(), columns=result.keys())
+        
+        # Convert date columns to datetime
+        df['duedate'] = pd.to_datetime(df['duedate']).dt.date
+        df['actual_date'] = pd.to_datetime(df['actual_date'], errors='coerce').fillna(pd.NaT)
+        
+        # Apply period filter
+        if period_filter != 'All':
+            current_date = pd.Timestamp.today().date()
+            if period_filter == 'Previous Month':
+                previous_month_start = (current_date.replace(day=1) - pd.DateOffset(months=1)).date()
+                previous_month_end = (current_date.replace(day=1) - pd.DateOffset(days=1)).date()
+                df = df[(df['duedate'] >= previous_month_start) & (df['duedate'] <= previous_month_end)]
+            elif period_filter == 'Current Month':
+                month_start = current_date.replace(day=1)
+                df = df[df['duedate'] >= month_start]
+            elif period_filter == '6 Months':
+                month_start = current_date.replace(day=1)
+                six_months_ahead = (month_start + pd.DateOffset(months=6)).date()
+                df = df[(df['duedate'] >= month_start) & (df['duedate'] <= six_months_ahead)]
+        
+        # Categorize tasks
+        df = categorize_tasks(df)
+        
+        # Apply specific filter for the clicked item
+        if filter_type == 'status':
+            filtered_df = df[df['task_status'] == filter_value]
+        elif filter_type == 'taskName':
+            # First try exact match
+            filtered_df = df[df['task_name'] == filter_value]
+            
+            # If no exact matches, try case-insensitive match
+            if filtered_df.empty:
+                filtered_df = df[df['task_name'].str.lower() == filter_value.lower()]
+            
+            # If still no matches, try contains
+            if filtered_df.empty:
+                filtered_df = df[df['task_name'].str.lower().str.contains(filter_value.lower())]
+        elif filter_type == 'criticality':
+            if activity_type != 'All':
+                filtered_df = df[(df['criticality'] == filter_value) & (df['task_status'] == activity_type)]
+            else:
+                filtered_df = df[df['criticality'] == filter_value]
+        else:
+            return jsonify([])
+        
+        # Convert DataFrame to JSON-friendly format
+        result = []
+        for _, row in filtered_df.iterrows():
+            task_dict = {
+                'task_id': int(row['task_id']),
+                'task_name': row['task_name'],
+                'duedate': row['duedate'].strftime('%Y-%m-%d') if row['duedate'] else None,
+                'status': row['status'],
+                'task_status': row['task_status'],
+                'criticality': row['criticality'],
+                'activity_type': row['activity_type'],
+                'assigned_to': row['assigned_to']
+            }
+            result.append(task_dict)
+        
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error in user_task_details: {str(e)}")
+        return jsonify({'error': str(e)})
+
+# Add a user-specific filtered bar data route
+@analysis_bp.route('/user-filtered-bar-data')
+def user_filtered_bar_data():
+    try:
+        status_filter = request.args.get('status')
+        activity_filter = request.args.get('activity', 'All')
+        period_filter = request.args.get('period', 'All')
+        user_id = request.args.get('userId')
+        
+        if not user_id:
+            return jsonify({'error': 'User ID is required'})
+        
+        # Base query to get all task data for this user
+        query = """
+            SELECT t.task_name, t.duedate, t.status, a.activity_type, t.criticality,
+                CASE WHEN t.status = 'completed' THEN t.actual_date ELSE NULL END as actual_date
+            FROM tasks t
+            JOIN activities a ON t.activity_id = a.activity_id
+            WHERE t.actor_id = %s
+        """
+        
+        # Apply activity filter
+        if activity_filter != 'All':
+            if activity_filter == 'Regulatory':
+                query += " AND a.activity_type = 'R'"
+            elif activity_filter == 'Internal':
+                query += " AND a.activity_type = 'I'"
+            elif activity_filter == 'Customer':
+                query += " AND a.activity_type = 'C'"
+            else:
+                query += f" AND a.activity_type = '{activity_filter}'"
+        
+        with engine.connect() as connection:
+            result = connection.execute(query, (user_id,))
+            df = pd.DataFrame(result.fetchall(), columns=result.keys())
+        
+        # Apply the same filters as before
+        df['duedate'] = pd.to_datetime(df['duedate']).dt.date
+        df['actual_date'] = pd.to_datetime(df['actual_date'], errors='coerce').fillna(pd.NaT)
+        
+        # Apply period filter
+        if period_filter != 'All':
+            current_date = pd.Timestamp.today().date()
+            if period_filter == 'Previous Month':
+                previous_month_start = (current_date.replace(day=1) - pd.DateOffset(months=1)).date()
+                previous_month_end = (current_date.replace(day=1) - pd.DateOffset(days=1)).date()
+                df = df[(df['duedate'] >= previous_month_start) & (df['duedate'] <= previous_month_end)]
+            elif period_filter == 'Current Month':
+                month_start = current_date.replace(day=1)
+                df = df[df['duedate'] >= month_start]
+            elif period_filter == '6 Months':
+                month_start = current_date.replace(day=1)
+                six_months_ahead = (month_start + pd.DateOffset(months=6)).date()
+                df = df[(df['duedate'] >= month_start) & (df['duedate'] <= six_months_ahead)]
+            
+        # Categorize tasks
+        df = categorize_tasks(df)
+        
+        # Filter by the selected status
+        df = df[df['task_status'] == status_filter]
+        
+        # Group by task_name and count occurrences
+        bar_chart_data = df.groupby('task_name').size().reset_index(name='task_count')
+        
+        bar_chart = {
+            "labels": bar_chart_data["task_name"].tolist(),
+            "data": bar_chart_data["task_count"].astype(int).tolist()
+        }
+        
+        return jsonify(bar_chart)
+    except Exception as e:
+        print(f"Error in user_filtered_bar_data: {str(e)}")
+        return jsonify({'error': str(e), 'labels': [], 'data': []})
+
+@analysis_bp.route('/debug-user-tasks')
+def debug_user_tasks():
+    user_id = request.args.get('userId')
+    
+    if not user_id:
+        return jsonify({'error': 'User ID is required'})
+    
+    # Fix column name from assigned_to to actor_id
+    query = "SELECT * FROM tasks WHERE actor_id = %s"
+    
+    with engine.connect() as connection:
+        result = connection.execute(query, (user_id,))
+        tasks = [dict(zip(result.keys(), row)) for row in result.fetchall()]
+    
+    return jsonify({
+        'tasks_found': len(tasks),
+        'first_few_tasks': tasks[:5] if tasks else [],
+        'user_id_provided': user_id
+    })
+
+@analysis_bp.route('/simple-user-tasks')
+def simple_user_tasks():
+    user_id = request.args.get('userId')
+    
+    if not user_id:
+        return jsonify({'error': 'User ID is required'})
+    
+    # Fix column name from assigned_to to actor_id
+    query = """
+    SELECT task_id, task_name, actor_id, status 
+    FROM tasks 
+    WHERE actor_id = %s
+    """
+    
+    with engine.connect() as connection:
+        result = connection.execute(query, (user_id,))
+        tasks = [dict(zip(result.keys(), row)) for row in result.fetchall()]
+    
+    return jsonify(tasks)
+
+@analysis_bp.route('/tasks-by-date')
+def tasks_by_date():
+    user_id = request.args.get('userId')
+    date = request.args.get('date')  # Format: YYYY-MM-DD
+    
+    query = """
+    SELECT * FROM tasks 
+    WHERE 1=1
+    """
+    
+    params = []
+    
+    if user_id:
+        query += " AND actor_id = %s"
+        params.append(user_id)
+        
+    if date:
+        query += " AND duedate = %s"
+        params.append(date)
+    
+    with engine.connect() as connection:
+        result = connection.execute(query, tuple(params))
+        tasks = [dict(zip(result.keys(), row)) for row in result.fetchall()]
+    
+    return jsonify({
+        'tasks_found': len(tasks),
+        'tasks': tasks,
+        'params_used': {'userId': user_id, 'date': date}
+    }) 

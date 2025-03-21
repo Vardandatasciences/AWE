@@ -23,6 +23,7 @@ import Dashboard from './components/Dashboard';
 import WorkflowTest from './components/WorkflowTest';
 import AddCustomerForm from './components/AddCustomerForm';
 import { WorkflowProvider, useWorkflow } from './context/WorkflowContext';
+import DashboardRouter from './components/DashboardRouter';
 import './App.css';
 
 
@@ -199,14 +200,7 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
           </ProtectedRoute>
         } />
         
-        <Route path="/analysis" element={
-          <ProtectedRoute >
-            <SubNav />
-            <main className="main-content">
-              <Analysis />
-            </main>
-          </ProtectedRoute>
-        } />
+        <Route path="/analysis" element={<DashboardRouter />} />
         <Route path="/diary" element={
           <ProtectedRoute >
             <SubNav />
@@ -215,14 +209,7 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
             </main>
           </ProtectedRoute>
         } />
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute>
-              <Dashboard onGetStarted={handleGetStartedClick} />
-            </ProtectedRoute>
-          } 
-        />
+        <Route path="/dashboard" element={<DashboardRouter />} />
       </Routes>
       <Footer />
     </div>

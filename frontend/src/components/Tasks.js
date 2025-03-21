@@ -205,6 +205,19 @@ const Tasks = () => {
           status: mappedStatus
         };
       });
+      
+      // Sort tasks by assigned_timestamp (most recent first)
+      tasksWithIds.sort((a, b) => {
+        // Check if assigned_timestamp exists on both tasks
+        if (a.assigned_timestamp && b.assigned_timestamp) {
+          return new Date(b.assigned_timestamp) - new Date(a.assigned_timestamp);
+        }
+        // If only one task has a timestamp, prioritize it
+        if (a.assigned_timestamp) return -1;
+        if (b.assigned_timestamp) return 1;
+        // If neither has a timestamp, keep original order
+        return 0;
+      });
      
       setTasks(tasksWithIds);
 
@@ -235,7 +248,7 @@ const Tasks = () => {
   const fetchEmployees = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get('/actors');
+      const response = await axios.get('/actors_assign');
       setEmployees(response.data);
       setIsLoading(false);
     } catch (error) {
@@ -507,8 +520,18 @@ const Tasks = () => {
     return taskDueDate < today;
   };
  
+  // Add this helper function to check if a task was recently assigned
+  const isRecentlyAssigned = (assignedTimestamp) => {
+    if (!assignedTimestamp) return false;
+    const now = new Date();
+    const assigned = new Date(assignedTimestamp);
+    // Check if task was assigned in the last 24 hours
+    return (now - assigned) < 24 * 60 * 60 * 1000;
+  };
+ 
   const renderTaskCard = (task, index) => {
     const isDelayed = isTaskDelayed(task.due_date);
+    const isNew = isRecentlyAssigned(task.assigned_timestamp);
     
     return (
         <div className={`task-card ${task.criticality?.toLowerCase()} ${isDelayed && task.status !== 'completed' ? 'delayed' : ''}`}>
@@ -519,6 +542,14 @@ const Tasks = () => {
                     <span className="delayed-badge">
                         <i className="fas fa-clock"></i>
                         DELAYED
+                    </span>
+                )}
+                
+                {/* NEW badge with styling consistent with delayed-badge */}
+                {isNew && (
+                    <span className="new-badge">
+                        <i className="fas fa-bell"></i>
+                        NEW
                     </span>
                 )}
                 

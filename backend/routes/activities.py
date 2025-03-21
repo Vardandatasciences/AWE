@@ -352,17 +352,6 @@ def get_frequency(activity_id):
         return jsonify({'error': str(e)}), 500
 
 
-
-
-
-
-
-
-
-
-
-
-
 @activities_bp.route('/assign_activity', methods=['POST'])
 def assign_activity():
     try:

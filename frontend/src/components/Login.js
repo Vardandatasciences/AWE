@@ -46,6 +46,11 @@ const Login = () => {
       });
      
       // Store token and user info
+      localStorage.setItem('role_id', response.data.user.role_id); // Store role ID
+      localStorage.setItem('actor_id', response.data.user.user_id);
+      localStorage.setItem('userId', response.data.user.user_id);
+      localStorage.setItem('userName', response.data.user.name);
+      localStorage.setItem('userRole', response.data.user.role);
       login(response.data.token, response.data.user);
      
       // Redirect to the page they were trying to access or home

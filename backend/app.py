@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, session
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
@@ -17,11 +17,12 @@ from routes.profile import profile_bp
 from routes.changepassword import changepassword_bp
 from routes.diary import diary_bp
 from flask_bcrypt import Bcrypt
-from routes.forgotpassword import forgotpassword_bp
+from routes.users import users_bp
 
 
 app = Flask(__name__)
 app.config.from_object(Config)
+app.secret_key = 'your_secret_key'  # Make sure this is set for sessions to work
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -48,12 +49,13 @@ app.register_blueprint(tasks_bp)
 app.register_blueprint(reports_bp)
 app.register_blueprint(messages_bp)
 app.register_blueprint(analysis_bp, url_prefix='/analysis')
-app.register_blueprint(auth_bp)
-
+app.register_blueprint(auth_bp, url_prefix='/')
 app.register_blueprint(profile_bp)
 app.register_blueprint(changepassword_bp)
 app.register_blueprint(diary_bp, url_prefix='/diary')
 app.register_blueprint(forgotpassword_bp)
+app.register_blueprint(users_bp, url_prefix='/users')
+
 # Initialize the email thread
 init_app(app)
 

@@ -1452,3 +1452,20 @@
   word-break: break-word;
   padding: 0 0 0 24px;
 }
+/* Adjusted "NEW" badge size */
+.new-badge {
+    background: #4bf762; /* Keeping the same color */
+    color: white;
+    padding: 2px 5px; /* Match the criticality indicator */
+    border-radius: 4px; /* Rounded edges */
+    font-size: 10px; /* Match the criticality indicator */
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.priority-indicator {
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}

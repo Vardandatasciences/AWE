@@ -80,7 +80,8 @@ def get_tasks():
             'time_taken': task.duration,
             'customer_name': task.customer_name,
             'title': task.task_name,
-            'remarks': task.remarks
+            'remarks': task.remarks,
+            'assigned_timestamp': task.assigned_timestamp.isoformat() if task.assigned_timestamp else None
         } for task in filtered_tasks])
     except Exception as e:
         print("Error fetching tasks:", e)
