@@ -302,7 +302,7 @@ const Login = () => {
             <div className="logo-icon">
               <i className="fas fa-tasks"></i>
             </div>
-            <h1>AWE</h1>
+            <h1>Prosync</h1>
           </div>
           <h2>{showForgotPassword ? 'Reset Password' : 'Welcome Back'}</h2>
           <p>{showForgotPassword ? 'Follow the steps to reset your password' : 'Enter your credentials to access your account'}</p>
@@ -417,7 +417,7 @@ const Login = () => {
         </div>
        
         <div className="features-content">
-          <h3>Automated Workflow Experience</h3>
+          <h3>Professional Work Sync</h3>
          
           <div className="feature-list">
             <div className="feature-item" data-aos="fade-up" data-aos-delay="100">

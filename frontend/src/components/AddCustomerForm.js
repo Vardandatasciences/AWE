@@ -340,7 +340,9 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
           </div>
           
           <div className="form-group">
-            <label htmlFor="group_id">Group</label>
+            <label htmlFor="group_id">Group
+              <span className="required">*</span>
+            </label>
             <div className="input-with-icon">
               <i className="fas fa-users"></i>
               <select

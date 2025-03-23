@@ -77,7 +77,13 @@ function UserAnalysis() {
       setLoading(true); // Ensure loading state is set while fetching
       console.log(`Fetching data for userId: ${userId}, activity: ${activityFilter}, period: ${periodFilter}`);
       
-      const url = `http://localhost:5000/analysis/user-task-stats?activity=${activityFilter}&period=${periodFilter}&userId=${userId}`;
+      // Fix period parameter to match what backend expects
+      let backendPeriod = periodFilter;
+      if (periodFilter === 'Upcoming 6 Months') {
+        backendPeriod = '6 Months';
+      }
+      
+      const url = `http://localhost:5000/analysis/user-task-stats?activity=${activityFilter}&period=${backendPeriod}&userId=${userId}`;
       console.log("Fetching from URL:", url);
       
       const response = await fetch(url);
@@ -92,36 +98,38 @@ function UserAnalysis() {
       console.log("Received dashboard data:", data);
       
       setData(data);
-      
-      // Destroy existing charts before creating new ones
-      const charts = ['pieChart', 'barChart', 'criticalityChart'].map(
-        id => Chart.getChart(id)
-      );
-      charts.forEach(chart => chart?.destroy());
-
-      // Initialize charts with the new data
-      if (data.pie_chart && Object.keys(data.pie_chart).length > 0) {
-        renderPieChart(data.pie_chart);
-        console.log("Pie chart rendered");
-      } else {
-        console.log("No pie chart data available");
-      }
-      
-      if (data.bar_chart && data.bar_chart.labels && data.bar_chart.labels.length > 0) {
-        renderBarChart(data.bar_chart);
-        console.log("Bar chart rendered");
-      } else {
-        console.log("No bar chart data available");
-      }
-      
-      if (data.criticality_chart && data.criticality_chart.labels && data.criticality_chart.labels.length > 0) {
-        renderCriticalityChart(data.criticality_chart);
-        console.log("Criticality chart rendered");
-      } else {
-        console.log("No criticality chart data available");
-      }
-
       setLoading(false);
+      
+      // Wait for the next render cycle before attempting to render charts
+      setTimeout(() => {
+        // Destroy existing charts before creating new ones
+        const charts = ['pieChart', 'barChart', 'criticalityChart'].map(
+          id => Chart.getChart(id)
+        );
+        charts.forEach(chart => chart?.destroy());
+
+        // Initialize charts with the new data
+        if (data.pie_chart && Object.keys(data.pie_chart).length > 0) {
+          renderPieChart(data.pie_chart);
+          console.log("Pie chart rendered");
+        } else {
+          console.log("No pie chart data available");
+        }
+        
+        if (data.bar_chart && data.bar_chart.labels && data.bar_chart.labels.length > 0) {
+          renderBarChart(data.bar_chart);
+          console.log("Bar chart rendered");
+        } else {
+          console.log("No bar chart data available");
+        }
+        
+        if (data.criticality_chart && data.criticality_chart.labels && data.criticality_chart.labels.length > 0) {
+          renderCriticalityChart(data.criticality_chart);
+          console.log("Criticality chart rendered");
+        } else {
+          console.log("No criticality chart data available");
+        }
+      }, 50); // Small delay to ensure DOM updates
     } catch (error) {
       console.error("Error fetching data:", error);
       setLoading(false);
@@ -130,7 +138,13 @@ function UserAnalysis() {
 
   const fetchTaskDetails = async (filterType, filterValue, status) => {
     try {
-      let url = `http://localhost:5000/analysis/user-task-details?filterType=${filterType}&filterValue=${filterValue}&activity=${activityFilter}&period=${periodFilter}&userId=${userId}`;
+      // Fix period parameter to match what backend expects
+      let backendPeriod = periodFilter;
+      if (periodFilter === 'Upcoming 6 Months') {
+        backendPeriod = '6 Months';
+      }
+      
+      let url = `http://localhost:5000/analysis/user-task-details?filterType=${filterType}&filterValue=${filterValue}&activity=${activityFilter}&period=${backendPeriod}&userId=${userId}`;
       
       if (status) {
         url += `&activityType=${status}`;
@@ -164,7 +178,13 @@ function UserAnalysis() {
 
   const updateBarChartByStatus = async (selectedStatus) => {
     try {
-      const response = await fetch(`http://localhost:5000/analysis/user-filtered-bar-data?status=${selectedStatus}&activity=${activityFilter}&period=${periodFilter}&userId=${userId}`);
+      // Fix period parameter to match what backend expects
+      let backendPeriod = periodFilter;
+      if (periodFilter === 'Upcoming 6 Months') {
+        backendPeriod = '6 Months';
+      }
+      
+      const response = await fetch(`http://localhost:5000/analysis/user-filtered-bar-data?status=${selectedStatus}&activity=${activityFilter}&period=${backendPeriod}&userId=${userId}`);
       const data = await response.json();
       
       const barChart = Chart.getChart('barChart');
@@ -197,22 +217,58 @@ function UserAnalysis() {
   };
 
   const renderPieChart = (pieData) => {
-    const ctx = document.getElementById('pieChart')?.getContext('2d');
-    if (!ctx) {
-      console.error("Cannot find pie chart canvas element");
-      return;
-    }
-    
-    if (!pieData || Object.keys(pieData).length === 0) {
-      console.log("No pie chart data to render");
-      // Create an empty chart or a placeholder message
+    try {
+      const canvas = document.getElementById('pieChart');
+      if (!canvas) {
+        console.error("Cannot find pie chart canvas element");
+        return;
+      }
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.error("Could not get 2d context from canvas");
+        return;
+      }
+      
+      if (!pieData || Object.keys(pieData).length === 0) {
+        console.log("No pie chart data to render");
+        // Create an empty chart or a placeholder message
+        new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: ['No Data'],
+            datasets: [{
+              data: [1],
+              backgroundColor: ['#f8f9fa']
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right'
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return 'No tasks found for this period';
+                  }
+                }
+              }
+            }
+          }
+        });
+        return;
+      }
+      
       new Chart(ctx, {
         type: 'pie',
         data: {
-          labels: ['No Data'],
+          labels: Object.keys(pieData),
           datasets: [{
-            data: [1],
-            backgroundColor: ['#f8f9fa']
+            data: Object.values(pieData),
+            backgroundColor: Object.keys(pieData).map(status => statusColors[status])
           }]
         },
         options: {
@@ -221,153 +277,153 @@ function UserAnalysis() {
           plugins: {
             legend: {
               position: 'right'
-            },
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  return 'No tasks found for this period';
-                }
-              }
+            }
+          },
+          onClick: (event, elements) => {
+            if (elements.length > 0) {
+              const index = elements[0].index;
+              const status = Object.keys(pieData)[index];
+              
+              setSelectedFilter({
+                type: 'status',
+                value: status,
+                activity: activityFilter
+              });
+              
+              fetchTaskDetails('status', status);
+              updateBarChartByStatus(status);
             }
           }
         }
       });
-      return;
+    } catch (error) {
+      console.error("Error rendering pie chart:", error);
     }
-    
-    new Chart(ctx, {
-      type: 'pie',
-      data: {
-        labels: Object.keys(pieData),
-        datasets: [{
-          data: Object.values(pieData),
-          backgroundColor: Object.keys(pieData).map(status => statusColors[status])
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'right'
-          }
-        },
-        onClick: (event, elements) => {
-          if (elements.length > 0) {
-            const index = elements[0].index;
-            const status = Object.keys(pieData)[index];
-            
-            setSelectedFilter({
-              type: 'status',
-              value: status,
-              activity: activityFilter
-            });
-            
-            fetchTaskDetails('status', status);
-            updateBarChartByStatus(status);
-          }
-        }
-      }
-    });
   };
 
   const renderBarChart = (barData) => {
-    const ctx = document.getElementById('barChart')?.getContext('2d');
-    if (!ctx) return;
+    try {
+      const canvas = document.getElementById('barChart');
+      if (!canvas) {
+        console.error("Cannot find bar chart canvas element");
+        return;
+      }
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.error("Could not get 2d context from bar chart canvas");
+        return;
+      }
 
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: barData.labels,
-        datasets: [{
-          label: 'My Tasks',
-          data: barData.data,
-          backgroundColor: statusColors['Total']
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true
-          }
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: barData.labels,
+          datasets: [{
+            label: 'My Tasks',
+            data: barData.data,
+            backgroundColor: statusColors['Total']
+          }]
         },
-        scales: {
-          y: {
-            beginAtZero: true
-          }
-        },
-        onClick: (event, elements) => {
-          if (elements.length > 0) {
-            const index = elements[0].index;
-            const taskName = barData.labels[index];
-            
-            setSelectedFilter({
-              type: 'taskName',
-              value: taskName,
-              activity: activityFilter
-            });
-            
-            fetchTaskDetails('taskName', taskName);
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          },
+          onClick: (event, elements) => {
+            if (elements.length > 0) {
+              const index = elements[0].index;
+              const taskName = barData.labels[index];
+              
+              setSelectedFilter({
+                type: 'taskName',
+                value: taskName,
+                activity: activityFilter
+              });
+              
+              fetchTaskDetails('taskName', taskName);
+            }
           }
         }
-      }
-    });
+      });
+    } catch (error) {
+      console.error("Error rendering bar chart:", error);
+    }
   };
 
   const renderCriticalityChart = (criticalityData) => {
-    const ctx = document.getElementById('criticalityChart')?.getContext('2d');
-    if (!ctx) return;
+    try {
+      const canvas = document.getElementById('criticalityChart');
+      if (!canvas) {
+        console.error("Cannot find criticality chart canvas element");
+        return;
+      }
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.error("Could not get 2d context from criticality chart canvas");
+        return;
+      }
 
-    const datasets = criticalityData.datasets.map(dataset => ({
-      ...dataset,
-      backgroundColor: statusColors[dataset.label] || statusColors['Total']
-    }));
+      const datasets = criticalityData.datasets.map(dataset => ({
+        ...dataset,
+        backgroundColor: statusColors[dataset.label] || statusColors['Total']
+      }));
 
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: criticalityData.labels,
-        datasets: datasets
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            stacked: true
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: criticalityData.labels,
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              stacked: true
+            },
+            y: {
+              stacked: true,
+              beginAtZero: true
+            }
           },
-          y: {
-            stacked: true,
-            beginAtZero: true
-          }
-        },
-        plugins: {
-          legend: {
-            display: true,
-            position: 'top'
-          }
-        },
-        onClick: (event, elements) => {
-          if (elements.length > 0) {
-            const element = elements[0];
-            const datasetIndex = element.datasetIndex;
-            const index = element.index;
-            const criticality = criticalityData.labels[index];
-            const status = criticalityData.datasets[datasetIndex].label;
-            
-            setSelectedFilter({
-              type: 'criticality',
-              value: criticality,
-              activity: status
-            });
-            
-            fetchTaskDetails('criticality', criticality, status);
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            }
+          },
+          onClick: (event, elements) => {
+            if (elements.length > 0) {
+              const element = elements[0];
+              const datasetIndex = element.datasetIndex;
+              const index = element.index;
+              const criticality = criticalityData.labels[index];
+              const status = criticalityData.datasets[datasetIndex].label;
+              
+              setSelectedFilter({
+                type: 'criticality',
+                value: criticality,
+                activity: status
+              });
+              
+              fetchTaskDetails('criticality', criticality, status);
+            }
           }
         }
-      }
-    });
+      });
+    } catch (error) {
+      console.error("Error rendering criticality chart:", error);
+    }
   };
 
   const getFullTypeName = (type) => {
@@ -526,21 +582,21 @@ function UserAnalysis() {
                   }}>{data.yet_to_start_with_delay || 0}</span>
                 </div>
                 <div className="box pending" style={{
-    padding: '15px',
-    borderRadius: '10px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    transition: 'transform 0.2s',
-    cursor: 'pointer'
-}}>
-    <span style={{ fontWeight: '500' }}>Pending</span>
-    <span style={{ 
-        fontWeight: 'bold',
-        fontSize: '1.2em' 
-    }}>{data.pending_tasks}</span>
-</div>
+                  padding: '15px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}>
+                  <span style={{ fontWeight: '500' }}>Pending</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    fontSize: '1.2em' 
+                  }}>{data.pending_tasks}</span>
+                </div>
               </div>
             </div>
 

@@ -33,7 +33,7 @@ const Navbar = () => {
               <div className="user-avatar">
                 <i className="fas fa-user-circle"></i>
               </div>
-              <span className="user-name">Ahmed</span>
+              <span className="user-name">{user?.name}</span>
               <i className={`fas fa-chevron-${showUserMenu ? 'up' : 'down'}`}></i>
               
               {showUserMenu && (
@@ -43,7 +43,7 @@ const Navbar = () => {
                       <i className="fas fa-user-circle"></i>
                     </div>
                     <div>
-                      <h4>Ahmed</h4>
+                      <h4>{user?.name || ''}</h4>
                       <p>{user?.email || ''}</p>
                       <span className="user-role">{user?.role || 'User'}</span>
                     </div>

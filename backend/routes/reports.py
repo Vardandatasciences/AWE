@@ -691,7 +691,8 @@ def download_employee_performance(actor_id):
                 "Time Taken": time_taken,
                 "Standard Time": std_time,
                 "Status": status,
-                "Activity Type": task.activity_type if task.activity_type else "Unknown"
+                "Activity Type": task.activity_type if hasattr(task, 'activity_type') and task.activity_type else "Unknown",
+                "Due Date": task.due_date.strftime('%Y-%m-%d') if hasattr(task, 'due_date') and task.due_date else "N/A"
             })
         
         # Get headers from the first dictionary
@@ -1007,69 +1008,76 @@ def download_employee_performance(actor_id):
             if tasks_with_due_dates:
                 # Parse dates and prepare data
                 for task in tasks_with_due_dates:
-                    task["parsed_due_date"] = datetime.strptime(task["Due Date"], '%Y-%m-%d')
+                    try:
+                        task["parsed_due_date"] = datetime.strptime(task["Due Date"], '%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        # Skip this task if we can't parse the date
+                        continue
                 
-                # Sort by due date
-                tasks_with_due_dates.sort(key=lambda x: x["parsed_due_date"])
-                
-                # Create figure
-                plt.figure(figsize=(10, 6))
-                
-                # Create categories for current month, next month, and later
-                current_date = datetime.now()
-                current_month = current_date.replace(day=1)
-                next_month = (current_month.replace(day=28) + timedelta(days=4)).replace(day=1)
-                
-                # Function to categorize tasks
-                def categorize_due_date(due_date):
-                    if due_date < current_date:
-                        return "Overdue"
-                    elif due_date < current_month.replace(day=28):
-                        return "This Month"
-                    elif due_date < next_month.replace(day=28):
-                        return "Next Month"
-                    else:
-                        return "Future"
-                
-                # Group tasks by category
-                categories = {"Overdue": 0, "This Month": 0, "Next Month": 0, "Future": 0}
-                
-                for task in tasks_with_due_dates:
-                    category = categorize_due_date(task["parsed_due_date"])
-                    categories[category] += 1
-                
-                # Define colors for the categories
-                category_colors = {
-                    "Overdue": '#e74c3c',     # Red
-                    "This Month": '#f39c12',  # Orange
-                    "Next Month": '#3498db',  # Blue
-                    "Future": '#2ecc71'       # Green
-                }
-                
-                # Create bar chart
-                cat_names = list(categories.keys())
-                cat_values = list(categories.values())
-                bar_colors = [category_colors[cat] for cat in cat_names]
-                
-                plt.bar(cat_names, cat_values, color=bar_colors)
-                
-                # Add value labels
-                for i, v in enumerate(cat_values):
-                    plt.text(i, v + 0.5, str(v), ha='center')
-                
-                plt.ylabel('Number of Tasks')
-                plt.title('Tasks by Due Date Category')
-                plt.tight_layout()
-                plt.savefig(tmp.name, format='png', dpi=300, bbox_inches='tight')
-                plt.close()
-                
-                # Add chart to PDF
-                elements.append(Spacer(1, 24))
-                chart_title = Paragraph("Tasks by Due Date Category", styles['Heading2'])
-                elements.append(chart_title)
-                elements.append(Spacer(1, 12))
-                elements.append(Image(tmp.name, width=500, height=300))
-                chart_files.append(tmp.name)
+                # Continue only if we have valid parsed dates
+                if any("parsed_due_date" in task for task in tasks_with_due_dates):
+                    # Sort by due date
+                    tasks_with_due_dates = [task for task in tasks_with_due_dates if "parsed_due_date" in task]
+                    tasks_with_due_dates.sort(key=lambda x: x["parsed_due_date"])
+                    
+                    # Create figure
+                    plt.figure(figsize=(10, 6))
+                    
+                    # Create categories for current month, next month, and later
+                    current_date = datetime.now()
+                    current_month = current_date.replace(day=1)
+                    next_month = (current_month.replace(day=28) + timedelta(days=4)).replace(day=1)
+                    
+                    # Function to categorize tasks
+                    def categorize_due_date(due_date):
+                        if due_date < current_date:
+                            return "Overdue"
+                        elif due_date < current_month.replace(day=28):
+                            return "This Month"
+                        elif due_date < next_month.replace(day=28):
+                            return "Next Month"
+                        else:
+                            return "Future"
+                    
+                    # Group tasks by category
+                    categories = {"Overdue": 0, "This Month": 0, "Next Month": 0, "Future": 0}
+                    
+                    for task in tasks_with_due_dates:
+                        category = categorize_due_date(task["parsed_due_date"])
+                        categories[category] += 1
+                    
+                    # Define colors for the categories
+                    category_colors = {
+                        "Overdue": '#e74c3c',     # Red
+                        "This Month": '#f39c12',  # Orange
+                        "Next Month": '#3498db',  # Blue
+                        "Future": '#2ecc71'       # Green
+                    }
+                    
+                    # Create bar chart
+                    cat_names = list(categories.keys())
+                    cat_values = list(categories.values())
+                    bar_colors = [category_colors[cat] for cat in cat_names]
+                    
+                    plt.bar(cat_names, cat_values, color=bar_colors)
+                    
+                    # Add value labels
+                    for i, v in enumerate(cat_values):
+                        plt.text(i, v + 0.5, str(v), ha='center')
+                    
+                    plt.ylabel('Number of Tasks')
+                    plt.title('Tasks by Due Date Category')
+                    plt.tight_layout()
+                    plt.savefig(tmp.name, format='png', dpi=300, bbox_inches='tight')
+                    plt.close()
+                    
+                    # Add chart to PDF
+                    elements.append(Spacer(1, 24))
+                    chart_title = Paragraph("Tasks by Due Date Category", styles['Heading2'])
+                    elements.append(chart_title)
+                    elements.append(Spacer(1, 12))
+                    elements.append(Image(tmp.name, width=500, height=300))
+                    chart_files.append(tmp.name)
         
         # Build the PDF
         doc.build(elements)
@@ -1630,69 +1638,76 @@ def download_customer_report(customer_id):
             if tasks_with_due_dates:
                 # Parse dates and prepare data
                 for task in tasks_with_due_dates:
-                    task["parsed_due_date"] = datetime.strptime(task["Due Date"], '%Y-%m-%d')
+                    try:
+                        task["parsed_due_date"] = datetime.strptime(task["Due Date"], '%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        # Skip this task if we can't parse the date
+                        continue
                 
-                # Sort by due date
-                tasks_with_due_dates.sort(key=lambda x: x["parsed_due_date"])
-                
-                # Create figure
-                plt.figure(figsize=(10, 6))
-                
-                # Create categories for current month, next month, and later
-                current_date = datetime.now()
-                current_month = current_date.replace(day=1)
-                next_month = (current_month.replace(day=28) + timedelta(days=4)).replace(day=1)
-                
-                # Function to categorize tasks
-                def categorize_due_date(due_date):
-                    if due_date < current_date:
-                        return "Overdue"
-                    elif due_date < current_month.replace(day=28):
-                        return "This Month"
-                    elif due_date < next_month.replace(day=28):
-                        return "Next Month"
-                    else:
-                        return "Future"
-                
-                # Group tasks by category
-                categories = {"Overdue": 0, "This Month": 0, "Next Month": 0, "Future": 0}
-                
-                for task in tasks_with_due_dates:
-                    category = categorize_due_date(task["parsed_due_date"])
-                    categories[category] += 1
-                
-                # Define colors for the categories
-                category_colors = {
-                    "Overdue": '#e74c3c',     # Red
-                    "This Month": '#f39c12',  # Orange
-                    "Next Month": '#3498db',  # Blue
-                    "Future": '#2ecc71'       # Green
-                }
-                
-                # Create bar chart
-                cat_names = list(categories.keys())
-                cat_values = list(categories.values())
-                bar_colors = [category_colors[cat] for cat in cat_names]
-                
-                plt.bar(cat_names, cat_values, color=bar_colors)
-                
-                # Add value labels
-                for i, v in enumerate(cat_values):
-                    plt.text(i, v + 0.5, str(v), ha='center')
-                
-                plt.ylabel('Number of Tasks')
-                plt.title('Tasks by Due Date Category')
-                plt.tight_layout()
-                plt.savefig(tmp.name, format='png', dpi=300, bbox_inches='tight')
-                plt.close()
-                
-                # Add chart to PDF
-                elements.append(Spacer(1, 24))
-                chart_title = Paragraph("Tasks by Due Date Category", styles['Heading2'])
-                elements.append(chart_title)
-                elements.append(Spacer(1, 12))
-                elements.append(Image(tmp.name, width=500, height=300))
-                chart_files.append(tmp.name)
+                # Continue only if we have valid parsed dates
+                if any("parsed_due_date" in task for task in tasks_with_due_dates):
+                    # Sort by due date
+                    tasks_with_due_dates = [task for task in tasks_with_due_dates if "parsed_due_date" in task]
+                    tasks_with_due_dates.sort(key=lambda x: x["parsed_due_date"])
+                    
+                    # Create figure
+                    plt.figure(figsize=(10, 6))
+                    
+                    # Create categories for current month, next month, and later
+                    current_date = datetime.now()
+                    current_month = current_date.replace(day=1)
+                    next_month = (current_month.replace(day=28) + timedelta(days=4)).replace(day=1)
+                    
+                    # Function to categorize tasks
+                    def categorize_due_date(due_date):
+                        if due_date < current_date:
+                            return "Overdue"
+                        elif due_date < current_month.replace(day=28):
+                            return "This Month"
+                        elif due_date < next_month.replace(day=28):
+                            return "Next Month"
+                        else:
+                            return "Future"
+                    
+                    # Group tasks by category
+                    categories = {"Overdue": 0, "This Month": 0, "Next Month": 0, "Future": 0}
+                    
+                    for task in tasks_with_due_dates:
+                        category = categorize_due_date(task["parsed_due_date"])
+                        categories[category] += 1
+                    
+                    # Define colors for the categories
+                    category_colors = {
+                        "Overdue": '#e74c3c',     # Red
+                        "This Month": '#f39c12',  # Orange
+                        "Next Month": '#3498db',  # Blue
+                        "Future": '#2ecc71'       # Green
+                    }
+                    
+                    # Create bar chart
+                    cat_names = list(categories.keys())
+                    cat_values = list(categories.values())
+                    bar_colors = [category_colors[cat] for cat in cat_names]
+                    
+                    plt.bar(cat_names, cat_values, color=bar_colors)
+                    
+                    # Add value labels
+                    for i, v in enumerate(cat_values):
+                        plt.text(i, v + 0.5, str(v), ha='center')
+                    
+                    plt.ylabel('Number of Tasks')
+                    plt.title('Tasks by Due Date Category')
+                    plt.tight_layout()
+                    plt.savefig(tmp.name, format='png', dpi=300, bbox_inches='tight')
+                    plt.close()
+                    
+                    # Add chart to PDF
+                    elements.append(Spacer(1, 24))
+                    chart_title = Paragraph("Tasks by Due Date Category", styles['Heading2'])
+                    elements.append(chart_title)
+                    elements.append(Spacer(1, 12))
+                    elements.append(Image(tmp.name, width=500, height=300))
+                    chart_files.append(tmp.name)
         
         # Build the PDF
         doc.build(elements)

@@ -67,8 +67,7 @@ def apply_filters(df, activity_filter, period_filter):
     elif activity_filter != 'All':
         df = df[df['activity_type'] == activity_filter]
     
-   
-    # Apply period filter
+    # Apply period filter - handle both frontend and backend period name formats
     current_date = pd.Timestamp.today().date()
     if period_filter == 'Previous Month':
         previous_month_start = (current_date.replace(day=1) - pd.DateOffset(months=1)).date()
@@ -76,8 +75,9 @@ def apply_filters(df, activity_filter, period_filter):
         df = df[(df['duedate'] >= previous_month_start) & (df['duedate'] <= previous_month_end)]
     elif period_filter == 'Current Month':
         month_start = current_date.replace(day=1)
-        df = df[df['duedate'] >= month_start]
-    elif period_filter == '6 Months':
+        next_month_start = (month_start + pd.DateOffset(months=1)).date()
+        df = df[(df['duedate'] >= month_start) & (df['duedate'] < next_month_start)]
+    elif period_filter in ['6 Months', 'Upcoming 6 Months']:
         month_start = current_date.replace(day=1)
         six_months_ahead = (month_start + pd.DateOffset(months=6)).date()
         df = df[(df['duedate'] >= month_start) & (df['duedate'] <= six_months_ahead)]
@@ -747,7 +747,7 @@ def user_task_stats():
             status: int(df[df['task_status'] == status]['task_count'].sum()) 
             for status in df['task_status'].unique()
         }
-
+        print(f"Pie chart data: {pie_chart_data}")
         # Bar Chart Data
         bar_chart_data = df.groupby('task_name')['task_count'].sum().reset_index()
         bar_chart = {
