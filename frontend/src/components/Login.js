@@ -302,7 +302,7 @@ const Login = () => {
             <div className="logo-icon">
               <i className="fas fa-tasks"></i>
             </div>
-            <h1>Prosync</h1>
+            <h1>ProSync</h1>
           </div>
           <h2>{showForgotPassword ? 'Reset Password' : 'Welcome Back'}</h2>
           <p>{showForgotPassword ? 'Follow the steps to reset your password' : 'Enter your credentials to access your account'}</p>
