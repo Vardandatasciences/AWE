@@ -41,8 +41,8 @@ const Diary = () => {
   const actor_id = localStorage.getItem('actor_id')
   console.log("User Role ID:", role_id);
   console.log("User User ID:", actor_id)
+  const [taskNames, setTaskNames] = useState({});
 
- 
   const emptyEntry = {
     date: new Date(),
     start_time: null,
@@ -62,8 +62,6 @@ const Diary = () => {
     console.log("🚀 Actor ID found:", actorId);
     fetchWIPTasks();
 }, []);
-
-
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -91,6 +89,19 @@ const Diary = () => {
         }));
         
         setEntries(formattedEntries);
+        
+        // Fetch task details for all task IDs in entries
+        const taskDetailsMap = {};
+        for (const entry of formattedEntries) {
+          if (entry.task && !taskDetailsMap[entry.task]) {
+            const taskDetails = await fetchTaskDetails(entry.task);
+            if (taskDetails) {
+              taskDetailsMap[entry.task] = taskDetails.task_name;
+            }
+          }
+        }
+        setTaskNames(taskDetailsMap);
+        
       } catch (error) {
         console.error('Error loading initial data:', error);
       } finally {
@@ -100,6 +111,62 @@ const Diary = () => {
     
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    const loadMissingTaskDetails = async () => {
+      const missingTaskIds = entries
+        .filter(entry => entry.task && !taskNames[entry.task])
+        .map(entry => entry.task);
+        
+      if (missingTaskIds.length === 0) return;
+      
+      // Create a unique list of missing task IDs
+      const uniqueMissingIds = [...new Set(missingTaskIds)];
+      
+      // Fetch each missing task detail
+      const taskDetailsMap = { ...taskNames };
+      for (const taskId of uniqueMissingIds) {
+        const taskDetails = await fetchTaskDetails(taskId);
+        if (taskDetails) {
+          taskDetailsMap[taskId] = taskDetails.task_name;
+        }
+      }
+      
+      setTaskNames(taskDetailsMap);
+    };
+    
+    loadMissingTaskDetails();
+  }, [entries]);
+
+  useEffect(() => {
+    const loadMissingTaskDetails = async () => {
+      const tasksNeedingDetails = entries
+        .filter(entry => entry.task && !taskNames[entry.task])
+        .map(entry => entry.task);
+        
+      if (tasksNeedingDetails.length === 0) return;
+      
+      const uniqueTaskIds = [...new Set(tasksNeedingDetails)];
+      
+      console.log(`Loading details for ${uniqueTaskIds.length} missing tasks`);
+      
+      const newTaskNames = { ...taskNames };
+      for (const taskId of uniqueTaskIds) {
+        try {
+          const taskDetails = await fetchTaskDetails(taskId);
+          if (taskDetails) {
+            newTaskNames[taskId] = taskDetails.task_name;
+          }
+        } catch (error) {
+          console.error(`Failed to load details for task ${taskId}`, error);
+        }
+      }
+      
+      setTaskNames(newTaskNames);
+    };
+    
+    loadMissingTaskDetails();
+  }, [entries, taskNames]);
 
   
  
@@ -205,6 +272,18 @@ const Diary = () => {
         }));
         
         setEntries(updatedEntries);
+        
+        // Also refresh task details
+        const taskDetailsMap = { ...taskNames };
+        for (const entry of updatedEntries) {
+          if (entry.task && !taskDetailsMap[entry.task]) {
+            const taskDetails = await fetchTaskDetails(entry.task);
+            if (taskDetails) {
+              taskDetailsMap[entry.task] = taskDetails.task_name;
+            }
+          }
+        }
+        setTaskNames(taskDetailsMap);
       } else {
         console.error("Unexpected response when saving entries:", saveResponse);
         alert("Error saving entries. Please try again.");
@@ -275,7 +354,27 @@ const Diary = () => {
     }
 };
 
-
+const fetchTaskDetails = async (taskId) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`http://localhost:5000/diary/task-details`, {
+      params: { task_id: taskId },
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      withCredentials: true
+    });
+    
+    if (response.status === 200) {
+      return response.data;
+    }
+  } catch (error) {
+    console.error(`Error fetching details for task ${taskId}:`, error);
+  }
+  return null;
+};
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -346,36 +445,65 @@ const Diary = () => {
         />
       </TableCell>
       <TableCell style={{ width: '40%' }}>
-      <Select
-    value={entry.task || ''}
-    onChange={(e) => {
-        const updatedEntries = [...entries];
-        updatedEntries[index].task = e.target.value;
-        setEntries(updatedEntries);
-        console.log(`Updated task for entry ${index} to:`, e.target.value);
-    }}
-    fullWidth
-    size="small"
-    displayEmpty
->
-    <MenuItem value="" disabled>Select a task</MenuItem>
-    {tasks && tasks.length > 0 ? (
-        tasks.map((task) => (
-            <MenuItem key={task.task_id} value={task.task_id}>
-                {task.task_name} {/* Already formatted as "Task Name for Customer" */}
-            </MenuItem>
-        ))
-    ) : (
-        <MenuItem disabled>No WIP tasks available</MenuItem>
-    )}
-</Select>
-
-
-
-</TableCell>
-
-
-
+        {entry.task ? (
+          <Select
+            value={entry.task}
+            onChange={(e) => {
+              const updatedEntries = [...entries];
+              updatedEntries[index].task = e.target.value;
+              setEntries(updatedEntries);
+            }}
+            fullWidth
+            size="small"
+            displayEmpty
+            renderValue={() => {
+              if (taskNames[entry.task]) {
+                return taskNames[entry.task];
+              }
+              return "Loading task details...";
+            }}
+          >
+            {!tasks.some(task => task.task_id === entry.task) && taskNames[entry.task] && (
+              <MenuItem key={`current-${entry.task}`} value={entry.task}>
+                {taskNames[entry.task]} (current)
+              </MenuItem>
+            )}
+            
+            {tasks && tasks.length > 0 ? (
+              tasks.map((task) => (
+                <MenuItem key={task.task_id} value={task.task_id}>
+                  {task.task_name}
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem disabled>No other WIP tasks available</MenuItem>
+            )}
+          </Select>
+        ) : (
+          <Select
+            value={entry.task || ''}
+            onChange={(e) => {
+              const updatedEntries = [...entries];
+              updatedEntries[index].task = e.target.value;
+              setEntries(updatedEntries);
+            }}
+            fullWidth
+            size="small"
+            displayEmpty
+          >
+            <MenuItem value="" disabled>Select a task</MenuItem>
+            {tasks && tasks.length > 0 ? (
+              tasks.map((task) => (
+                <MenuItem key={task.task_id} value={task.task_id}>
+                  {task.task_name}
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem disabled>No WIP tasks available</MenuItem>
+            )}
+          </Select>
+        )}
+      </TableCell>
       <TableCell style={{ width: '35%' }}>
         <TextField
           value={entry.remarks || ''}

@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Task, ActivityAssignment, Actor
+from models import db, Task, ActivityAssignment, Actor, Diary1
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -780,7 +780,26 @@ def adjust_due_date(date, criticality):
         print(f"🚨 ERROR in adjust_due_date: {e}")
         return date  # Return original date if an error occurs
 
-
+def calculate_time_taken(task_id):
+    """Calculate total time taken from diary1 records for a task"""
+    try:
+        diary_records = Diary1.query.filter_by(task=str(task_id)).all()
+        total_time = 0.0
+       
+        for record in diary_records:
+            if record.start_time and record.end_time:
+                # Convert time strings to datetime objects
+                start = datetime.combine(record.date, record.start_time)
+                end = datetime.combine(record.date, record.end_time)
+               
+                # Calculate difference in hours
+                time_diff = (end - start).total_seconds() / 3600
+                total_time += time_diff
+       
+        return round(total_time, 2)
+    except Exception as e:
+        print(f"Error calculating time taken: {e}")
+        return 0.0
 
 
 
@@ -791,107 +810,170 @@ def update_task(task_id):
         # Get user information from request
         user_id = request.args.get('user_id')
         role_id = request.args.get('role_id')
-        
+       
         print(f"Received update request for task {task_id} from user {user_id} with role {role_id}")
         print(f"Request data: {request.json}")
-        
+       
         # Get the task
         task = Task.query.filter_by(task_id=task_id).first()
         if not task:
             return jsonify({"success": False, "error": "Task not found"}), 404
-        
+       
         # Check permissions
         if role_id != "11" and str(task.actor_id) != user_id:
             return jsonify({"success": False, "error": "You don't have permission to update this task"}), 403
-        
+       
         # Get the data to update
         data = request.json
-        
+       
         # Store original values for comparison
         original_status = task.status
         original_assigned_to = task.assigned_to
         original_actor_id = task.actor_id
         original_duedate = task.duedate
-        
+       
         # Update the task
         if 'status' in data:
-            # Update status
             task.status = data['status']
             print(f"Updating task status to: {task.status}")
-            
-            # Update remarks if provided
-            if 'remarks' in data:
-                task.remarks = data['remarks']
-                print(f"Adding remarks: {data['remarks']}")
-        
+           
+            # If status is changed to Completed, calculate and update time_taken
+            if task.status == 'Completed' and original_status != 'Completed':
+                time_taken = calculate_time_taken(task_id)
+                task.time_taken = time_taken
+                task.actual_date = datetime.now().date()
+                print(f"Task completed. Total time taken: {time_taken} hours")
+       
         # Handle reassignment
         if 'assignee' in data:
-            # Get the new assignee
             new_assignee = Actor.query.filter_by(actor_id=data['assignee']).first()
             if not new_assignee:
                 return jsonify({"success": False, "error": "Assignee not found"}), 400
-            
-            # Update the task
+           
             task.actor_id = new_assignee.actor_id
             task.assigned_to = new_assignee.actor_name
             assigned_actor_email = new_assignee.email_id
         else:
             assigned_actor_email = Actor.query.filter_by(actor_id=task.actor_id).first().email_id if task.actor_id else None
-        
+       
         # Update due date if provided
         if 'due_date' in data and data['due_date']:
             try:
                 task.duedate = datetime.strptime(data['due_date'], '%Y-%m-%d').date()
             except ValueError:
                 return jsonify({"success": False, "error": "Invalid date format"}), 400
-        
+       
         # Save changes
         db.session.commit()
         print(f"✅ Successfully updated task {task_id} status to {task.status}")
-        
+       
         # Send notifications based on what changed
         # If the assignee changed, send a reassignment notification
         if original_actor_id != task.actor_id or original_duedate != task.duedate:
-            subject = f"ProSync - Task Reassigned: {task.task_name}"
-            
-            # Send styled email notification
-            send_styled_email(subject, assigned_actor_email, task, 'reassignment')
-            
+            subject = f"AWE-Task Reassigned: {task.task_name}"
+            content = f"""Dear {task.assigned_to},
+ 
+A task has been reassigned to you:
+ 
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Criticality: {task.criticality}
+- Due Date: {task.duedate.strftime('%Y-%m-%d')}
+- Status: {task.status}
+- Customer: {task.customer_name}
+ 
+Please review this task and complete it by the due date.
+ 
+Best regards,
+AWE Team"""
+ 
+            # Send email notification
+            send_email_task(subject, content, assigned_actor_email, task.task_id)
+           
             # Schedule new reminders for the reassigned person
             if original_duedate != task.duedate or original_assigned_to != task.assigned_to:
                 # Calculate reminder date based on due date and duration
                 reminder_date = calculate_reminder_date(task.duedate, task.duration)
-                
-                # Schedule reminder email
+               
+                # Early reminder email
+                reminder_email_subject = f"AWE-Reminder for '{task.task_name}' for '{task.customer_name}'"
+                reminder_email_content = f"""Hello {task.assigned_to},
+ 
+The task '{task.task_name}' for '{task.customer_name}' is due on '{task.duedate}'.
+ 
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Criticality: {task.criticality}
+- Status: {task.status}
+ 
+Please review the task and complete it before the due date.
+ 
+Regards,
+AWE Team"""
+ 
                 schedule_email_reminder(
-                    f"ProSync - Reminder: {task.task_name}",
-                    task,
+                    reminder_email_subject,
+                    reminder_email_content,
                     assigned_actor_email,
-                    reminder_date,
-                    'reminder'
-                )
-                
-                # Schedule due date email
-                schedule_email_reminder(
-                    f"ProSync - Due Today: {task.task_name}",
-                    task,
-                    assigned_actor_email,
+                    task.task_name,
                     task.duedate,
-                    'due_today'
+                    task.customer_name,
+                    reminder_date,
+                    task.task_id
                 )
-                
+ 
+                # Due date reminder email
+                due_email_subject = f"AWE-Due of '{task.task_name}' for '{task.customer_name}'"
+                due_email_content = f"""Hello {task.assigned_to},
+ 
+The task '{task.task_name}' for '{task.customer_name}' is due today.
+ 
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Criticality: {task.criticality}
+- Status: {task.status}
+ 
+Please review the task and complete it today.
+Ignore if completed.
+ 
+Regards,
+AWE Team"""
+ 
+                schedule_email_reminder(
+                    due_email_subject,
+                    due_email_content,
+                    assigned_actor_email,
+                    task.task_name,
+                    task.duedate,
+                    task.customer_name,
+                    task.duedate,
+                    task.task_id
+                )
+       
         # If only the status changed, send a status update notification
         elif original_status != task.status:
-            subject = f"ProSync - Task Status Update: {task.task_name}"
-            
-            # Send styled email notification
-            send_styled_email(subject, assigned_actor_email, task, 'status_update')
-            
+            subject = f"AWE-Task Status Updated: {task.task_name}"
+            content = f"""Dear {task.assigned_to},
+ 
+The status of task '{task.task_name}' for customer '{task.customer_name}' has been updated.
+ 
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Criticality: {task.criticality}
+- Due Date: {task.duedate}
+- Status: {task.status} (Previously: {original_status})
+ 
+Best regards,
+AWE Team"""
+ 
+            send_email_task(subject, assigned_actor_email, content, task.task_id)
+           
         return jsonify({"success": True, "message": "Task updated successfully"}), 200
     except Exception as e:
         db.session.rollback()
         print(f"🚨 ERROR in update_task: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+ 
 
 @tasks_bp.route('/tasks', methods=['POST'])
 def create_task():

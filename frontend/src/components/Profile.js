@@ -471,12 +471,12 @@ const Profile = () => {
 
           <div className="info-group">
             <label><FontAwesomeIcon icon={faUsers} className="icon-field" /> Group</label>
-            <span>{profileData.group_id || 'Not assigned'}</span>
+            <span>{profileData.group_name || 'Not assigned'}</span>
           </div>
 
           <div className="info-group">
             <label><FontAwesomeIcon icon={faUserTag} className="icon-field" /> Role</label>
-            <span>{profileData.role_id || 'Not assigned'}</span>
+            <span>{profileData.role_name || 'Not assigned'}</span>
           </div>
         </div>
         

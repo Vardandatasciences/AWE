@@ -59,7 +59,44 @@ def get_wip_tasks():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@diary_bp.route('/task-details', methods=['GET'])
+def get_task_details():
+    try:
+        task_id = request.args.get('task_id')
+        if not task_id:
+            return jsonify({"error": "Task ID is required"}), 400
 
+        # Fetch the task details regardless of status
+        task = (
+            db.session.query(
+                Task.task_id, 
+                Task.task_name, 
+                Task.customer_name
+            )
+            .filter(Task.task_id == task_id)
+            .first()
+        )
+
+        if not task:
+            # Return a placeholder for tasks that can't be found
+            # This ensures the frontend doesn't keep trying to fetch non-existent tasks
+            return jsonify({
+                "task_id": task_id,
+                "task_name": f"Task #{task_id}"  # Fallback display name
+            })
+
+        task_info = {
+            "task_id": task.task_id,
+            "task_name": f"{task.task_name} - {task.customer_name}" if task.customer_name else task.task_name
+        }
+
+        response = make_response(jsonify(task_info))
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:3000"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @diary_bp.route('/save', methods=['POST'])
 def save_entries():

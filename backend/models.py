@@ -316,4 +316,20 @@ class Diary1(db.Model):
             
         return diary
 
+class Role(db.Model):
+    __tablename__ = 'roles'
+    
+    role_id = db.Column(db.Integer, primary_key=True)
+    role_name = db.Column(db.String(45), nullable=False)
+    activity_id = db.Column(db.Integer)
+    stage_id = db.Column(db.Integer)
+    
+    def to_dict(self):
+        return {
+            'role_id': self.role_id,
+            'role_name': self.role_name,
+            'activity_id': self.activity_id,
+            'stage_id': self.stage_id
+        }
+
     

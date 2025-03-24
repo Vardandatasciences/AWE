@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, session
-from models import db, Actor
+from models import db, Actor, Group, Role
 from datetime import datetime
 from flask_login import current_user, login_required
 import bcrypt
@@ -29,6 +29,18 @@ def get_profile():
                 'message': 'User not found'
             }), 404
 
+        # Get group name
+        group_name = None
+        if actor.group_id:
+            group = Group.query.filter_by(group_id=actor.group_id).first()
+            group_name = group.group_name if group else None
+
+        # Get role name
+        role_name = None
+        if actor.role_id:
+            role = Role.query.filter_by(role_id=actor.role_id).first()
+            role_name = role.role_name if role else None
+
         # Format the date properly
         dob = actor.DOB.strftime('%Y-%m-%d') if actor.DOB else None
         
@@ -41,7 +53,9 @@ def get_profile():
             'mobile2': actor.mobile2,
             'email_id': actor.email_id,
             'group_id': actor.group_id,
+            'group_name': group_name,
             'role_id': actor.role_id,
+            'role_name': role_name,
             'status': actor.status
         }
         
