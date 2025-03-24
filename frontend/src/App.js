@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import SubNav from './components/SubNav';
@@ -13,7 +13,7 @@ import Analysis from './components/Analysis';
 import Login from './components/Login';
 import Unauthorized from './components/Unauthorized';
 import ProtectedRoute from './components/ProtectedRoute';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Profile from './components/Profile';
 
 // import ChangePassword from './ChangePassword';
@@ -79,6 +79,60 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
   const location = useLocation();
   const navigate = useNavigate();
   const { getCurrentStep } = useWorkflow();
+  const { logout, isAuthenticated } = useAuth();
+  const userActivityTimeoutRef = useRef(null);
+  
+  // Session timeout - 30 minutes in milliseconds
+  const SESSION_TIMEOUT = 30 * 60 * 1000;
+  
+  // Function to reset timer on user activity
+  const resetUserActivityTimeout = () => {
+    if (isAuthenticated) {
+      // Clear any existing timeout
+      if (userActivityTimeoutRef.current) {
+        clearTimeout(userActivityTimeoutRef.current);
+      }
+      
+      // Set a new timeout
+      userActivityTimeoutRef.current = setTimeout(() => {
+        console.log('User inactive for 30 minutes, logging out');
+        logout();
+        navigate('/login', { state: { message: 'Your session has expired due to inactivity.' } });
+      }, SESSION_TIMEOUT);
+    }
+  };
+  
+  // Set up event listeners for user activity
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Initial setup of timeout
+      resetUserActivityTimeout();
+      
+      // Events that indicate user activity
+      const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+      
+      // Event handler function
+      const handleUserActivity = () => {
+        resetUserActivityTimeout();
+      };
+      
+      // Add event listeners
+      activityEvents.forEach(event => {
+        window.addEventListener(event, handleUserActivity);
+      });
+      
+      // Cleanup function
+      return () => {
+        if (userActivityTimeoutRef.current) {
+          clearTimeout(userActivityTimeoutRef.current);
+        }
+        
+        activityEvents.forEach(event => {
+          window.removeEventListener(event, handleUserActivity);
+        });
+      };
+    }
+  }, [isAuthenticated, logout, navigate]);
   
   // Log when routes change to help with debugging
   useEffect(() => {

@@ -18,11 +18,16 @@ from routes.changepassword import changepassword_bp
 from routes.diary import diary_bp
 from flask_bcrypt import Bcrypt
 from routes.users import users_bp
+from datetime import timedelta
 
 
 app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = 'your_secret_key'  # Make sure this is set for sessions to work
+
+# Set session timeout to 30 minutes (1800 seconds)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -58,6 +63,10 @@ app.register_blueprint(users_bp, url_prefix='/users')
 
 # Initialize the email thread
 init_app(app)
+
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
 
 @app.route('/')
 def index():
