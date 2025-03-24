@@ -96,9 +96,7 @@ def fetch_task_counts_by_criticality():
     JOIN activities a ON t.activity_id = a.activity_id
     GROUP BY t.criticality, t.duedate, a.activity_type, t.status, t.actual_date
     """
-    with engine.connect() as connection:
-        result = connection.execute(query)
-        df = pd.DataFrame(result.fetchall(), columns=result.keys())
+    df = pd.read_sql(query, engine)
     return df
 
 # Function to fetch task data based on selected status or other filters
@@ -122,9 +120,8 @@ def fetch_task_data(status=None, activity_type=None, task_name=None, criticality
         query += f" AND t.criticality = '{criticality}'"
     
     # Execute the query
-    with engine.connect() as connection:
-        result = connection.execute(query)
-        df = pd.DataFrame(result.fetchall(), columns=result.keys())
+    df = pd.read_sql(query, engine)
+    return df
         
     # Convert the duedate column to date format
     df['duedate'] = pd.to_datetime(df['duedate']).dt.date
@@ -176,9 +173,8 @@ def filtered_bar_data():
             else:
                 query += f" WHERE a.activity_type = '{activity_filter}'"
         
-        with engine.connect() as connection:
-            result = connection.execute(query)
-            df = pd.DataFrame(result.fetchall(), columns=result.keys())
+        df = pd.read_sql(query, engine)
+        return df
         
         # Apply the same filters as before
         df['duedate'] = pd.to_datetime(df['duedate']).dt.date
@@ -486,9 +482,8 @@ def task_stats():
             JOIN activities a ON t.activity_id = a.activity_id
             GROUP BY t.task_name, t.duedate, t.status, a.activity_type, t.criticality, t.actual_date
         """
-        with engine.connect() as connection:
-            result = connection.execute(query)
-            df = pd.DataFrame(result.fetchall(), columns=result.keys())
+        df = pd.read_sql(query, engine)
+        return df
 
         # Convert date columns to datetime
         df['duedate'] = pd.to_datetime(df['duedate']).dt.date
@@ -596,9 +591,8 @@ def task_details():
                 query += f" AND a.activity_type = '{activity_filter}'"
         
         # Get the data from the database
-        with engine.connect() as connection:
-            result = connection.execute(query)
-            df = pd.DataFrame(result.fetchall(), columns=result.keys())
+        df = pd.read_sql(query, engine)
+        return df
         
         # Convert date columns to datetime
         df['duedate'] = pd.to_datetime(df['duedate']).dt.date
