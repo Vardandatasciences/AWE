@@ -1,10 +1,10 @@
 # AWE Project
 
-This project consists of a React frontend and a Flask backend.
+This project consists of a React frontend built with Vite and a Flask backend.
 
 ## Project Structure
 
-- `frontend/`: React application
+- `frontend/`: React application built with Vite
 - `backend/`: Flask API
 
 ## Setup Instructions
@@ -17,50 +17,58 @@ This project consists of a React frontend and a Flask backend.
 ## Backend Setup
 
 1. Navigate to the backend directory:
-   ```
+   ```bash
    cd backend
    ```
 
-2 and 3 :
-Dont create venv 
-     ```
-
-4. Install dependencies:
-   ```
+2. Install dependencies:
+   ```bash
    pip install -r requirements.txt
    ```
 
-5. Run the Flask application:
-   ```
+3. Run the Flask application:
+   ```bash
    flask run
    ```
    or
-   ```
+   ```bash
    python app.py
    ```
+
+   The backend should start running on http://localhost:5000
 
 ## Frontend Setup
 
 1. Navigate to the frontend directory:
-   ```
+   ```bash
    cd frontend
    ```
 
 2. Install dependencies:
-   ```
+   ```bash
    npm install
-
-
-   npm install react@18 react-dom@18 @emotion/react @emotion/styled date-fns@2.29.3 @mui/material @mui/system @mui/styled-engine @mui/icons-material @mui/x-date-pickers
-
-
-   npm start
    ```
 
-3. Start the development server:
+3. Install additional required packages:
+   ```bash
+   npm install @emotion/react @emotion/styled date-fns@2.29.3 @mui/material @mui/system @mui/styled-engine @mui/icons-material @mui/x-date-pickers
    ```
-   npm start
+
+4. Start the Vite development server:
+   ```bash
+   npm run dev
    ```
+
+   The frontend should start running on http://localhost:5173
+
+## Development with Vite
+
+Vite provides a faster and leaner development experience compared to Create React App (React Scripts). Some key differences:
+
+- **Faster startup**: Vite doesn't bundle your application during development, leading to faster startup times.
+- **Hot Module Replacement (HMR)**: Changes to your code are reflected almost instantly in the browser.
+- **Build command**: Use `npm run build` to create a production build.
+- **Preview build**: Use `npm run preview` to preview your production build locally.
 
 ## Git Instructions
 
@@ -124,4 +132,14 @@ After merging, make sure to pull the latest changes into your local `main` branc
 git checkout main
 git pull origin main
 ```
+
+## Troubleshooting
+
+If you encounter any issues:
+
+1. Make sure both backend and frontend are running simultaneously.
+2. Check that the backend API is accessible from the frontend (CORS issues).
+3. Review the console logs in both the terminal and browser developer tools.
+4. Ensure all dependencies are correctly installed.
+5. If needed, clear npm cache: `npm cache clean --force`
 
