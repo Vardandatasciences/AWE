@@ -38,6 +38,8 @@
 .ongoing-delay { background-color: #dc3545; }
 .due { background-color: #17a2b8; }
 .due-delay { background-color: #ffcc00; }
+.pending { background-color: #6f42c1; } /* Purple for Pending */
+
 
 /* Right section */
 .right-section {

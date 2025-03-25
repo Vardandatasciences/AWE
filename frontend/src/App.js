@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import SubNav from './components/SubNav';
@@ -13,7 +13,9 @@ import Analysis from './components/Analysis';
 import Login from './components/Login';
 import Unauthorized from './components/Unauthorized';
 import ProtectedRoute from './components/ProtectedRoute';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Profile from './components/Profile';
+
 // import ChangePassword from './ChangePassword';
 import Diary from './components/Diary';
 import WorkflowGuide from './components/WorkflowGuide';
@@ -21,7 +23,9 @@ import Dashboard from './components/Dashboard';
 import WorkflowTest from './components/WorkflowTest';
 import AddCustomerForm from './components/AddCustomerForm';
 import { WorkflowProvider, useWorkflow } from './context/WorkflowContext';
+import DashboardRouter from './components/DashboardRouter';
 import './App.css';
+
 
 // Create a global variable to store the workflow guide state handler
 let globalSetShowWorkflowGuide = null;
@@ -75,6 +79,60 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
   const location = useLocation();
   const navigate = useNavigate();
   const { getCurrentStep } = useWorkflow();
+  const { logout, isAuthenticated } = useAuth();
+  const userActivityTimeoutRef = useRef(null);
+  
+  // Session timeout - 30 minutes in milliseconds
+  const SESSION_TIMEOUT = 30 * 60 * 1000;
+  
+  // Function to reset timer on user activity
+  const resetUserActivityTimeout = () => {
+    if (isAuthenticated) {
+      // Clear any existing timeout
+      if (userActivityTimeoutRef.current) {
+        clearTimeout(userActivityTimeoutRef.current);
+      }
+      
+      // Set a new timeout
+      userActivityTimeoutRef.current = setTimeout(() => {
+        console.log('User inactive for 30 minutes, logging out');
+        logout();
+        navigate('/login', { state: { message: 'Your session has expired due to inactivity.' } });
+      }, SESSION_TIMEOUT);
+    }
+  };
+  
+  // Set up event listeners for user activity
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Initial setup of timeout
+      resetUserActivityTimeout();
+      
+      // Events that indicate user activity
+      const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+      
+      // Event handler function
+      const handleUserActivity = () => {
+        resetUserActivityTimeout();
+      };
+      
+      // Add event listeners
+      activityEvents.forEach(event => {
+        window.addEventListener(event, handleUserActivity);
+      });
+      
+      // Cleanup function
+      return () => {
+        if (userActivityTimeoutRef.current) {
+          clearTimeout(userActivityTimeoutRef.current);
+        }
+        
+        activityEvents.forEach(event => {
+          window.removeEventListener(event, handleUserActivity);
+        });
+      };
+    }
+  }, [isAuthenticated, logout, navigate]);
   
   // Log when routes change to help with debugging
   useEffect(() => {
@@ -129,6 +187,14 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
         <Route path="/login" element={<Login />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/workflow-test" element={<WorkflowTest />} />
+        
+        <Route path="/profile" element={
+              <ProtectedRoute>
+                <main className="main-content">
+                  <Profile />
+                </main>
+              </ProtectedRoute>
+            } />
 
         {/* Add route for customer add page */}
         <Route path="/customers/add" element={
@@ -188,14 +254,7 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
           </ProtectedRoute>
         } />
         
-        <Route path="/analysis" element={
-          <ProtectedRoute >
-            <SubNav />
-            <main className="main-content">
-              <Analysis />
-            </main>
-          </ProtectedRoute>
-        } />
+        <Route path="/analysis" element={<DashboardRouter />} />
         <Route path="/diary" element={
           <ProtectedRoute >
             <SubNav />
@@ -204,14 +263,7 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
             </main>
           </ProtectedRoute>
         } />
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute>
-              <Dashboard onGetStarted={handleGetStartedClick} />
-            </ProtectedRoute>
-          } 
-        />
+        <Route path="/dashboard" element={<DashboardRouter />} />
       </Routes>
       <Footer />
     </div>

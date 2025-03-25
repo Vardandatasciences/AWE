@@ -5,15 +5,15 @@ import './FormStyles.css';
 const AddEmployeeForm = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     actor_name: '',
-    gender: 'Male',
+    gender: 'M',
     DOB: '',
     mobile1: '',
     mobile2: '',
     email_id: '',
     password: '',
-    group_id: '',
-    role_id: '22', // Default role (non-admin)
-    status: 'A'  // Active by default
+    group_id: '1',
+    role_id: '22',
+    status: 'A'
   });
   
   const [groups, setGroups] = useState([]);
@@ -91,17 +91,22 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
     setError(null);
     
     try {
-      // Change endpoint to match Flask API
-      const response = await axios.post('/add_actor', formData);
+      // Make sure we're not sending any actor_id in the request
+      const dataToSend = { ...formData };
+      if (dataToSend.actor_id) {
+        delete dataToSend.actor_id; // Remove actor_id if it exists
+      }
+      
+      const response = await axios.post('/add_actor', dataToSend);
       
       if (response.status === 201) {
-        onSuccess('Employee added successfully!');
+        // Pass the newly created actor_id from the response if needed
+        onSuccess('Auditor added successfully', response.data.actor_id);
         onClose();
       }
     } catch (err) {
-      console.error('Error adding employee:', err);
-      const errorMessage = err.response?.data?.error || 'Failed to add employee. Please try again.';
-      setError(errorMessage);
+      console.error('Error adding auditor:', err);
+      setError(err.response?.data?.error || 'Failed to add auditor. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -109,7 +114,12 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
   
   return (
     <div className="form-container">
-      <h2><i className="fas fa-user-plus"></i> Add New Auditor</h2>
+      <div className="modal-header">
+        <h2><i className="fas fa-user-plus"></i> Add New Auditor</h2>
+        <button className="close-btn" onClick={onClose}>
+          <i className="fas fa-times"></i>
+        </button>
+      </div>
       
       {error && (
         <div className="error-message">
@@ -149,9 +159,9 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
                 value={formData.gender}
                 onChange={handleChange}
               >
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+                <option value="O">Other</option>
               </select>
             </div>
           </div>
@@ -253,7 +263,7 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
                 value={formData.group_id}
                 onChange={handleChange}
               >
-                <option value="">Select a group</option>
+                <option value="1">Default Group</option>
                 {groups.map(group => (
                   <option key={group.group_id} value={group.group_id}>
                     {group.group_name}
@@ -290,7 +300,7 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
                 onChange={handleChange}
               >
                 <option value="A">Active</option>
-                <option value="I">Inactive</option>
+                <option value="O">Inactive</option>
               </select>
             </div>
           </div>
@@ -303,13 +313,13 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
           <button type="submit" className="btn-submit" disabled={loading}>
             {loading ? (
               <>
-                <div className="spinner-small"></div>
-                <span>Saving...</span>
+                <i className="fas fa-spinner fa-spin"></i>
+                <span>Adding...</span>
               </>
             ) : (
               <>
                 <i className="fas fa-save"></i>
-                <span>Save Auditor</span>
+                <span>Add Auditor</span>
               </>
             )}
           </button>

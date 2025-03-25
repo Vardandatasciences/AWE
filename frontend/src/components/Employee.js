@@ -5,6 +5,7 @@ import AddEmployeeForm from './AddEmployeeForm';
 import AddCustomerForm from './AddCustomerForm';
 import { useWorkflow } from '../context/WorkflowContext';
 import { showWorkflowGuide } from '../App';
+import { useNavigate } from 'react-router-dom';
 
 // Add some additional CSS for the edit form
 const editFormStyles = `
@@ -100,6 +101,12 @@ const Employee = () => {
     customers: { total: 0, active: 0, inactive: 0 }
   });
   const { completeStep, workflowSteps } = useWorkflow();
+  const navigate = useNavigate();
+  
+  // Add state for pending tasks modal
+  const [showPendingTasksModal, setShowPendingTasksModal] = useState(false);
+  const [pendingTasks, setPendingTasks] = useState([]);
+  const [deactivatedActor, setDeactivatedActor] = useState(null);
  
   // Check if we're in the workflow process
   const isInWorkflow = workflowSteps.some(step => step.status === 'in-progress' && step.id === 3);
@@ -300,7 +307,21 @@ const Employee = () => {
         return;
       }
       
-      const response = await axios.put(endpoint, editedData);
+      // Format the data before sending to the backend
+      const dataToSend = { ...editedData };
+      
+      // If we're updating an actor and gender is in full form, convert it to single character
+      if (isActor && dataToSend.gender) {
+        if (dataToSend.gender.toLowerCase() === 'male') {
+          dataToSend.gender = 'M';
+        } else if (dataToSend.gender.toLowerCase() === 'female') {
+          dataToSend.gender = 'F';
+        } else if (dataToSend.gender.length > 1) {
+          dataToSend.gender = dataToSend.gender.charAt(0);
+        }
+      }
+      
+      const response = await axios.put(endpoint, dataToSend);
       
       if (response.status === 200) {
         // Update the local data
@@ -330,35 +351,103 @@ const Employee = () => {
   };
  
   const handleDelete = async (id) => {
-    if (!window.confirm(`Are you sure you want to delete this ${activeTab === "actors" ? "auditor" : "client"}?`)) {
-      return;
-    }
-    
-    try {
-      setIsDeleting(true);
-      const isActor = activeTab === "actors";
-      const endpoint = isActor ? `/delete_actor/${id}` : `/delete_customer/${id}`;
-      
-      const response = await axios.delete(endpoint);
-      
-      if (response.status === 200) {
-        // Update the local data by filtering out the deleted item
-        const idField = isActor ? "actor_id" : "customer_id";
-        const updatedData = data[activeTab].filter(item => item[idField] !== id);
-        setData({ ...data, [activeTab]: updatedData });
-        
-        // Show success message
-        handleSuccess(`${isActor ? "Auditor" : "Client"} deleted successfully`);
-        
-        // Refresh stats
-        fetchData(activeTab);
+    if (activeTab === "actors") {
+      if (!window.confirm("Are you sure you want to deactivate this auditor? All their tasks will be moved to pending.")) {
+        return;
       }
-    } catch (err) {
-      console.error("Error deleting data:", err);
-      alert(`Failed to delete ${activeTab === "actors" ? "auditor" : "client"}. Please try again.`);
-    } finally {
-      setIsDeleting(false);
+      
+      try {
+        setIsDeleting(true);
+        // Instead of deleting, we'll update the status to 'O' (inactive)
+        const response = await axios.put('/deactivate_actor', { actor_id: id });
+        
+        if (response.status === 200) {
+          // Update the local data by changing the status of the actor
+          const updatedData = data[activeTab].map(item => {
+            if (item.actor_id === id) {
+              return { ...item, status: 'O' };
+            }
+            return item;
+          });
+          
+          setData({ ...data, [activeTab]: updatedData });
+          
+          // Get the task details and actor info from the response
+          const { affected_tasks, task_details, actor_name } = response.data;
+          
+          // Store the pending tasks and deactivated actor info
+          setPendingTasks(task_details);
+          setDeactivatedActor({
+            id: id,
+            name: actor_name
+          });
+          
+          // Show the pending tasks modal
+          setShowPendingTasksModal(true);
+          
+          // Show success message
+          handleSuccess(`Auditor deactivated successfully. ${affected_tasks} task${affected_tasks !== 1 ? 's' : ''} moved to pending.`);
+          
+          // Refresh stats
+          fetchData(activeTab);
+        }
+      } catch (err) {
+        console.error("Error deactivating auditor:", err);
+        alert(`Failed to deactivate auditor. Please try again.`);
+      } finally {
+        setIsDeleting(false);
+      }
+    } else {
+      // For customers, keep the original delete functionality
+      if (!window.confirm(`Are you sure you want to delete this client?`)) {
+        return;
+      }
+      
+      try {
+        setIsDeleting(true);
+        const endpoint = `/delete_customer/${id}`;
+        
+        const response = await axios.delete(endpoint);
+        
+        if (response.status === 200) {
+          // Update the local data by filtering out the deleted item
+          const updatedData = data[activeTab].filter(item => item.customer_id !== id);
+          setData({ ...data, [activeTab]: updatedData });
+          
+          // Show success message
+          handleSuccess(`Client deleted successfully`);
+          
+          // Refresh stats
+          fetchData(activeTab);
+        }
+      } catch (err) {
+        console.error("Error deleting data:", err);
+        alert(`Failed to delete client. Please try again.`);
+      } finally {
+        setIsDeleting(false);
+      }
     }
+  };
+ 
+  // Add a new function to handle HTML success messages
+  const handleSuccessWithHTML = (htmlContent) => {
+    // Create a div for the success message
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'success-message enhanced';
+    messageDiv.innerHTML = htmlContent;
+    
+    // Add to the DOM
+    document.body.appendChild(messageDiv);
+    
+    // Refresh data
+    fetchData(activeTab);
+    
+    // Remove after 5 seconds (longer than regular messages)
+    setTimeout(() => {
+      if (messageDiv.parentNode) {
+        document.body.removeChild(messageDiv);
+      }
+    }, 5000);
   };
  
   const handleAddEmployee = () => {
@@ -369,9 +458,9 @@ const Employee = () => {
     setIsAddingCustomer(true);
   };
  
-  const handleSuccess = (message) => {
+  const handleSuccess = (message, newId = null) => {
     setSuccessMessage(message);
-    // Refresh data
+    // Refresh data to ensure we get the newly created record with auto-generated ID
     fetchData(activeTab);
     // Clear success message after 3 seconds
     setTimeout(() => {
@@ -456,6 +545,33 @@ const Employee = () => {
       }
     } catch (err) {
       console.error("Direct API test failed:", err);
+  // Add a function to navigate to the Tasks page
+  const navigateToTasks = () => {
+    navigate('/tasks');
+  };
+ 
+  // Add new function to handle client report downloads
+  const handleDownloadClientReport = async (customer) => {
+    try {
+      const response = await axios.get(`/download-customer-report/${customer.customer_id}`, {
+        responseType: 'blob'
+      });
+     
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+     
+      const currentDate = new Date().toISOString().split('T')[0];
+      link.setAttribute('download', `${currentDate}_${customer.customer_name}_Report.pdf`);
+     
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+     
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading client report:', error);
+      alert('Failed to download client report. Please try again.');
     }
   };
  
@@ -672,6 +788,17 @@ const Employee = () => {
                         placeholder="City"
                         className="form-input"
                       />
+                      {isActor && (
+                        <select
+                          value={editedData.gender || 'M'}
+                          onChange={(e) => setEditedData({...editedData, gender: e.target.value})}
+                          className="form-select"
+                        >
+                          <option value="M">Male</option>
+                          <option value="F">Female</option>
+                          <option value="O">Other</option>
+                        </select>
+                      )}
                       <select
                         value={editedData.status || 'A'}
                         onChange={(e) => setEditedData({...editedData, status: e.target.value})}
@@ -726,15 +853,13 @@ const Employee = () => {
                         <button className="btn-edit" onClick={() => handleEdit(index)}>
                           <i className="fas fa-edit"></i>
                         </button>
-                        {isActor && (
-                          <button
-                            className="btn-download"
-                            onClick={() => handleDownloadReport(item)}
-                            title="Download Performance Report"
-                          >
-                            <i className="fas fa-download"></i>
-                          </button>
-                        )}
+                        <button
+                          className="btn-download"
+                          onClick={() => isActor ? handleDownloadReport(item) : handleDownloadClientReport(item)}
+                          title={`Download ${isActor ? 'Performance' : 'Client'} Report`}
+                        >
+                          <i className="fas fa-download"></i>
+                        </button>
                         <button 
                           className="btn-delete" 
                           onClick={() => handleDelete(isActor ? item.actor_id : item.customer_id)}
@@ -936,6 +1061,68 @@ const Employee = () => {
       <button onClick={testDirectApiCall} style={{marginTop: '20px'}}>
         Test Direct API Call
       </button>
+      {/* Add Pending Tasks Modal */}
+      {showPendingTasksModal && deactivatedActor && (
+        <div className="modal-overlay">
+          <div className="modal-content pending-tasks-modal">
+            <div className="modal-header">
+              <h2>
+                <i className="fas fa-tasks"></i>
+                Tasks Moved to Pending
+              </h2>
+              <button className="close-btn" onClick={() => setShowPendingTasksModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="pending-tasks-info">
+                <p>
+                  <i className="fas fa-info-circle"></i>
+                  The following tasks from <strong>{deactivatedActor.name}</strong> have been moved to pending status:
+                </p>
+                
+                {pendingTasks.length > 0 ? (
+                  <div className="pending-tasks-list">
+                    <table className="tasks-table">
+                      <thead>
+                        <tr>
+                          <th>Task ID</th>
+                          <th>Task Name</th>
+                          <th>Activity ID</th>
+                          <th>Due Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingTasks.map(task => (
+                          <tr key={task.task_id}>
+                            <td>{task.task_id}</td>
+                            <td>{task.task_name || `Task #${task.task_id}`}</td>
+                            <td>{task.activity_id || 'N/A'}</td>
+                            <td>{task.due_date || 'N/A'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="no-tasks-message">No active tasks were found for this auditor.</p>
+                )}
+                
+                <div className="modal-actions">
+                  <button className="btn-view-tasks" onClick={navigateToTasks}>
+                    <i className="fas fa-external-link-alt"></i>
+                    View in Tasks Section
+                  </button>
+                  <button className="btn-close" onClick={() => setShowPendingTasksModal(false)}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

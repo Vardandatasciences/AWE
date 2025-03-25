@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'chart.js/auto';
 import './Analysis.css';
+import SubNav from './SubNav';
 
 const statusColors = {
   'Completed': '#28a745',
@@ -9,7 +10,8 @@ const statusColors = {
   'Ongoing with Delay': '#dc3545',
   'Due': '#17a2b8',
   'Due with Delay': '#ffcc00',
-  'Total': '#63B3ED'  // Changed from #6c757d to light blue (#63B3ED)
+  'Total': '#63B3ED',
+  'Pending': '#6f42c1',  // Changed from #6c757d to light blue (#63B3ED)
 };
 
 function Analysis() {
@@ -276,245 +278,265 @@ function Analysis() {
   };
 
   return (
-    <div className="analysis-wrapper">
-      {loading ? (
-        <div className="loading">Loading...</div>
-      ) : (
-        <div className="dashboard">
-          <div className="left-section" style={{
-            width: '22%',
-            padding: '15px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',  // Center vertically
-            alignItems: 'center',      // Center horizontally
-            minHeight: '100%'         // Take full height
-          }}>
-            <div className="stats-container" style={{
+    <>
+      <SubNav />
+      <div className="analysis-wrapper">
+        {loading ? (
+          <div className="loading">Loading...</div>
+        ) : (
+          <div className="dashboard">
+            <div className="left-section" style={{
+              width: '22%',
+              padding: '15px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '10px',            // Add consistent spacing between boxes
-              width: '100%',
-              maxWidth: '280px'       // Limit maximum width for better appearance
+              justifyContent: 'center',  // Center vertically
+              alignItems: 'center',      // Center horizontally
+              minHeight: '100%'         // Take full height
             }}>
-              <div className="box total" style={{
-                padding: '15px',
-                borderRadius: '10px',
+              <div className="stats-container" style={{
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                transition: 'transform 0.2s',
-                cursor: 'pointer'
+                flexDirection: 'column',
+                gap: '10px',            // Add consistent spacing between boxes
+                width: '100%',
+                maxWidth: '280px'       // Limit maximum width for better appearance
               }}>
-                <span style={{ fontWeight: '500' }}>Total Tasks</span>
-                <span style={{ 
-                  fontWeight: 'bold',
-                  fontSize: '1.2em' 
-                }}>{data.total_activities}</span>
-              </div>
+                <div className="box total" style={{
+                  padding: '15px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}>
+                  <span style={{ fontWeight: '500' }}>Total Tasks</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    fontSize: '1.2em' 
+                  }}>{data.total_activities}</span>
+                </div>
 
-              <div className="box completed" style={{
-                padding: '15px',
-                borderRadius: '10px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                transition: 'transform 0.2s',
-                cursor: 'pointer'
-              }}>
-                <span style={{ fontWeight: '500' }}>Completed</span>
-                <span style={{ 
-                  fontWeight: 'bold',
-                  fontSize: '1.2em' 
-                }}>{data.completed_activities}</span>
-              </div>
+                <div className="box completed" style={{
+                  padding: '15px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}>
+                  <span style={{ fontWeight: '500' }}>Completed</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    fontSize: '1.2em' 
+                  }}>{data.completed_activities}</span>
+                </div>
 
-              <div className="box completed-delay" style={{
-                padding: '15px',
-                borderRadius: '10px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                transition: 'transform 0.2s',
-                cursor: 'pointer'
-              }}>
-                <span style={{ fontWeight: '500' }}>Completed with Delay</span>
-                <span style={{ 
-                  fontWeight: 'bold',
-                  fontSize: '1.2em' 
-                }}>{data.completed_with_delay}</span>
-              </div>
+                <div className="box completed-delay" style={{
+                  padding: '15px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}>
+                  <span style={{ fontWeight: '500' }}>Completed with Delay</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    fontSize: '1.2em' 
+                  }}>{data.completed_with_delay}</span>
+                </div>
 
-              <div className="box ongoing" style={{
-                padding: '15px',
-                borderRadius: '10px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                transition: 'transform 0.2s',
-                cursor: 'pointer'
-              }}>
-                <span style={{ fontWeight: '500' }}>Ongoing</span>
-                <span style={{ 
-                  fontWeight: 'bold',
-                  fontSize: '1.2em' 
-                }}>{data.ongoing_activities}</span>
-              </div>
+                <div className="box ongoing" style={{
+                  padding: '15px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}>
+                  <span style={{ fontWeight: '500' }}>Ongoing</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    fontSize: '1.2em' 
+                  }}>{data.ongoing_activities}</span>
+                </div>
 
-              <div className="box ongoing-delay" style={{
-                padding: '15px',
-                borderRadius: '10px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                transition: 'transform 0.2s',
-                cursor: 'pointer'
-              }}>
-                <span style={{ fontWeight: '500' }}>Ongoing with Delay</span>
-                <span style={{ 
-                  fontWeight: 'bold',
-                  fontSize: '1.2em' 
-                }}>{data.ongoing_with_delay}</span>
-              </div>
+                <div className="box ongoing-delay" style={{
+                  padding: '15px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}>
+                  <span style={{ fontWeight: '500' }}>Ongoing with Delay</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    fontSize: '1.2em' 
+                  }}>{data.ongoing_with_delay}</span>
+                </div>
 
-              <div className="box due" style={{
-                padding: '15px',
-                borderRadius: '10px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                transition: 'transform 0.2s',
-                cursor: 'pointer'
-              }}>
-                <span style={{ fontWeight: '500' }}>Due</span>
-                <span style={{ 
-                  fontWeight: 'bold',
-                  fontSize: '1.2em' 
-                }}>{data.yet_to_start}</span>
-              </div>
+                <div className="box due" style={{
+                  padding: '15px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}>
+                  <span style={{ fontWeight: '500' }}>Due</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    fontSize: '1.2em' 
+                  }}>{data.yet_to_start}</span>
+                </div>
 
-              <div className="box due-delay" style={{
-                padding: '15px',
-                borderRadius: '10px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                transition: 'transform 0.2s',
-                cursor: 'pointer'
-              }}>
-                <span style={{ fontWeight: '500' }}>Due with Delay</span>
-                <span style={{ 
-                  fontWeight: 'bold',
-                  fontSize: '1.2em' 
-                }}>{data.yet_to_start_with_delay}</span>
-              </div>
-            </div>
-          </div>
+                <div className="box due-delay" style={{
+                  padding: '15px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.2s',
+                  cursor: 'pointer'
+                }}>
+                  <span style={{ fontWeight: '500' }}>Due with Delay</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    fontSize: '1.2em' 
+                  }}>{data.yet_to_start_with_delay}</span>
+                </div>
+                <div className="box pending" style={{
+    padding: '15px',
+    borderRadius: '10px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    transition: 'transform 0.2s',
+    cursor: 'pointer'
+}}>
+    <span style={{ fontWeight: '500' }}>Pending</span>
+    <span style={{ 
+        fontWeight: 'bold',
+        fontSize: '1.2em' 
+    }}>{data.pending_tasks}</span>
+</div>
 
-          <div className="right-section">
-            <div className="filter-buttons">
-              <div className="period-filters">
-                {['All', 'Previous Month', 'Current Month', 'Upcoming 6 Months'].map(period => (
-                  <button
-                    key={period}
-                    className={`button ${periodFilter === period ? 'selected' : ''}`}
-                    onClick={() => handlePeriodClick(period)}
-                  >
-                    {period}
-                  </button>
-                ))}
-              </div>
-              <div className="activity-filters">
-                {['All', 'Regulatory', 'Internal', 'Customer'].map(activity => (
-                  <button
-                    key={activity}
-                    className={`button ${activityFilter === activity ? 'selected' : ''}`}
-                    onClick={() => handleActivityClick(activity)}
-                  >
-                    {activity}
-                  </button>
-                ))}
               </div>
             </div>
 
-            <div className="charts-container">
-              <div className="chart-box">
-                <h4>Task Status Distribution</h4>
-                <div className="chart-container">
-                  <canvas id="pieChart"></canvas>
+            <div className="right-section">
+              <div className="filter-buttons">
+                <div className="period-filters">
+                  {['All', 'Previous Month', 'Current Month', 'Upcoming 6 Months'].map(period => (
+                    <button
+                      key={period}
+                      className={`button ${periodFilter === period ? 'selected' : ''}`}
+                      onClick={() => handlePeriodClick(period)}
+                    >
+                      {period}
+                    </button>
+                  ))}
+                </div>
+                <div className="activity-filters">
+                  {['All', 'Regulatory', 'Internal', 'Customer'].map(activity => (
+                    <button
+                      key={activity}
+                      className={`button ${activityFilter === activity ? 'selected' : ''}`}
+                      onClick={() => handleActivityClick(activity)}
+                    >
+                      {activity}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <div className="chart-box">
-                <h4>Task Distribution</h4>
-                <div className="chart-container">
-                  <canvas id="barChart"></canvas>
-                </div>
-              </div>
-              <div className="chart-and-table-container">
-                <div className="chart-section">
-                  <div className="chart-box">
-                    <h4>Task Criticality Analysis</h4>
-                    <div className="chart-container">
-                      <canvas id="criticalityChart"></canvas>
-                    </div>
+
+              <div className="charts-container">
+                <div className="chart-box">
+                  <h4>Task Status Distribution</h4>
+                  <div className="chart-container">
+                    <canvas id="pieChart"></canvas>
                   </div>
                 </div>
-                <div className="table-section" style={{ height: '300px', overflow: 'hidden' }}>
-                  <div className="table-container" style={{ 
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }}>
-                    <h4>Task Details {selectedFilter.value ? ` - ${selectedFilter.value}` : ''}</h4>
-                    <div className="table-wrapper" style={{ 
-                      flexGrow: 1,
-                      overflow: 'auto',
-                      maxHeight: 'calc(100% - 40px)'  // Subtract header height
+                <div className="chart-box">
+                  <h4>Task Distribution</h4>
+                  <div className="chart-container">
+                    <canvas id="barChart"></canvas>
+                  </div>
+                </div>
+                <div className="chart-and-table-container">
+                  <div className="chart-section">
+                    <div className="chart-box">
+                      <h4>Task Criticality Analysis</h4>
+                      <div className="chart-container">
+                        <canvas id="criticalityChart"></canvas>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="table-section" style={{ height: '300px', overflow: 'hidden' }}>
+                    <div className="table-container" style={{ 
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column'
                     }}>
-                      {tableData.length > 0 ? (
-                        <table>
-                          <thead style={{ position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
-                            <tr>
-                              <th>Task Name</th>
-                              <th>Due Date</th>
-                              <th>Status</th>
-                              <th>Criticality</th>
-                              <th>Type</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tableData.map((task, index) => (
-                              <tr key={index}>
-                                <td>{task.task_name}</td>
-                                <td>{task.duedate}</td>
-                                <td>{task.task_status || task.status}</td>
-                                <td className={`criticality-${task.criticality.toLowerCase()}`}>{task.criticality}</td>
-                                <td>{getFullTypeName(task.activity_type)}</td>
+                      <h4>Task Details {selectedFilter.value ? ` - ${selectedFilter.value}` : ''}</h4>
+                      <div className="table-wrapper" style={{ 
+                        flexGrow: 1,
+                        overflow: 'auto',
+                        maxHeight: 'calc(100% - 40px)'  // Subtract header height
+                      }}>
+                        {tableData.length > 0 ? (
+                          <table>
+                            <thead style={{ position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
+                              <tr>
+                                <th>Task Name</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                                <th>Criticality</th>
+                                <th>Type</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : (
-                        <div className="no-data-message">
-                          Click on a chart segment to view task details.
-                        </div>
-                      )}
+                            </thead>
+                            <tbody>
+                              {tableData.map((task, index) => (
+                                <tr key={index}>
+                                  <td>{task.task_name}</td>
+                                  <td>{task.duedate}</td>
+                                  <td>{task.task_status || task.status}</td>
+                                  <td className={`criticality-${task.criticality.toLowerCase()}`}>{task.criticality}</td>
+                                  <td>{getFullTypeName(task.activity_type)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="no-data-message">
+                            Click on a chart segment to view task details.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
 

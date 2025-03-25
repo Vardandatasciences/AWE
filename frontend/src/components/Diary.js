@@ -41,8 +41,8 @@ const Diary = () => {
   const actor_id = localStorage.getItem('actor_id')
   console.log("User Role ID:", role_id);
   console.log("User User ID:", actor_id)
+  const [taskNames, setTaskNames] = useState({});
 
- 
   const emptyEntry = {
     date: new Date(),
     start_time: null,
@@ -55,15 +55,13 @@ const Diary = () => {
 
     if (!actorId) {
         console.warn("⚠️ No actor ID found in localStorage, setting default...");
-        localStorage.setItem('actor_id', 'Khairu'); // Set a default for testing
-        actorId = 'Khairu';
+        localStorage.setItem('actor_id', '1020'); // Set a default for testing
+        actorId = '1020';
     }
 
     console.log("🚀 Actor ID found:", actorId);
     fetchWIPTasks();
 }, []);
-
-
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -72,8 +70,14 @@ const Diary = () => {
         
         // Then fetch entries
         const actorId = localStorage.getItem('actor_id');
+        const token = localStorage.getItem('token');
         const entriesResponse = await axios.get('http://localhost:5000/diary/entries', {
-          params: { actor_id: actorId }
+          params: { actor_id: actorId },
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          withCredentials: true
         });
         console.log(entriesResponse)
         
@@ -85,6 +89,19 @@ const Diary = () => {
         }));
         
         setEntries(formattedEntries);
+        
+        // Fetch task details for all task IDs in entries
+        const taskDetailsMap = {};
+        for (const entry of formattedEntries) {
+          if (entry.task && !taskDetailsMap[entry.task]) {
+            const taskDetails = await fetchTaskDetails(entry.task);
+            if (taskDetails) {
+              taskDetailsMap[entry.task] = taskDetails.task_name;
+            }
+          }
+        }
+        setTaskNames(taskDetailsMap);
+        
       } catch (error) {
         console.error('Error loading initial data:', error);
       } finally {
@@ -94,6 +111,62 @@ const Diary = () => {
     
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    const loadMissingTaskDetails = async () => {
+      const missingTaskIds = entries
+        .filter(entry => entry.task && !taskNames[entry.task])
+        .map(entry => entry.task);
+        
+      if (missingTaskIds.length === 0) return;
+      
+      // Create a unique list of missing task IDs
+      const uniqueMissingIds = [...new Set(missingTaskIds)];
+      
+      // Fetch each missing task detail
+      const taskDetailsMap = { ...taskNames };
+      for (const taskId of uniqueMissingIds) {
+        const taskDetails = await fetchTaskDetails(taskId);
+        if (taskDetails) {
+          taskDetailsMap[taskId] = taskDetails.task_name;
+        }
+      }
+      
+      setTaskNames(taskDetailsMap);
+    };
+    
+    loadMissingTaskDetails();
+  }, [entries]);
+
+  useEffect(() => {
+    const loadMissingTaskDetails = async () => {
+      const tasksNeedingDetails = entries
+        .filter(entry => entry.task && !taskNames[entry.task])
+        .map(entry => entry.task);
+        
+      if (tasksNeedingDetails.length === 0) return;
+      
+      const uniqueTaskIds = [...new Set(tasksNeedingDetails)];
+      
+      console.log(`Loading details for ${uniqueTaskIds.length} missing tasks`);
+      
+      const newTaskNames = { ...taskNames };
+      for (const taskId of uniqueTaskIds) {
+        try {
+          const taskDetails = await fetchTaskDetails(taskId);
+          if (taskDetails) {
+            newTaskNames[taskId] = taskDetails.task_name;
+          }
+        } catch (error) {
+          console.error(`Failed to load details for task ${taskId}`, error);
+        }
+      }
+      
+      setTaskNames(newTaskNames);
+    };
+    
+    loadMissingTaskDetails();
+  }, [entries, taskNames]);
 
   
  
@@ -116,7 +189,8 @@ const Diary = () => {
         
         // Now create the new entry
         const newEntry = {
-            id: Date.now(),
+            id: Date.now(), // Temporary ID for frontend tracking
+            actor_id: actorId, // Ensure actor_id is set
             date: new Date(),
             start_time: null,
             end_time: null,
@@ -124,6 +198,7 @@ const Diary = () => {
             remarks: ''
         };
 
+        console.log("Adding new entry:", newEntry);
         setEntries(prev => [...prev, newEntry]);
     } catch (error) {
         console.error('🔴 Error adding entry:', error);
@@ -140,14 +215,30 @@ const Diary = () => {
     try {
       const token = localStorage.getItem('token');
       const actorId = localStorage.getItem('actor_id');
-      const formattedEntries = entries.map(entry => ({
-        ...entry,
-        date: entry.date ? format(entry.date, 'yyyy-MM-dd') : null,
-        start_time: entry.start_time ? format(entry.start_time, 'HH:mm') : null,
-        end_time: entry.end_time ? format(entry.end_time, 'HH:mm') : null
-      }));
       
-      await axios.post('http://localhost:5000/diary/save',
+      if (!actorId) {
+        console.error("No actor ID found when trying to save entries");
+        alert("Unable to save entries: No user ID found");
+        return;
+      }
+      
+      console.log("Saving entries for actor ID:", actorId);
+      
+      // Format entries for saving
+      const formattedEntries = entries.map(entry => {
+        console.log("Processing entry:", entry);
+        return {
+          ...entry,
+          actor_id: actorId, // Ensure actor_id is set for each entry
+          date: entry.date ? format(entry.date, 'yyyy-MM-dd') : null,
+          start_time: entry.start_time ? format(entry.start_time, 'HH:mm') : null,
+          end_time: entry.end_time ? format(entry.end_time, 'HH:mm') : null
+        };
+      });
+      
+      console.log("Formatted entries to save:", formattedEntries);
+      
+      const saveResponse = await axios.post('http://localhost:5000/diary/save',
         {
           entries: formattedEntries,
           actor_id: actorId
@@ -156,26 +247,50 @@ const Diary = () => {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          withCredentials: true
         }
       );
       
-      // Refresh entries after save
-      const response = await axios.get('http://localhost:5000/diary/entries', {
-        params: { actor_id: actorId },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      console.log("Save response:", saveResponse);
       
-      const updatedEntries = response.data.map(entry => ({
-        ...entry,
-        date: entry.date ? new Date(entry.date) : null,
-        start_time: entry.start_time ? parse(entry.start_time, 'HH:mm', new Date()) : null,
-        end_time: entry.end_time ? parse(entry.end_time, 'HH:mm', new Date()) : null
-      }));
-      
-      setEntries(updatedEntries);
+      if (saveResponse.status === 200) {
+        alert("Entries saved successfully!");
+        
+        // Refresh entries after save
+        const response = await axios.get('http://localhost:5000/diary/entries', {
+          params: { actor_id: actorId },
+          headers: { 'Authorization': `Bearer ${token}` },
+          withCredentials: true
+        });
+        
+        const updatedEntries = response.data.map(entry => ({
+          ...entry,
+          date: entry.date ? new Date(entry.date) : null,
+          start_time: entry.start_time ? parse(entry.start_time, 'HH:mm', new Date()) : null,
+          end_time: entry.end_time ? parse(entry.end_time, 'HH:mm', new Date()) : null
+        }));
+        
+        setEntries(updatedEntries);
+        
+        // Also refresh task details
+        const taskDetailsMap = { ...taskNames };
+        for (const entry of updatedEntries) {
+          if (entry.task && !taskDetailsMap[entry.task]) {
+            const taskDetails = await fetchTaskDetails(entry.task);
+            if (taskDetails) {
+              taskDetailsMap[entry.task] = taskDetails.task_name;
+            }
+          }
+        }
+        setTaskNames(taskDetailsMap);
+      } else {
+        console.error("Unexpected response when saving entries:", saveResponse);
+        alert("Error saving entries. Please try again.");
+      }
     } catch (error) {
       console.error('Error saving entries:', error);
+      alert("Failed to save entries: " + (error.response?.data?.message || error.message));
     }
   };
  
@@ -189,8 +304,13 @@ const Diary = () => {
       try {
         if (selectedEntry.id > 0) {
           const actorId = localStorage.getItem('actor_id');
+          const token = localStorage.getItem('token');
           await axios.delete(`http://localhost:5000/diary/entries/${selectedEntry.id}?actor_id=${actorId}`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            withCredentials: true
           });
         }
         setEntries(entries.filter(entry => entry.id !== selectedEntry.id));
@@ -206,34 +326,56 @@ const Diary = () => {
         const token = localStorage.getItem('token');
         const actorId = localStorage.getItem('actor_id');
 
-        console.log("📌 Making API request to /diary/wip-tasks with actor_id:", actorId);
-        
+        if (!actorId) {
+            console.error("🔴 No actor_id found in localStorage");
+            return;
+        }
+
+        console.log("📌 Fetching WIP tasks for actor_id:", actorId);
+
         const response = await axios.get(`http://localhost:5000/diary/wip-tasks`, {
             params: { actor_id: actorId },
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
-            }
+            },
+            withCredentials: true  // Important for CORS credentials
         });
 
-        console.log('🟢 API response status:', response.status);
-        console.log('🟢 WIP tasks raw response:', response.data);
-        
-        // Remove fallback data, we want to fix the real issue
-        const tasksArray = Array.isArray(response.data) ? response.data : [response.data];
-        
-        if (tasksArray.length === 0) {
-            console.log('⚠️ No tasks returned from API. Check backend query.');
+        if (response.status === 200) {
+            setTasks(response.data);
+            console.log("🟢 WIP Tasks fetched:", response.data);
+        } else {
+            console.error("⚠️ Unexpected response:", response);
         }
-        
-        setTasks(tasksArray);
-        return tasksArray;
     } catch (error) {
-        console.error('🔴 Error fetching WIP tasks:', error);
-        return [];
+        console.error("🔴 Error fetching WIP tasks:", error);
     }
 };
+
+const fetchTaskDetails = async (taskId) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`http://localhost:5000/diary/task-details`, {
+      params: { task_id: taskId },
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      withCredentials: true
+    });
+    
+    if (response.status === 200) {
+      return response.data;
+    }
+  } catch (error) {
+    console.error(`Error fetching details for task ${taskId}:`, error);
+  }
+  return null;
+};
+
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <div style={{ padding: '20px' }}>
@@ -303,37 +445,65 @@ const Diary = () => {
         />
       </TableCell>
       <TableCell style={{ width: '40%' }}>
-      <Select
-    value={entry.task || ''}
-    onChange={(e) => {
-        const updatedEntries = [...entries];
-        updatedEntries[index].task = e.target.value;
-        setEntries(updatedEntries);
-    }}
-    fullWidth
-    size="small"
-    displayEmpty
->
-    <MenuItem value="" disabled>Select a task</MenuItem>
-    {entry.task && !tasks.some(task => task.task_id === entry.task) && (
-        <MenuItem value={entry.task}>ID: {entry.task}</MenuItem>
-    )}
-    {tasks && tasks.length > 0 ? (
-        tasks.map((task) => (
-            <MenuItem key={task.task_id} value={task.task_id}>
-                {task.task_name}
-            </MenuItem>
-        ))
-    ) : (
-        <MenuItem disabled>No WIP tasks available</MenuItem>
-    )}
-</Select>
-
-
-</TableCell>
-
-
-
+        {entry.task ? (
+          <Select
+            value={entry.task}
+            onChange={(e) => {
+              const updatedEntries = [...entries];
+              updatedEntries[index].task = e.target.value;
+              setEntries(updatedEntries);
+            }}
+            fullWidth
+            size="small"
+            displayEmpty
+            renderValue={() => {
+              if (taskNames[entry.task]) {
+                return taskNames[entry.task];
+              }
+              return "Loading task details...";
+            }}
+          >
+            {!tasks.some(task => task.task_id === entry.task) && taskNames[entry.task] && (
+              <MenuItem key={`current-${entry.task}`} value={entry.task}>
+                {taskNames[entry.task]} (current)
+              </MenuItem>
+            )}
+            
+            {tasks && tasks.length > 0 ? (
+              tasks.map((task) => (
+                <MenuItem key={task.task_id} value={task.task_id}>
+                  {task.task_name}
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem disabled>No other WIP tasks available</MenuItem>
+            )}
+          </Select>
+        ) : (
+          <Select
+            value={entry.task || ''}
+            onChange={(e) => {
+              const updatedEntries = [...entries];
+              updatedEntries[index].task = e.target.value;
+              setEntries(updatedEntries);
+            }}
+            fullWidth
+            size="small"
+            displayEmpty
+          >
+            <MenuItem value="" disabled>Select a task</MenuItem>
+            {tasks && tasks.length > 0 ? (
+              tasks.map((task) => (
+                <MenuItem key={task.task_id} value={task.task_id}>
+                  {task.task_name}
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem disabled>No WIP tasks available</MenuItem>
+            )}
+          </Select>
+        )}
+      </TableCell>
       <TableCell style={{ width: '35%' }}>
         <TextField
           value={entry.remarks || ''}

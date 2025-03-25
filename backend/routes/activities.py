@@ -23,7 +23,8 @@ activities_bp = Blueprint('activities', __name__)
 @activities_bp.route('/activities', methods=['GET'])
 def get_activities():
     try:
-        activities = Activity.query.all()
+        # Modified to only get active activities
+        activities = Activity.query.filter_by(status='A').all()
         return jsonify([activity.to_dict() for activity in activities])
     except Exception as e:
         print("Error:", e)
@@ -57,10 +58,31 @@ def add_activity():
 @activities_bp.route('/delete_activity/<int:activity_id>', methods=['DELETE'])
 def delete_activity(activity_id):
     try:
+        # Get the activity
         activity = Activity.query.get_or_404(activity_id)
-        db.session.delete(activity)
+        
+        # Check for incomplete tasks
+        incomplete_tasks = Task.query.filter_by(
+            activity_id=activity_id
+        ).filter(
+            Task.status != 'COMPLETED'
+        ).first()
+        
+        if incomplete_tasks:
+            return jsonify({
+                "error": "Cannot delete activity",
+                "message": "There are incomplete tasks associated with this activity. Please complete all tasks before deleting."
+            }), 400
+        
+        # If all tasks are completed, update the activity status to 'O'
+        activity.status = 'O'
         db.session.commit()
-        return jsonify({"message": "Activity deleted successfully"}), 200
+        
+        return jsonify({
+            "message": "Activity deleted successfully",
+            "status": "success"
+        }), 200
+        
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -71,15 +93,25 @@ def update_activity():
         data = request.json
         activity = Activity.query.get_or_404(data['activity_id'])
         
-        activity.activity_name = data['activity_name']
-        activity.criticality = data['criticality']
-        activity.duration = data['duration']
-        activity.role_id = data['role_id']
-        activity.frequency = data['frequency']
-        activity.due_by = datetime.strptime(data['due_by'], '%Y-%m-%d').date() if data['due_by'] else None
+        # Update all fields
+        activity.activity_name = data.get('activity_name', activity.activity_name)
+        activity.standard_time = data.get('standard_time', activity.standard_time)
+        activity.act_des = data.get('act_des', activity.act_des)
+        activity.criticality = data.get('criticality', activity.criticality)
+        activity.duration = data.get('duration', activity.duration)
+        activity.role_id = data.get('role_id', activity.role_id)
+        activity.frequency = data.get('frequency', activity.frequency)
+        activity.activity_type = data.get('activity_type', activity.activity_type)
+        
+        # Handle due_by date conversion
+        if 'due_by' in data and data['due_by']:
+            activity.due_by = datetime.strptime(data['due_by'], '%Y-%m-%d').date()
         
         db.session.commit()
-        return jsonify({"message": "Activity updated successfully"}), 200
+        return jsonify({
+            "message": "Activity updated successfully",
+            "activity": activity.to_dict()
+        }), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -124,18 +156,6 @@ def get_activity_mappings(activity_id):
     except Exception as e:
         print(f"Error fetching activity mappings: {e}")
         return jsonify({"error": str(e)}), 500
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def calculate_new_duedate(start_date, iteration, frequency):
@@ -320,17 +340,16 @@ def adjust_due_date(date, criticality):
         return date  # Return original date if an error occurs
 
 
-
-
-
-
-
-
-
-
-
-
-
+@activities_bp.route('/get_frequency/<int:activity_id>', methods=['GET'])
+def get_frequency(activity_id):
+    try:
+        activity = Activity.query.filter_by(activity_id=activity_id).first()
+        if not activity:
+            return jsonify({'error': 'Activity not found'}), 404
+        
+        return jsonify({'frequency': activity.frequency}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @activities_bp.route('/assign_activity', methods=['POST'])
@@ -354,8 +373,12 @@ def assign_activity():
         activity = Activity.query.filter_by(activity_id=activity_id).first()
         if not activity:
             return jsonify({'success': False, 'message': '❌ Invalid Activity'}), 400
-        
-        initiator = session.get('actor_name', "system")
+
+        if data.get('actor_id'):
+            actor = Actor.query.filter_by(actor_id=data.get('actor_id')).first()
+            initiator = actor.actor_name if actor else None
+        else:
+            initiator = None
         if not initiator:
             return jsonify({'success': False, 'message': '❌ Initiator not found. Please log in again.'}), 400
 
@@ -400,12 +423,15 @@ def assign_activity():
             due_date = datetime.now() + timedelta(days=int(frequency))
             
             # Generate a unique task ID
-            task_id = f"{activity_id}{customer_id}{due_date.strftime('%d%m%Y')}{assigned_actor_id}"
+            task_id = f"{activity_id}{customer_id}{due_date.strftime('%d%m%Y')}"
+            
+            # Get current timestamp for assignment
+            current_timestamp = datetime.now()
             
             # Create the task
             new_task = Task(
                 task_id=task_id,
-                task_name=f"{activity.activity_name} for {customer.customer_name}",
+                task_name=activity.activity_name,
                 criticality=criticality,
                 duration=duration,
                 status=status,
@@ -417,7 +443,8 @@ def assign_activity():
                 activity_id=activity_id,
                 initiator=initiator,
                 activity_type=activity_type,
-                stage_id=1
+                stage_id=1,
+                assigned_timestamp=current_timestamp  # Add the timestamp here
             )
             db.session.add(new_task)
             db.session.commit()

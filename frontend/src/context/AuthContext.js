@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const isAuthenticated = !!user;
+  const isAuthenticated = !!localStorage.getItem('token');
   const isAdmin = user?.role === 'admin';
 
   return (

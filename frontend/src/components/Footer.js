@@ -41,9 +41,13 @@ const Footer = () => {
         <div className="footer-section">
           <h3>Contact Us</h3>
           <address>
-            <p><i className="fas fa-map-marker-alt"></i> 123 Business Avenue, Suite 100</p>
-            <p><i className="fas fa-phone"></i> +1 (555) 123-4567</p>
-            <p><i className="fas fa-envelope"></i> info@prosync-platform.com</p>
+            <p><i className="fas fa-map-marker-alt"></i> Aurum, 1st Floor, Plot No 57,
+
+Jayabheri Enclave, Gachibowli
+
+Hyderabad-500032 INDIA</p>
+            <p><i className="fas fa-phone"></i> +91 40-35171118 </p>
+            <p><i className="fas fa-envelope"></i> info@vardaanGlobal.com</p>
           </address>
         </div>
       </div>
