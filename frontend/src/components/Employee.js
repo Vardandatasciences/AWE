@@ -65,6 +65,42 @@ const api = axios.create({
   }
 });
 
+const PieChart = ({ data, onSegmentClick, selectedSegment }) => {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  let currentAngle = 0;
+
+  return (
+    <svg viewBox="0 0 100 100">
+      {data.map((item, index) => {
+        if (item.value === 0) return null;
+       
+        const angle = (item.value / total) * 360;
+        const startAngle = currentAngle;
+        currentAngle += angle;
+       
+        const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
+        const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
+        const x2 = 50 + 40 * Math.cos(((startAngle + angle) * Math.PI) / 180);
+        const y2 = 50 + 40 * Math.sin(((startAngle + angle) * Math.PI) / 180);
+       
+        const largeArcFlag = angle > 180 ? 1 : 0;
+       
+        return (
+          <path
+            key={item.title}
+            d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
+            fill={item.color}
+            stroke="white"
+            strokeWidth="1"
+            className={selectedSegment === item.title ? 'selected' : ''}
+            onClick={() => onSegmentClick(item.title)}
+          />
+        );
+      })}
+    </svg>
+  );
+};
+
 // Add this near the top of your file after importing axios
 axios.interceptors.request.use(request => {
   console.log('Axios Request:', request);
@@ -545,6 +581,9 @@ const Employee = () => {
       }
     } catch (err) {
       console.error("Direct API test failed:", err);
+    }
+  };
+  
   // Add a function to navigate to the Tasks page
   const navigateToTasks = () => {
     navigate('/tasks');
@@ -1126,42 +1165,5 @@ const Employee = () => {
     </div>
   );
 };
- 
+
 export default Employee;
-
-const PieChart = ({ data, onSegmentClick, selectedSegment }) => {
-  const total = data.reduce((sum, item) => sum + item.value, 0);
-  let currentAngle = 0;
-
-  return (
-    <svg viewBox="0 0 100 100">
-      {data.map((item, index) => {
-        if (item.value === 0) return null;
-       
-        const angle = (item.value / total) * 360;
-        const startAngle = currentAngle;
-        currentAngle += angle;
-       
-        const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
-        const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
-        const x2 = 50 + 40 * Math.cos(((startAngle + angle) * Math.PI) / 180);
-        const y2 = 50 + 40 * Math.sin(((startAngle + angle) * Math.PI) / 180);
-       
-        const largeArcFlag = angle > 180 ? 1 : 0;
-       
-        return (
-          <path
-            key={item.title}
-            d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
-            fill={item.color}
-            stroke="white"
-            strokeWidth="1"
-            className={selectedSegment === item.title ? 'selected' : ''}
-            onClick={() => onSegmentClick(item.title)}
-          />
-        );
-      })}
-    </svg>
-  );
-};
-
