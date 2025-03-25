@@ -9,10 +9,18 @@ actors_bp = Blueprint('actors', __name__)
 def get_actors():
     try:
         actors = Actor.query.all()
-        return jsonify([actor.to_dict() for actor in actors])
+        # Use explicit serialization to ensure it works properly
+        actor_list = []
+        for actor in actors:
+            actor_dict = actor.to_dict()
+            actor_list.append(actor_dict)
+        
+        print("Returning actors:", actor_list)  # Debug log
+        return jsonify(actor_list)
     except Exception as e:
-        print("Error:", e)
-        return jsonify({"error": str(e)}), 500
+        print("Error in get_actors:", e)
+        traceback.print_exc()
+        return jsonify([]), 500  # Return empty array on error with 500 status
 
 @actors_bp.route('/actors_assign', methods=['GET'])
 def get_actors_assign():

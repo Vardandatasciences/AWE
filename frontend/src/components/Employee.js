@@ -56,6 +56,31 @@ styleSheet.type = "text/css";
 styleSheet.innerText = editFormStyles;
 document.head.appendChild(styleSheet);
  
+// Create a configured instance of axios
+const api = axios.create({
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+// Add this near the top of your file after importing axios
+axios.interceptors.request.use(request => {
+  console.log('Axios Request:', request);
+  return request;
+});
+
+axios.interceptors.response.use(
+  response => {
+    console.log('Axios Response:', response);
+    return response;
+  },
+  error => {
+    console.log('Axios Response Error:', error);
+    return Promise.reject(error);
+  }
+);
+
 const Employee = () => {
   const [data, setData] = useState([]);
   const [activeTab, setActiveTab] = useState("actors");
@@ -92,7 +117,17 @@ const Employee = () => {
     // Load both data types on component mount
     fetchData("actors");
     fetchData("customers");
+    
+    // Add debug log
+    console.log("Component mounted, initial data fetch started");
   }, []);
+ 
+  // Add a debugging effect to see when data changes
+  useEffect(() => {
+    console.log("Data updated:", data);
+    console.log("Active tab:", activeTab);
+    console.log("Current tab data:", data[activeTab]);
+  }, [data, activeTab]);
  
   // Add useEffect to handle progress animation
   useEffect(() => {
@@ -140,23 +175,62 @@ const Employee = () => {
     try {
       let response;
       if (cat === "actors") {
-        response = await axios.get("/actors");
-        setData(prevData => ({ ...prevData, actors: response.data }));
-       
+        console.log("Fetching actors data...");
+        // Use the configured axios instance
+        response = await api.get("/actors");
+        
+        // Log the raw response to debug
+        console.log("Raw actors response:", response);
+        
+        // Parse the response if it's a string
+        let responseData = response.data;
+        if (typeof responseData === 'string') {
+          try {
+            responseData = JSON.parse(responseData);
+            console.log("Parsed actors data:", responseData);
+          } catch (parseError) {
+            console.error("Error parsing actors data:", parseError);
+            responseData = [];
+          }
+        }
+        
+        // Make sure responseData is an array
+        responseData = Array.isArray(responseData) ? responseData : [];
+        console.log("Final actors data:", responseData);
+        
+        setData(prevData => ({ ...prevData, actors: responseData }));
+        
         // Calculate stats
-        const total = response.data.length;
-        const active = response.data.filter(item => item.status === "A").length;
+        const total = responseData.length;
+        const active = responseData.filter(item => item.status === "A").length;
         setStats(prev => ({
           ...prev,
           actors: { total, active, inactive: total - active }
         }));
       } else if (cat === "customers") {
-        response = await axios.get("/customers");
-        setData(prevData => ({ ...prevData, customers: response.data }));
-       
-        // Calculate stats
-        const total = response.data.length;
-        const active = response.data.filter(item => item.status === "A").length;
+        console.log("Fetching customers data...");
+        response = await api.get("/customers");
+        
+        console.log("Raw customers response:", response);
+        
+        let responseData = response.data;
+        if (typeof responseData === 'string') {
+          try {
+            responseData = JSON.parse(responseData);
+            console.log("Parsed customers data:", responseData);
+          } catch (parseError) {
+            console.error("Error parsing customers data:", parseError);
+            responseData = [];
+          }
+        }
+        
+        responseData = Array.isArray(responseData) ? responseData : [];
+        console.log("Final customers data:", responseData);
+        
+        setData(prevData => ({ ...prevData, customers: responseData }));
+        
+        const total = responseData.length;
+        const active = responseData.filter(item => item.status === "A").length;
         setStats(prev => ({
           ...prev,
           customers: { total, active, inactive: total - active }
@@ -164,6 +238,7 @@ const Employee = () => {
       }
     } catch (err) {
       console.error("Error fetching data:", err);
+      console.log("Error details:", err.response || err.message);
     } finally {
       setLoading(false);
     }
@@ -180,9 +255,20 @@ const Employee = () => {
  
   // Filter and search functionality
   const getFilteredData = () => {
-    const currentData = data[activeTab] || [];
-   
-    return currentData.filter(item => {
+    // Get the current data array safely
+    const currentTabData = data[activeTab];
+    
+    // Return empty array if no data exists for this tab
+    if (!currentTabData) {
+      console.log(`No data available for tab: ${activeTab}`);
+      return [];
+    }
+    
+    // Ensure we're working with an array
+    const dataArray = Array.isArray(currentTabData) ? currentTabData : [];
+    console.log(`Filtered data for ${activeTab}:`, dataArray.length, "items");
+    
+    return dataArray.filter(item => {
       const statusMatch = filterStatus === "all" ||
         (filterStatus === "active" && item.status === "A") ||
         (filterStatus === "inactive" && item.status === "O");
@@ -354,6 +440,24 @@ const Employee = () => {
     { type: 'edit', entity: 'customer', name: 'Acme Corp', time: '5 hours ago' },
     { type: 'delete', entity: 'employee', name: 'Jane Doe', time: '1 day ago' },
   ];
+ 
+  const testDirectApiCall = async () => {
+    try {
+      console.log("Testing direct API call to /actors...");
+      const response = await fetch('http://localhost:5000/actors');
+      const text = await response.text();
+      console.log("Raw response:", text);
+      
+      try {
+        const data = JSON.parse(text);
+        console.log("Parsed response:", data);
+      } catch (e) {
+        console.log("Could not parse as JSON");
+      }
+    } catch (err) {
+      console.error("Direct API test failed:", err);
+    }
+  };
  
   return (
     <div className="employee-container">
@@ -828,6 +932,10 @@ const Employee = () => {
           </div>
         </div>
       )}
+ 
+      <button onClick={testDirectApiCall} style={{marginTop: '20px'}}>
+        Test Direct API Call
+      </button>
     </div>
   );
 };
