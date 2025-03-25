@@ -51,7 +51,8 @@ Dont create venv
    npm install
 
 
-   npm install react@18 react-dom@18 @emotion/react @emotion/styled date-fns@2.29.3 @mui/material @mui/system @mui/styled-engine @mui/icons-material @mui/x-date-pickers
+   npm install react@18 react-dom@18 @emotion/react @emotion/styled date-fns@2.29.3 @mui/material @mui/system @mui/styled-engine @mui/icons-material @mui/x-date-pickers --save @fortawesome/react-fontawesome
+
 
 
    npm start
