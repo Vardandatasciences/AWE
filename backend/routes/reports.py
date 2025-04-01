@@ -15,6 +15,10 @@ from reportlab.lib.styles import getSampleStyleSheet
 import numpy as np
 import os
 import tempfile
+from reportlab.pdfgen import canvas
+
+
+import traceback
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -621,508 +625,185 @@ def get_employee_performance(actor_id):
 @reports_bp.route('/download-performance/<int:actor_id>', methods=['GET'])
 def download_employee_performance(actor_id):
     try:
-        # Get employee name
+        # Get the employee details
         actor = Actor.query.get_or_404(actor_id)
         
-        # Get all completed tasks with activity info
-        tasks = db.session.query(
-            Task, Activity.activity_name, Activity.standard_time
-        ).join(
-            Activity, Task.activity_id == Activity.activity_id
-        ).filter(
-            Task.actor_id == actor_id,
-            Task.status == 'completed'
-        ).all()
+        # Get related tasks
+        tasks = Task.query.filter_by(actor_id=actor_id).all()
         
-        # Create a PDF file
+        # Create a figure for the plot
+        plt.figure(figsize=(10, 8))
+        
+        # Create a PDF
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
-        elements = []
+        pdf = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
         
         # Add title
-        styles = getSampleStyleSheet()
-        title = Paragraph(f"Employee Performance Report: {actor.actor_name}", styles['Heading1'])
-        elements.append(title)
-        elements.append(Spacer(1, 12))
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(50, height - 50, f"Performance Report: {actor.actor_name}")
+        pdf.setFont("Helvetica", 12)
+        pdf.drawString(50, height - 70, f"Generated on: {datetime.now().strftime('%Y-%m-%d')}")
         
-        # Add date
-        date_text = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['Normal'])
-        elements.append(date_text)
-        elements.append(Spacer(1, 12))
+        # Add a horizontal line
+        pdf.line(50, height - 80, width - 50, height - 80)
         
-        # Check if we have any data
-        if not tasks:
-            # No data case
-            no_data = Paragraph("No completed tasks found for this employee.", styles['Normal'])
-            elements.append(no_data)
-            doc.build(elements)
-            
-            buffer.seek(0)
-            current_date = datetime.now().strftime("%Y-%m-%d")
-            file_name = f"{current_date}_{actor.actor_name}_Performance.pdf"
-            
-            return send_file(
-                buffer,
-                as_attachment=True,
-                download_name=file_name,
-                mimetype="application/pdf"
-            )
-        
-        # Convert to list format for PDF
+        # Prepare task data
+        statuses = {'ON-TIME': 0, 'DELAY': 0, 'EARLY': 0}
         task_data = []
-        for task, activity_name, standard_time in tasks:
-            # Safely handle None values
-            time_taken = task.time_taken if task.time_taken is not None else 0
-            std_time = standard_time if standard_time is not None else 0
-            
-            # Determine status safely
-            if time_taken == std_time:
-                status = "ON-TIME"
-            elif time_taken < std_time:
-                status = "EARLY"
-            else:
-                status = "DELAY"
+        
+        for task in tasks:
+            if task.status == 'D':  # Only include completed tasks
+                activity = Activity.query.get(task.activity_id) if task.activity_id else None
+                activity_name = activity.activity_name if activity else "Unknown Activity"
                 
-            task_data.append({
-                "Activity ID": task.activity_id,
-                "Activity Name": activity_name,
-                "Task ID": task.task_id,
-                "Date of Completion": task.actual_date.strftime('%Y-%m-%d') if task.actual_date else "N/A",
-                "Time Taken": time_taken,
-                "Standard Time": std_time,
-                "Status": status,
-                "Activity Type": task.activity_type if hasattr(task, 'activity_type') and task.activity_type else "Unknown",
-                "Due Date": task.due_date.strftime('%Y-%m-%d') if hasattr(task, 'due_date') and task.due_date else "N/A"
-            })
+                # Calculate performance metrics
+                completion_date = task.actual_end_date
+                due_date = task.due_date
+                
+                if completion_date and due_date:
+                    time_taken = (completion_date - task.actual_start_date).days if task.actual_start_date else 0
+                    standard_time = activity.standard_time if activity and activity.standard_time else 0
+                    
+                    # Determine status
+                    if completion_date > due_date:
+                        status = 'DELAY'
+                    elif completion_date.date() == due_date.date():
+                        status = 'ON-TIME'
+                    else:
+                        status = 'EARLY'
+                    
+                    statuses[status] += 1
+                    
+                    task_data.append({
+                        'activity_id': task.activity_id,
+                        'activity_name': activity_name,
+                        'task_id': task.task_id,
+                        'completion_date': completion_date.strftime('%Y-%m-%d'),
+                        'time_taken': time_taken,
+                        'standard_time': standard_time,
+                        'status': status
+                    })
         
-        # Get headers from the first dictionary
-        headers = list(task_data[0].keys())
-        table_data = [headers]  # First row is headers
+        # Add summary information
+        pdf.setFont("Helvetica-Bold", 14)
+        pdf.drawString(50, height - 110, "Performance Summary")
         
-        # Add data rows
-        for item in task_data:
-            table_data.append([str(item[col]) for col in headers])
+        pdf.setFont("Helvetica", 12)
+        total_tasks = sum(statuses.values())
+        y_position = height - 130
         
-        # Create the table
-        table = Table(table_data)
-        
-        # Add style
-        style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
-        ])
-        
-        # Add row colors based on status
-        for i, row in enumerate(task_data):
-            if i < len(table_data) - 1:  # Skip header row
-                status = row["Status"]
-                if status == "EARLY":
-                    style.add('BACKGROUND', (0, i+1), (-1, i+1), colors.lightgreen)
-                elif status == "DELAY":
-                    style.add('BACKGROUND', (0, i+1), (-1, i+1), colors.lightcoral)
-        
-        table.setStyle(style)
-        elements.append(table)
-        
-        # Create temporary files for charts
-        chart_files = []
-        
-        # 1. Original Pie Chart for Status Distribution
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-            # Count statuses
-            status_counts = {"EARLY": 0, "ON-TIME": 0, "DELAY": 0}
-            for item in task_data:
-                status_counts[item["Status"]] += 1
+        if total_tasks > 0:
+            pdf.drawString(50, y_position, f"Total Completed Tasks: {total_tasks}")
+            y_position -= 20
+            pdf.drawString(50, y_position, f"On-Time: {statuses['ON-TIME']} ({int(statuses['ON-TIME']/total_tasks*100)}%)")
+            y_position -= 20
+            pdf.drawString(50, y_position, f"Early: {statuses['EARLY']} ({int(statuses['EARLY']/total_tasks*100)}%)")
+            y_position -= 20
+            pdf.drawString(50, y_position, f"Delayed: {statuses['DELAY']} ({int(statuses['DELAY']/total_tasks*100)}%)")
+        else:
+            pdf.drawString(50, y_position, "No completed tasks found")
             
-            # Create pie chart
+        # Create a pie chart image
+        if total_tasks > 0:
+            # Create the figure and save it to a temporary file
             plt.figure(figsize=(6, 6))
-            labels = list(status_counts.keys())
-            sizes = list(status_counts.values())
-            colors_list = ['lightgreen', 'lightskyblue', 'lightcoral']
+            plt.pie(statuses.values(), labels=statuses.keys(), autopct='%1.1f%%', colors=['#3498db', '#1a5e2d', '#e74c3c'])
+            plt.title('Task Completion Status')
             
-            # Only include non-zero values
-            non_zero_labels = []
-            non_zero_sizes = []
-            non_zero_colors = []
-            
-            for i, size in enumerate(sizes):
-                if size > 0:
-                    non_zero_labels.append(labels[i])
-                    non_zero_sizes.append(size)
-                    non_zero_colors.append(colors_list[i])
-            
-            if non_zero_sizes:  # Only create pie chart if there's data
-                plt.pie(non_zero_sizes, labels=non_zero_labels, colors=non_zero_colors, autopct='%1.1f%%', startangle=90)
-                plt.axis('equal')
-                plt.title('Task Completion Status')
-                plt.savefig(tmp.name, format='png', dpi=300, bbox_inches='tight')
-                plt.close()
-                
-                # Add chart to PDF
-                elements.append(Spacer(1, 24))
-                chart_title = Paragraph("Task Completion Status Distribution", styles['Heading2'])
-                elements.append(chart_title)
-                elements.append(Spacer(1, 12))
-                elements.append(Image(tmp.name, width=300, height=300))
-                chart_files.append(tmp.name)
-            else:
-                # No data for pie chart
-                elements.append(Spacer(1, 24))
-                no_chart_data = Paragraph("No status distribution data available for pie chart.", styles['Normal'])
-                elements.append(no_chart_data)
-            
-        # 2. Status Distribution Donut Chart
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-            # Count statuses
-            status_counts = {"EARLY": 0, "ON-TIME": 0, "DELAY": 0}
-            for item in task_data:
-                status_counts[item["Status"]] += 1
-            
-            # Create donut chart
-            plt.figure(figsize=(6, 6))
-            labels = list(status_counts.keys())
-            sizes = list(status_counts.values())
-            colors_list = ['#2ecc71', '#3498db', '#e74c3c']  # Green, Blue, Red
-            
-            # Only include non-zero values
-            non_zero_labels = []
-            non_zero_sizes = []
-            non_zero_colors = []
-            
-            for i, size in enumerate(sizes):
-                if size > 0:
-                    non_zero_labels.append(labels[i])
-                    non_zero_sizes.append(size)
-                    non_zero_colors.append(colors_list[i])
-            
-            if non_zero_sizes:  # Only create donut chart if there's data
-                plt.pie(non_zero_sizes, labels=non_zero_labels, colors=non_zero_colors, 
-                       autopct='%1.1f%%', startangle=90, wedgeprops=dict(width=0.5))
-                plt.axis('equal')
-                plt.title('Task Status Distribution (Donut Chart)')
-                plt.savefig(tmp.name, format='png', dpi=300, bbox_inches='tight')
-                plt.close()
-                
-                # Add chart to PDF
-                elements.append(Spacer(1, 24))
-                chart_title = Paragraph("Task Status Distribution (Donut Chart)", styles['Heading2'])
-                elements.append(chart_title)
-                elements.append(Spacer(1, 12))
-                elements.append(Image(tmp.name, width=300, height=300))
-                chart_files.append(tmp.name)
-        
-        # 3. Performance Variance Chart
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-            plt.figure(figsize=(10, 6))
-            
-            # Calculate variance percentages
-            task_ids = []
-            variances = []
-            bar_colors = []
-            
-            for item in task_data:
-                task_ids.append(f"Task {item['Task ID']}")
-                std_time = item["Standard Time"]
-                time_taken = item["Time Taken"]
-                
-                if std_time > 0:  # Avoid division by zero
-                    variance_pct = ((std_time - time_taken) / std_time) * 100
-                else:
-                    variance_pct = 0
-                
-                variances.append(variance_pct)
-                
-                # Color based on variance
-                if variance_pct > 0:
-                    bar_colors.append('#2ecc71')  # Green for positive variance (faster)
-                elif variance_pct < 0:
-                    bar_colors.append('#e74c3c')  # Red for negative variance (slower)
-                else:
-                    bar_colors.append('#3498db')  # Blue for no variance
-            
-            # Create bar chart
-            plt.figure(figsize=(10, 6))
-            bars = plt.bar(task_ids, variances, color=bar_colors)
-            
-            # Add a horizontal line at y=0
-            plt.axhline(y=0, color='black', linestyle='-', alpha=0.3)
-            
-            # Add labels and title
-            plt.xlabel('Tasks')
-            plt.ylabel('Variance from Standard Time (%)')
-            plt.title('Performance Variance by Task')
-            plt.xticks(rotation=45, ha='right')
-            
-            # Add value labels on bars
-            for bar in bars:
-                height = bar.get_height()
-                plt.text(bar.get_x() + bar.get_width()/2., 
-                        height + (5 if height >= 0 else -15),
-                        f'{height:.1f}%',
-                        ha='center', va='bottom' if height >= 0 else 'top')
-            
-            plt.tight_layout()
-            plt.savefig(tmp.name, format='png', dpi=300, bbox_inches='tight')
+            # Save the pie chart to a temp file
+            temp_img = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+            plt.savefig(temp_img.name, bbox_inches='tight')
             plt.close()
             
-            # Add chart to PDF
-            elements.append(Spacer(1, 24))
-            chart_title = Paragraph("Performance Variance by Task", styles['Heading2'])
-            elements.append(chart_title)
-            elements.append(Spacer(1, 12))
-            elements.append(Image(tmp.name, width=500, height=300))
-            chart_files.append(tmp.name)
+            # Add the chart image to the PDF
+            pdf.drawImage(temp_img.name, width/2 - 150, y_position - 300, width=300, height=300)
+            
+            # Clean up the temp file
+            temp_img.close()
+            os.unlink(temp_img.name)
         
-        # 4. Task Type Performance Comparison
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-            # Group by activity type
-            activity_types = {}
-            
-            for item in task_data:
-                act_type = item["Activity Type"]
-                if act_type not in activity_types:
-                    activity_types[act_type] = {
-                        "time_taken": [],
-                        "standard_time": []
-                    }
-                
-                activity_types[act_type]["time_taken"].append(item["Time Taken"])
-                activity_types[act_type]["standard_time"].append(item["Standard Time"])
-            
-            if activity_types:
-                # Calculate averages for each type
-                types = []
-                avg_time_taken = []
-                avg_standard_time = []
-                
-                for act_type, data in activity_types.items():
-                    if data["time_taken"]:  # Make sure there's data
-                        types.append(act_type)
-                        avg_time_taken.append(sum(data["time_taken"]) / len(data["time_taken"]))
-                        avg_standard_time.append(sum(data["standard_time"]) / len(data["standard_time"]))
-                
-                # Create grouped bar chart
-                plt.figure(figsize=(10, 6))
-                x = np.arange(len(types))
-                width = 0.35
-                
-                fig, ax = plt.subplots(figsize=(10, 6))
-                rects1 = ax.bar(x - width/2, avg_time_taken, width, label='Avg Time Taken', color='#3498db')
-                rects2 = ax.bar(x + width/2, avg_standard_time, width, label='Avg Standard Time', color='#e74c3c')
-                
-                # Add labels and title
-                ax.set_xlabel('Activity Types')
-                ax.set_ylabel('Time (hours)')
-                ax.set_title('Performance by Activity Type')
-                ax.set_xticks(x)
-                ax.set_xticklabels(types)
-                ax.legend()
-                
-                # Add value labels on bars
-                def autolabel(rects):
-                    for rect in rects:
-                        height = rect.get_height()
-                        ax.annotate(f'{height:.1f}',
-                                    xy=(rect.get_x() + rect.get_width() / 2, height),
-                                    xytext=(0, 3),  # 3 points vertical offset
-                                    textcoords="offset points",
-                                    ha='center', va='bottom')
-                
-                autolabel(rects1)
-                autolabel(rects2)
-                
-                fig.tight_layout()
-                plt.savefig(tmp.name, format='png', dpi=300, bbox_inches='tight')
-                plt.close()
-                
-                # Add chart to PDF
-                elements.append(Spacer(1, 24))
-                chart_title = Paragraph("Performance by Activity Type", styles['Heading2'])
-                elements.append(chart_title)
-                elements.append(Spacer(1, 12))
-                elements.append(Image(tmp.name, width=500, height=300))
-                chart_files.append(tmp.name)
+        # Add task table
+        y_position -= 320  # Move down past the chart
         
-        # 5. Efficiency Timeline
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-            # Prepare data for timeline
-            dates = []
-            efficiency_ratios = []
+        if task_data:
+            # Add table header
+            pdf.setFont("Helvetica-Bold", 10)
+            headers = ["Task ID", "Activity", "Completion Date", "Status"]
+            col_widths = [60, 200, 100, 80]
+            x_positions = [50]
+            for i in range(len(col_widths) - 1):
+                x_positions.append(x_positions[-1] + col_widths[i])
             
-            # Filter out items with no completion date
-            dated_tasks = [item for item in task_data if item["Date of Completion"] != "N/A"]
+            for i, header in enumerate(headers):
+                pdf.drawString(x_positions[i], y_position, header)
             
-            # Sort by completion date
-            dated_tasks.sort(key=lambda x: x["Date of Completion"])
+            y_position -= 15
+            pdf.line(50, y_position, width - 50, y_position)
+            y_position -= 15
             
-            for item in dated_tasks:
-                if item["Standard Time"] > 0:  # Avoid division by zero
-                    dates.append(datetime.strptime(item["Date of Completion"], '%Y-%m-%d'))
-                    efficiency_ratio = item["Time Taken"] / item["Standard Time"]
-                    efficiency_ratios.append(efficiency_ratio)
-            
-            if dates and efficiency_ratios:
-                plt.figure(figsize=(10, 6))
+            # Add table rows
+            pdf.setFont("Helvetica", 10)
+            for task in task_data:
+                # Check if we need a new page
+                if y_position < 50:
+                    pdf.showPage()
+                    pdf.setFont("Helvetica-Bold", 12)
+                    pdf.drawString(50, height - 50, f"Performance Report: {actor.actor_name} (continued)")
+                    y_position = height - 70
+                    
+                    # Re-add the headers
+                    pdf.setFont("Helvetica-Bold", 10)
+                    for i, header in enumerate(headers):
+                        pdf.drawString(x_positions[i], y_position, header)
+                    
+                    y_position -= 15
+                    pdf.line(50, y_position, width - 50, y_position)
+                    y_position -= 15
+                    pdf.setFont("Helvetica", 10)
                 
-                # Plot efficiency ratio (lower is better)
-                plt.plot(dates, efficiency_ratios, marker='o', linestyle='-', color='#3498db')
+                pdf.drawString(x_positions[0], y_position, str(task['task_id']))
                 
-                # Add a horizontal line at y=1 (where time taken equals standard time)
-                plt.axhline(y=1, color='red', linestyle='--', alpha=0.7, label='Standard Time')
+                # Handle long activity names
+                activity_name = task['activity_name']
+                if len(activity_name) > 30:
+                    activity_name = activity_name[:27] + "..."
+                pdf.drawString(x_positions[1], y_position, activity_name)
                 
-                # Add shaded regions for good/bad performance
-                plt.fill_between(dates, 0, 1, alpha=0.2, color='green', label='Faster than Standard')
-                plt.fill_between(dates, 1, max(efficiency_ratios) + 0.5, alpha=0.2, color='red', label='Slower than Standard')
+                pdf.drawString(x_positions[2], y_position, task['completion_date'])
                 
-                # Add labels and title
-                plt.xlabel('Completion Date')
-                plt.ylabel('Efficiency Ratio (Time Taken / Standard Time)')
-                plt.title('Efficiency Timeline')
-                plt.legend()
+                # Color-code the status
+                if task['status'] == 'DELAY':
+                    pdf.setFillColorRGB(231/255, 76/255, 60/255)  # Red for delay
+                elif task['status'] == 'ON-TIME':
+                    pdf.setFillColorRGB(52/255, 152/255, 219/255)  # Blue for on-time
+                else:
+                    pdf.setFillColorRGB(26/255, 94/255, 45/255)  # Green for early
                 
-                # Format x-axis as dates
-                plt.gcf().autofmt_xdate()
+                pdf.drawString(x_positions[3], y_position, task['status'])
+                pdf.setFillColorRGB(0, 0, 0)  # Reset to black
                 
-                plt.tight_layout()
-                plt.savefig(tmp.name, format='png', dpi=300, bbox_inches='tight')
-                plt.close()
-                
-                # Add chart to PDF
-                elements.append(Spacer(1, 24))
-                chart_title = Paragraph("Efficiency Timeline", styles['Heading2'])
-                elements.append(chart_title)
-                elements.append(Spacer(1, 12))
-                elements.append(Image(tmp.name, width=500, height=300))
-                chart_files.append(tmp.name)
+                y_position -= 15
+        else:
+            pdf.drawString(50, y_position, "No task data available")
         
-        # 6. Timeline of Due Dates
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-            # Filter tasks with due dates
-            tasks_with_due_dates = [item for item in task_data if item["Due Date"] != "N/A"]
-            
-            if tasks_with_due_dates:
-                # Parse dates and prepare data
-                for task in tasks_with_due_dates:
-                    try:
-                        task["parsed_due_date"] = datetime.strptime(task["Due Date"], '%Y-%m-%d')
-                    except (ValueError, TypeError):
-                        # Skip this task if we can't parse the date
-                        continue
-                
-                # Continue only if we have valid parsed dates
-                if any("parsed_due_date" in task for task in tasks_with_due_dates):
-                    # Sort by due date
-                    tasks_with_due_dates = [task for task in tasks_with_due_dates if "parsed_due_date" in task]
-                    tasks_with_due_dates.sort(key=lambda x: x["parsed_due_date"])
-                    
-                    # Create figure
-                    plt.figure(figsize=(10, 6))
-                    
-                    # Create categories for current month, next month, and later
-                    current_date = datetime.now()
-                    current_month = current_date.replace(day=1)
-                    next_month = (current_month.replace(day=28) + timedelta(days=4)).replace(day=1)
-                    
-                    # Function to categorize tasks
-                    def categorize_due_date(due_date):
-                        if due_date < current_date:
-                            return "Overdue"
-                        elif due_date < current_month.replace(day=28):
-                            return "This Month"
-                        elif due_date < next_month.replace(day=28):
-                            return "Next Month"
-                        else:
-                            return "Future"
-                    
-                    # Group tasks by category
-                    categories = {"Overdue": 0, "This Month": 0, "Next Month": 0, "Future": 0}
-                    
-                    for task in tasks_with_due_dates:
-                        category = categorize_due_date(task["parsed_due_date"])
-                        categories[category] += 1
-                    
-                    # Define colors for the categories
-                    category_colors = {
-                        "Overdue": '#e74c3c',     # Red
-                        "This Month": '#f39c12',  # Orange
-                        "Next Month": '#3498db',  # Blue
-                        "Future": '#2ecc71'       # Green
-                    }
-                    
-                    # Create bar chart
-                    cat_names = list(categories.keys())
-                    cat_values = list(categories.values())
-                    bar_colors = [category_colors[cat] for cat in cat_names]
-                    
-                    plt.bar(cat_names, cat_values, color=bar_colors)
-                    
-                    # Add value labels
-                    for i, v in enumerate(cat_values):
-                        plt.text(i, v + 0.5, str(v), ha='center')
-                    
-                    plt.ylabel('Number of Tasks')
-                    plt.title('Tasks by Due Date Category')
-                    plt.tight_layout()
-                    plt.savefig(tmp.name, format='png', dpi=300, bbox_inches='tight')
-                    plt.close()
-                    
-                    # Add chart to PDF
-                    elements.append(Spacer(1, 24))
-                    chart_title = Paragraph("Tasks by Due Date Category", styles['Heading2'])
-                    elements.append(chart_title)
-                    elements.append(Spacer(1, 12))
-                    elements.append(Image(tmp.name, width=500, height=300))
-                    chart_files.append(tmp.name)
+        # Finalize the PDF
+        pdf.showPage()
+        pdf.save()
         
-        # Build the PDF
-        doc.build(elements)
-        
-        # Clean up temporary files
-        for file_path in chart_files:
-            if os.path.exists(file_path):
-                os.unlink(file_path)
-        
-        # Return the PDF
         buffer.seek(0)
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        file_name = f"{current_date}_{actor.actor_name}_Performance.pdf"
         
         return send_file(
             buffer,
             as_attachment=True,
-            download_name=file_name,
+            download_name=f"{datetime.now().strftime('%Y-%m-%d')}_{actor.actor_name}_Performance.pdf",
             mimetype="application/pdf"
         )
+        
     except Exception as e:
         print(f"Error generating PDF: {str(e)}")
-        
-        # Create a simple error PDF
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        elements = []
-        
-        styles = getSampleStyleSheet()
-        title = Paragraph("Error Report", styles['Heading1'])
-        elements.append(title)
-        elements.append(Spacer(1, 12))
-        
-        error_msg = Paragraph(f"An error occurred while generating the report: {str(e)}", styles['Normal'])
-        elements.append(error_msg)
-        
-        doc.build(elements)
-        buffer.seek(0)
-        
-        return send_file(
-            buffer,
-            as_attachment=True,
-            download_name="error_report.pdf",
-            mimetype="application/pdf"
-        )
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 @reports_bp.route('/download-customer-report/<int:customer_id>', methods=['GET'])
 def download_customer_report(customer_id):

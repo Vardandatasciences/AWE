@@ -522,31 +522,58 @@ const Employee = () => {
     setSelectedEmployee(employee);
     try {
       const response = await axios.get(`/employee-performance/${employee.actor_id}`);
-      setPerformanceData(response.data);
+      // Ensure performanceData is always an array
+      setPerformanceData(Array.isArray(response.data) ? response.data : []);
       setShowReportModal(true);
     } catch (error) {
       console.error("Error fetching performance data:", error);
+      // Initialize with empty array on error
+      setPerformanceData([]);
+      alert("Failed to load performance data. Please try again.");
     }
   };
 
   const handleDownloadReport = async (employee) => {
     try {
-      const response = await axios.get(`/download-performance/${employee.actor_id}`, {
-        responseType: 'blob'
-      });
-     
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-     
-      const currentDate = new Date().toISOString().split('T')[0];
-      link.setAttribute('download', `${currentDate}_${employee.actor_name}_Performance.pdf`);
-     
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-     
-      window.URL.revokeObjectURL(url);
+      // Show loading indicator or message
+      alert("Generating report, please wait...");
+      
+      // Use a direct browser window approach for reliable PDF downloads
+      const url = `/download-performance/${employee.actor_id}`;
+      
+      // Open in a new tab first
+      const newTab = window.open(url, '_blank');
+      
+      // If popup blocked, fallback to the blob approach
+      if (!newTab || newTab.closed || typeof newTab.closed === 'undefined') {
+        console.log("Popup blocked, trying alternative download method...");
+        
+        const response = await axios.get(url, {
+          responseType: 'blob'
+        });
+        
+        // Check if we got a valid PDF
+        if (response.headers['content-type'] === 'application/pdf') {
+          const blob = new Blob([response.data], { type: 'application/pdf' });
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          
+          const currentDate = new Date().toISOString().split('T')[0];
+          link.setAttribute('download', `${currentDate}_${employee.actor_name}_Performance.pdf`);
+          
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          // Clean up
+          setTimeout(() => {
+            window.URL.revokeObjectURL(downloadUrl);
+          }, 100);
+        } else {
+          throw new Error("The server did not return a PDF file");
+        }
+      }
     } catch (error) {
       console.error('Error downloading report:', error);
       alert('Failed to download report. Please try again.');
@@ -1042,7 +1069,7 @@ const Employee = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {performanceData.map(task => (
+                    {Array.isArray(performanceData) && performanceData.map(task => (
                       <tr
                         key={task.task_id}
                         className={selectedStatus === task.status ? 'highlighted' : ''}
@@ -1053,7 +1080,7 @@ const Employee = () => {
                         <td>{task.completion_date}</td>
                         <td>{task.time_taken}</td>
                         <td>{task.standard_time}</td>
-                        <td className={`status-${task.status.toLowerCase()}`}>
+                        <td className={`status-${task.status?.toLowerCase()}`}>
                           {task.status}
                         </td>
                       </tr>
@@ -1068,17 +1095,17 @@ const Employee = () => {
                     data={[
                       {
                         title: 'ON-TIME',
-                        value: performanceData.filter(t => t.status === 'ON-TIME').length,
+                        value: Array.isArray(performanceData) ? performanceData.filter(t => t.status === 'ON-TIME').length : 0,
                         color: '#3498db'
                       },
                       {
                         title: 'EARLY',
-                        value: performanceData.filter(t => t.status === 'EARLY').length,
+                        value: Array.isArray(performanceData) ? performanceData.filter(t => t.status === 'EARLY').length : 0,
                         color: '#1a5e2d'
                       },
                       {
                         title: 'DELAY',
-                        value: performanceData.filter(t => t.status === 'DELAY').length,
+                        value: Array.isArray(performanceData) ? performanceData.filter(t => t.status === 'DELAY').length : 0,
                         color: '#e74c3c'
                       }
                     ]}
