@@ -1706,7 +1706,6 @@
   }
 }
 
-<<<<<<< HEAD
 /* Add these styles for the client dropdown */
 .client-dropdown {
   position: relative;
@@ -2000,7 +1999,8 @@
   border-radius: 5px;
   border: none;
   font-size: 1em;
-=======
+
+}
 /* Add Subtask Button */
 .subtask-control {
   margin: 15px 0;
@@ -2015,12 +2015,10 @@
   padding: 8px 16px;
   border-radius: 5px;
   font-weight: 500;
->>>>>>> muni_04
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
-<<<<<<< HEAD
   transition: all 0.3s ease;
 }
 
@@ -2109,7 +2107,6 @@
 
 .modal-body {
   padding: 20px;
-=======
   transition: var(--transition);
 }
 
@@ -2458,6 +2455,5 @@
   .workflow-line {
     width: 50px;
   }
->>>>>>> muni_04
 }
 

@@ -834,11 +834,12 @@ def get_client_tasks(client_id):
         # Query to get all tasks for this customer
         tasks = Task.query.filter_by(customer_name=customer.customer_name).all()
         
-        # Extract unique activity IDs
+        # Extract unique activity IDs and ensure we return an array
         assigned_activities = list(set([str(task.activity_id) for task in tasks]))
         
         print(f"Found assigned activities for customer {customer.customer_name}: {assigned_activities}")
         
+        # Return a properly formatted JSON array
         return jsonify(assigned_activities)
     except Exception as e:
         print(f"Error fetching client tasks: {e}")
