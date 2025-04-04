@@ -687,21 +687,21 @@ function UserAnalysis() {
                       </div>
                     </div>
                   </div>
-                  <div className="table-section" style={{ height: '300px', overflow: 'hidden' }}>
+                  <div className="table-section" style={{ height: 'auto', overflow: 'visible' }}>
                     <div className="table-container" style={{ 
-                      height: '100%',
+                      height: 'auto',
                       display: 'flex',
                       flexDirection: 'column'
                     }}>
                       <h4>My Task Details {selectedFilter.value ? ` - ${selectedFilter.value}` : ''}</h4>
                       <div className="table-wrapper" style={{ 
                         flexGrow: 1,
-                        overflow: 'auto',
-                        maxHeight: 'calc(100% - 40px)'
+                        overflow: 'visible',
+                        maxHeight: 'none'
                       }}>
                         {tableData.length > 0 ? (
                           <table>
-                            <thead style={{ position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
+                            <thead>
                               <tr>
                                 <th>Task Name</th>
                                 <th>Due Date</th>

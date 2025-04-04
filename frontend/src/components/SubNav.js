@@ -21,8 +21,12 @@ const SubNav = () => {
         {/* Show everything if Admin */}
         {isAdmin && (
           <>
-            <NavLink to="/employee" className={({ isActive }) => isActive ? 'active' : ''}>
-              <i className="fas fa-users"></i> Stakeholders
+            <NavLink to="/auditors" className={({ isActive }) => isActive ? 'active' : ''}>
+              <i className="fas fa-user-tie"></i> Auditors
+            </NavLink>
+
+            <NavLink to="/clients" className={({ isActive }) => isActive ? 'active' : ''}>
+              <i className="fas fa-building"></i> Clients
             </NavLink>
 
             <NavLink to="/activities" className={({ isActive }) => isActive ? 'active' : ''}>
@@ -44,14 +48,12 @@ const SubNav = () => {
           <i className="fas fa-chart-line"></i> Analysis
         </NavLink>
 
-
         {/* Show Diary only for Users (not Admins) */}
         {!isAdmin && (
           <NavLink to="/diary" className={({ isActive }) => isActive ? 'active' : ''}>
             <i className="fas fa-book"></i> Diary
           </NavLink>
         )}
-
       </nav>
     </div>
   );

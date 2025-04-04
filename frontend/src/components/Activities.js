@@ -76,10 +76,39 @@ const Activities = () => {
     const [activitiesPerPage] = useState(12);
     const [totalPages, setTotalPages] = useState(1);
 
+    // Add these new state variables at the beginning of your Activities component
+    const [clients, setClients] = useState([]);
+    const [selectedClient, setSelectedClient] = useState('');
+    const [showActivities, setShowActivities] = useState(false);
+
+    // Add this new state variable at the beginning of your Activities component
+    const [assignedActivities, setAssignedActivities] = useState([]);
+
+    // Add this state variable near your other state declarations
+    const [assignmentFilter, setAssignmentFilter] = useState('all'); // 'all', 'assigned', 'unassigned'
+
+    // First, add a state to store the selected client name
+    const [selectedClientName, setSelectedClientName] = useState('');
+
+    // Add new state for notifications
+    const [notification, setNotification] = useState(null);
+
+    // Add this state for success popup
+    const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+
+    // Add this state for success message
+    const [successMessage, setSuccessMessage] = useState(null);
+
+    // Add state for delete confirmation modal
+    const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
     useEffect(() => {
         fetchActivities();
         // fetchGroups();
         fetchEmployees();
+        fetchClients();
     }, []);
 
     useEffect(() => {
@@ -159,7 +188,6 @@ const Activities = () => {
             if (editingActivity) {
                 response = await axios.put('/update_activity', formData);
                 if (response.data.activity) {
-                    // Update the activity in the local state
                     setActivities(activities.map(activity => 
                         activity.activity_id === response.data.activity.activity_id 
                             ? response.data.activity 
@@ -168,12 +196,16 @@ const Activities = () => {
                 }
             } else {
                 response = await axios.post('/add_activity', formData);
-                // Refresh activities list after adding
-                fetchActivities();
+                const newActivity = response.data.activity;
+                if (newActivity) {
+                    setActivities([newActivity, ...activities]);
+                } else {
+                    fetchActivities();
+                }
             }
             
             // Show success message
-            alert(response.data.message);
+            setSuccessMessage("Activity added successfully");
             
             // Reset form and close modal
             setShowForm(false);
@@ -190,6 +222,11 @@ const Activities = () => {
                 activity_type: "R",
                 status: "A"
             });
+            
+            // Clear success message after 3 seconds
+            setTimeout(() => {
+                setSuccessMessage(null);
+            }, 3000);
             
             // If we're in the workflow process, mark this step as completed
             if (isInWorkflow) {
@@ -222,28 +259,32 @@ const Activities = () => {
         setShowForm(true);
     };
 
-    const handleDelete = async (activityId) => {
-        if (!window.confirm('Are you sure you want to delete this activity?')) {
-            return;
-        }
+    const handleDelete = (activity) => {
+        setItemToDelete(activity);
+        setShowDeleteConfirmModal(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!itemToDelete) return;
         
+        setIsDeleting(true);
         try {
-            const response = await axios.delete(`/delete_activity/${activityId}`);
-            
-            if (response.data.status === 'success') {
-                // Remove the activity from the local state
-                setActivities(activities.filter(activity => activity.activity_id !== activityId));
-                // Show success message
-                alert('Activity deleted successfully');
+            const response = await fetch(`/api/activities/${itemToDelete.id}`, {
+                method: 'DELETE',
+            });
+
+            if (response.ok) {
+                setActivities(activities.filter(activity => activity.id !== itemToDelete.id));
+                setSuccessMessage('Activity deleted successfully');
+                setShowDeleteConfirmModal(false);
+                setItemToDelete(null);
+            } else {
+                console.error('Failed to delete activity');
             }
         } catch (error) {
-            if (error.response && error.response.data) {
-                // Show the specific error message from the backend
-                alert(error.response.data.message || 'Failed to delete activity');
-            } else {
-                alert('An error occurred while deleting the activity');
-            }
             console.error('Error deleting activity:', error);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -260,44 +301,24 @@ const Activities = () => {
     };
 
     const handleAssignSuccess = (response) => {
-        // Show success message with email notification status
-        const emailStatus = response.email_sent 
-            ? 'Email notification sent!' 
-            : 'Assignment successful, but email notification failed.';
-        
-        const calendarStatus = response.calendar_added
-            ? 'Added to Google Calendar.' 
-            : '';
-            
-        const reminderStatus = response.reminders_scheduled
-            ? 'Reminders scheduled.' 
-            : '';
-            
-        setAssignSuccess({
-            type: 'success',
-            message: `Activity assigned successfully! ${emailStatus} ${calendarStatus} ${reminderStatus}`
-        });
-        
-        // Refresh the mappings
-        fetchActivityMappings(assigningActivityId);
-        
-        // Close the form
         setShowAssignForm(false);
         
-        // If we're in the employee assignment step of the workflow, mark it as completed
-        if (isInEmployeeAssignmentStep) {
-            completeStep(3);
-            
-            // Show the workflow guide again to show completion
-            setTimeout(() => {
-                showWorkflowGuide();
-            }, 1000);
-        }
+        // Show success notification
+        setNotification({
+            type: 'success',
+            message: 'Task assigned successfully!'
+        });
         
-        // Clear the success message after 5 seconds
-        setTimeout(() => {
-            setAssignSuccess(null);
-        }, 5000);
+        // Update assigned activities
+        const newClientId = response.customer_id || selectedClient;
+        fetchAssignedActivities(newClientId);
+    };
+
+    const handleAssignError = (error) => {
+        setNotification({
+            type: 'error',
+            message: error.response?.data?.message || 'Error assigning task. Please try again.'
+        });
     };
 
     const closeAssignModal = () => {
@@ -312,13 +333,55 @@ const Activities = () => {
         setSelectedActivity(null);
     };
 
+    const fetchClients = async () => {
+        try {
+            const response = await axios.get('/customers'); // Changed from '/clients' to '/customers'
+            setClients(response.data);
+        } catch (error) {
+            console.error('Error fetching clients:', error);
+        }
+    };
+
+    const fetchAssignedActivities = async (clientId) => {
+        try {
+            const response = await axios.get(`/tasks/client/${clientId}`);
+            console.log("Tasks response:", response.data);
+            
+            // Convert all activity IDs to strings for consistent comparison
+            const assignedIds = response.data.map(id => String(id));
+            console.log("Assigned activity IDs:", assignedIds);
+            
+            setAssignedActivities(assignedIds);
+        } catch (error) {
+            console.error('Error fetching assigned activities:', error);
+            setAssignedActivities([]);
+        }
+    };
+
+    // Update the filteredActivities function
     const filteredActivities = activities.filter(activity => {
-        return !searchTerm || 
+        // If no client is selected, return empty array
+        if (!selectedClient) return false;
+
+        // First check the search term
+        const matchesSearch = !searchTerm || 
             (activity.activity_name && activity.activity_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (activity.act_des && activity.act_des.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (activity.criticality && activity.criticality.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (activity.duration && activity.duration.toString().includes(searchTerm)) ||
             (activity.due_by && activity.due_by.includes(searchTerm));
+
+        // Then check the assignment filter
+        const isAssigned = assignedActivities.includes(String(activity.activity_id));
+        
+        switch (assignmentFilter) {
+            case 'assigned':
+                return matchesSearch && isAssigned;
+            case 'unassigned':
+                return matchesSearch && !isAssigned;
+            default: // 'all'
+                return matchesSearch;
+        }
     });
 
     // const getGroupName = (groupId) => {
@@ -332,11 +395,15 @@ const Activities = () => {
     };
 
     // Handle status button click - directly open the mapping screen
-    const handleStatusClick = (event, activity) => {
+    const handleStatusClick = (activity) => {
+        if (!activity || !activity.activity_id) {
+            handleAssignError({ message: 'Invalid activity data' });
+            return;
+        }
+        
         setSelectedActivity(activity);
         setAssigningActivityId(activity.activity_id);
-        fetchActivityMappings(activity.activity_id);
-        setShowActivityMapping(true);
+        setShowAssignForm(true);
     };
 
 
@@ -559,8 +626,33 @@ const fetchActivityReport = async (activityId) => {
         );
     };
 
+    // Add this new component inside Activities component
+    const Notification = ({ type, message }) => {
+        useEffect(() => {
+            const timer = setTimeout(() => {
+                setNotification(null);
+            }, 3000);
+
+            return () => clearTimeout(timer);
+        }, []);
+
+        return (
+            <div className={`notification ${type}`}>
+                <i className={`fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
+                {message}
+            </div>
+        );
+    };
+
     return (
         <div className="activities-container">
+            {successMessage && (
+                <div className="success-message">
+                    <i className="fas fa-check-circle"></i>
+                    <span>{successMessage}</span>
+                </div>
+            )}
+
             {/* <div className="page-header">
                 <h1><i className="fas fa-clipboard-list"></i> Activity Management</h1>
                 <p>Create, update, and assign activities to your team members</p>
@@ -696,6 +788,60 @@ const fetchActivityReport = async (activityId) => {
                         />
                     </div>
                     
+                    <div className="client-dropdown">
+                        <select
+                            value={selectedClient}
+                            onChange={(e) => {
+                                const clientId = e.target.value;
+                                setSelectedClient(clientId);
+                                // Get and set the selected client name
+                                const selectedClient = clients.find(c => c.customer_id === parseInt(clientId));
+                                setSelectedClientName(selectedClient ? selectedClient.customer_name : '');
+                                
+                                if (clientId) {
+                                    console.log("Selected client ID:", clientId);
+                                    console.log("Selected client name:", selectedClient?.customer_name);
+                                    fetchAssignedActivities(clientId);
+                                } else {
+                                    setAssignedActivities([]);
+                                    setSelectedClientName('');
+                                }
+                            }}
+                        >
+                            <option value="">Select Client</option>
+                            {clients.map(client => (
+                                <option key={client.customer_id} value={client.customer_id}>
+                                    {client.customer_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Update the filter buttons */}
+                    <div className="assignment-filter">
+                        <button 
+                            className={`filter-btn ${assignmentFilter === 'all' ? 'active' : ''}`}
+                            onClick={() => setAssignmentFilter('all')}
+                            data-filter="all"
+                        >
+                            <i className="fas fa-list"></i> All
+                        </button>
+                        <button 
+                            className={`filter-btn ${assignmentFilter === 'assigned' ? 'active' : ''}`}
+                            onClick={() => setAssignmentFilter('assigned')}
+                            data-filter="assigned"
+                        >
+                            <i className="fas fa-check-circle"></i> Assigned
+                        </button>
+                        <button 
+                            className={`filter-btn ${assignmentFilter === 'unassigned' ? 'active' : ''}`}
+                            onClick={() => setAssignmentFilter('unassigned')}
+                            data-filter="unassigned"
+                        >
+                            <i className="fas fa-clock"></i> Unassigned
+                        </button>
+                    </div>
+                    
                     <div className="view-toggle">
                         <button 
                             className={viewMode === 'grid' ? 'active' : ''} 
@@ -737,6 +883,12 @@ const fetchActivityReport = async (activityId) => {
                 <div className="loading-container">
                     <div className="spinner"></div>
                     <p>Loading activities...</p>
+                </div>
+            ) : !selectedClient ? (
+                <div className="empty-state">
+                    <i className="fas fa-users"></i>
+                    <h3>Select a Client</h3>
+                    <p>Please select a client to view their activities</p>
                 </div>
             ) : filteredActivities.length > 0 ? (
                 <div className={viewMode === 'grid' ? 'activity-grid' : 'activity-list'}>
@@ -793,12 +945,25 @@ const fetchActivityReport = async (activityId) => {
                                 >
                                     <i className="fas fa-edit"></i>
                                 </button>
-                                <button 
-                                    className="status-btn" 
-                                    onClick={(event) => handleStatusClick(event, activity)}
-                                >
-                                    <i className="fas fa-users"></i> Assign
-                                </button>
+                                
+                                {assignedActivities.includes(String(activity.activity_id)) ? (
+                                    <button 
+                                        className="status-btn assigned"
+                                        disabled
+                                        title="Already Assigned"
+                                    >
+                                        <i className="fas fa-check"></i> Assigned
+                                    </button>
+                                ) : (
+                                    <button 
+                                        className="status-btn"
+                                        onClick={() => handleStatusClick(activity)}
+                                        title="Assign Activity"
+                                    >
+                                        <i className="fas fa-users"></i> Assign
+                                    </button>
+                                )}
+                                
                                 <button 
                                     className="download-btn"
                                     onClick={() => handleDownloadReport(activity.activity_id)}
@@ -808,7 +973,7 @@ const fetchActivityReport = async (activityId) => {
                                 </button>
                                 <button 
                                     className="delete-btn"
-                                    onClick={() => handleDelete(activity.activity_id)}
+                                    onClick={() => handleDelete(activity)}
                                     title="Delete Activity"
                                 >
                                     <i className="fas fa-trash-alt"></i>
@@ -821,28 +986,7 @@ const fetchActivityReport = async (activityId) => {
                 <div className="empty-state">
                     <i className="fas fa-clipboard"></i>
                     <h3>No activities found</h3>
-                    <p>Create your first activity to get started</p>
-                    <button 
-                        className="add-button" 
-                        onClick={() => {
-                            setFormData({
-                                activity_name: "",
-                                standard_time: "",
-                                act_des: "",
-                                criticality: "Low",
-                                duration: "",
-                                role_id: "",
-                                frequency: "0",
-                                due_by: "",
-                                activity_type: "R",
-                                // group_id: "",
-                                status: "A"
-                            });
-                            setShowForm(true);
-                        }}
-                    >
-                        <i className="fas fa-plus"></i> Create Activity
-                    </button>
+                    <p>No activities available for the selected client</p>
                 </div>
             )}
 
@@ -862,78 +1006,94 @@ const fetchActivityReport = async (activityId) => {
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">
-                                <label>Activity Name:</label>
+                                <label htmlFor="activity_name">Activity Name:</label>
                                 <input
                                     type="text"
+                                    id="activity_name"
                                     name="activity_name"
                                     value={formData.activity_name}
                                     onChange={handleInputChange}
                                     required
+                                    placeholder="Enter activity name"
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Estimated Time to complete (in hours):</label>
+                                <label htmlFor="standard_time">Estimated Time to complete (in hours):</label>
                                 <input
                                     type="number"
+                                    id="standard_time"
                                     name="standard_time"
                                     value={formData.standard_time}
                                     onChange={handleInputChange}
                                     required
+                                    placeholder="Enter estimated time"
+                                    min="0"
+                                    step="0.5"
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Activity Description:</label>
+                                <label htmlFor="act_des">Activity Description:</label>
                                 <textarea
+                                    id="act_des"
                                     name="act_des"
                                     value={formData.act_des}
                                     onChange={handleInputChange}
                                     rows="4"
+                                    placeholder="Enter activity description"
                                 ></textarea>
                             </div>
                             <div className="form-group">
-                                <label>Criticality:</label>
+                                <label htmlFor="criticality">Criticality:</label>
                                 <select
+                                    id="criticality"
                                     name="criticality"
                                     value={formData.criticality}
                                     onChange={handleInputChange}
                                     required
                                 >
+                                    <option value="">Select criticality</option>
                                     <option value="Low">Low</option>
                                     <option value="Medium">Medium</option>
                                     <option value="High">High</option>
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Early Warning (in days):</label>
+                                <label htmlFor="duration">Early Warning (in days):</label>
                                 <input
                                     type="number"
+                                    id="duration"
                                     name="duration"
                                     value={formData.duration}
                                     onChange={handleInputChange}
                                     required
+                                    placeholder="Enter early warning days"
+                                    min="0"
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Role ID:</label>
+                                <label htmlFor="role_id">Role:</label>
                                 <select
+                                    id="role_id"
                                     name="role_id"
                                     value={formData.role_id}
                                     onChange={handleInputChange}
                                     required
                                 >
-                                    <option value="">Select Role</option>
+                                    <option value="">Select role</option>
                                     <option value="11">Admin</option>
                                     <option value="22">User</option>
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Frequency:</label>
+                                <label htmlFor="frequency">Frequency:</label>
                                 <select
+                                    id="frequency"
                                     name="frequency"
                                     value={formData.frequency}
                                     onChange={handleInputChange}
                                     required
                                 >
+                                    <option value="">Select frequency</option>
                                     <option value="0">Onetime</option>
                                     <option value="1">Yearly</option>
                                     <option value="12">Monthly</option>
@@ -944,9 +1104,10 @@ const fetchActivityReport = async (activityId) => {
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Due By:</label>
+                                <label htmlFor="due_by">Due By:</label>
                                 <input
                                     type="date"
+                                    id="due_by"
                                     name="due_by"
                                     value={formData.due_by}
                                     onChange={handleInputChange}
@@ -954,41 +1115,30 @@ const fetchActivityReport = async (activityId) => {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Activity Type:</label>
+                                <label htmlFor="activity_type">Activity Type:</label>
                                 <select
+                                    id="activity_type"
                                     name="activity_type"
                                     value={formData.activity_type}
                                     onChange={handleInputChange}
                                     required
                                 >
+                                    <option value="">Select type</option>
                                     <option value="R">Regulatory</option>
                                     <option value="I">Internal</option>
                                     <option value="C">Customer</option>
                                 </select>
                             </div>
                             <div className="form-group">
-                                {/* <label>Group:</label>
+                                <label htmlFor="status">Status:</label>
                                 <select
-                                    name="group_id"
-                                    value={formData.group_id}
-                                    onChange={handleInputChange}
-                                    required
-                                >
-                                    <option value="">Select a group</option>
-                                    {groups.map(group => (
-                                        <option key={group.id} value={group.id}>
-                                            {group.group_name}
-                                        </option>
-                                    ))}
-                                </select> */}
-                            </div>
-                            <div className="form-group">
-                                <label>Status:</label>
-                                <select
+                                    id="status"
                                     name="status"
                                     value={formData.status}
                                     onChange={handleInputChange}
+                                    required
                                 >
+                                    <option value="">Select status</option>
                                     <option value="A">Active</option>
                                     <option value="O">Obsolete</option>
                                 </select>
@@ -1017,96 +1167,15 @@ const fetchActivityReport = async (activityId) => {
                 />
             )}
             
-            {/* Activity Mapping Modal */}
-            {showActivityMapping && (
-                <div className="modal-overlay">
-                    <div className="activity-mapping-modal">
-                        <div className="modal-header">
-                            <h2>
-                                <i className="fas fa-project-diagram"></i>
-                                Activity Assignment
-                                {selectedActivity && <span> - {selectedActivity.activity_name}</span>}
-                            </h2>
-                            <button className="close-btn" onClick={closeActivityMapping}>
-                                <i className="fas fa-times"></i>
-                            </button>
-                        </div>
-                        
-                        {assignSuccess && (
-                            <div className={`notification-message ${assignSuccess.type}`}>
-                                <i className={`fas ${assignSuccess.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
-                                <span>{assignSuccess.message}</span>
-                            </div>
-                        )}
-                        
-                        <div className="mapping-content">
-                            {mappingLoading ? (
-                                <div className="loading-container">
-                                    <div className="spinner"></div>
-                                    <p>Loading assignments...</p>
-                                </div>
-                            ) : (
-                                <table className="mapping-table">
-                                    <thead>
-                                        <tr>
-                                            <th>CLIENT NAME</th>
-                                            <th>ASSIGNED AUDITOR</th>
-                                            <th>ACTION</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {activityMappings.length > 0 ? (
-                                            activityMappings.map(mapping => (
-                                                <tr key={mapping.id}>
-                                                    <td>{mapping.customer_name}</td>
-                                                    <td>
-                                                        {mapping.assigned_employee ? 
-                                                            getEmployeeName(mapping.assigned_employee) : 
-                                                            'Not Assigned'}
-                                                    </td>
-                                                    <td>
-                                                        {!mapping.assigned_employee ? (
-                                                            <button 
-                                                                className="assign-btn"
-                                                                onClick={() => handleAssignEmployee(mapping.customer_id, mapping.customer_name)}
-                                                            >
-                                                                Assign
-                                                            </button>
-                                                        ) : (
-                                                            <span className="assigned-label">Assigned</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        ) : (
-                                            <tr>
-                                                <td colSpan="3" className="no-data">
-                                                    No assignments found for this activity
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
-                        
-                        <div className="modal-footer">
-                            <button className="btn-cancel" onClick={closeActivityMapping}>
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {showAssignForm && (
                 <AssignActivityForm
-                    customerId={assigningCustomer.id}
-                    customerName={assigningCustomer.name}
+                    customerId={selectedClient}
+                    customerName={selectedClientName}
                     activityId={assigningActivityId}
                     activityName={selectedActivity?.activity_name || ''}
                     onClose={() => setShowAssignForm(false)}
                     onSuccess={handleAssignSuccess}
+                    onError={handleAssignError}
                 />
             )}
             {/* Add Report Modal */}
@@ -1138,8 +1207,9 @@ const fetchActivityReport = async (activityId) => {
                                     <thead>
                                         <tr>
                                             <th>Auditor ID</th>
-                                            <th>Name</th>
-                                            <th>Task ID</th>
+                                            <th>Auditor Name</th>
+                                            <th>Client Name</th>
+                                            <th>Task Name</th>
                                             <th>Time Taken</th>
                                             <th>Date of Completion</th>
                                             <th>Status</th>
@@ -1153,12 +1223,13 @@ const fetchActivityReport = async (activityId) => {
                                             
                                             return (
                                                 <tr 
-                                                    key={task.task_id}
+                                                    key={`${task.employee_id}-${task.customer_name}`}
                                                     className={selectedStatus === status ? 'highlighted' : ''}
                                                 >
                                                     <td>{task.employee_id}</td>
                                                     <td>{task.name}</td>
-                                                    <td>{task.task_id}</td>
+                                                    <td>{task.customer_name}</td>
+                                                    <td>{selectedActivityReport?.activity_name}</td>
                                                     <td>{task.time_taken}</td>
                                                     <td>{task.completion_date}</td>
                                                     <td className={`status-${status.toLowerCase()}`}>
@@ -1193,6 +1264,111 @@ const fetchActivityReport = async (activityId) => {
                                     onSegmentClick={handlePieSegmentClick}
                                     selectedSegment={selectedStatus}
                                 />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add notification component */}
+            {notification && (
+                <Notification 
+                    type={notification.type} 
+                    message={notification.message} 
+                />
+            )}
+
+            {showSuccessPopup && (
+                <div className="modal-overlay" style={{ 
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: 1000,
+                    backdropFilter: 'blur(3px)'
+                }}>
+                    <div style={{
+                        backgroundColor: '#1e1e1e',
+                        padding: '20px',
+                        borderRadius: '8px',
+                        color: 'white',
+                        textAlign: 'center',
+                        minWidth: '300px',
+                        animation: 'slideUp 0.3s ease-out'
+                    }}>
+                        <h3 style={{ marginBottom: '20px' }}>Activity added successfully</h3>
+                        <button 
+                            onClick={() => setShowSuccessPopup(false)}
+                            style={{
+                                padding: '8px 24px',
+                                borderRadius: '20px',
+                                border: 'none',
+                                backgroundColor: '#deb887',
+                                color: 'black',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                            }}
+                        >
+                            OK
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirmModal && (
+                <div className="modal-overlay">
+                    <div className="modal-content delete-confirm-modal">
+                        <div className="modal-header">
+                            <h2>
+                                <i className="fas fa-exclamation-triangle"></i>
+                                Confirm Deletion
+                            </h2>
+                            <button 
+                                className="close-btn"
+                                onClick={() => {
+                                    setShowDeleteConfirmModal(false);
+                                    setItemToDelete(null);
+                                }}
+                            >
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div className="confirmation-message">
+                            <p>
+                                <span className="message-line">
+                                    <i className="fas fa-exclamation-circle"></i>
+                                    Are you sure you want to delete activity <strong>{itemToDelete?.name}</strong>?
+                                </span>
+                                <span className="message-line">
+                                    <i className="fas fa-info-circle"></i>
+                                    This action cannot be undone.
+                                </span>
+                            </p>
+                            <div className="modal-actions">
+                                <button
+                                    className="btn-cancel"
+                                    onClick={() => {
+                                        setShowDeleteConfirmModal(false);
+                                        setItemToDelete(null);
+                                    }}
+                                >
+                                    <i className="fas fa-times"></i>
+                                    Cancel
+                                </button>
+                                <button
+                                    className="btn-delete"
+                                    onClick={confirmDelete}
+                                    disabled={isDeleting}
+                                >
+                                    <i className="fas fa-trash-alt"></i>
+                                    {isDeleting ? 'Deleting...' : 'Delete Activity'}
+                                </button>
                             </div>
                         </div>
                     </div>

@@ -24,6 +24,8 @@ import WorkflowTest from './components/WorkflowTest';
 import AddCustomerForm from './components/AddCustomerForm';
 import { WorkflowProvider, useWorkflow } from './context/WorkflowContext';
 import DashboardRouter from './components/DashboardRouter';
+import Auditors from './components/Auditors';
+import Clients from './components/Clients';
 import './App.css';
 
 
@@ -264,6 +266,8 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
           </ProtectedRoute>
         } />
         <Route path="/dashboard" element={<DashboardRouter />} />
+        <Route path="/auditors" element={<Auditors />} />
+        <Route path="/clients" element={<Clients />} />
       </Routes>
       <Footer />
     </div>

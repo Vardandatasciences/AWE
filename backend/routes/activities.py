@@ -23,8 +23,8 @@ activities_bp = Blueprint('activities', __name__)
 @activities_bp.route('/activities', methods=['GET'])
 def get_activities():
     try:
-        # Modified to only get active activities
-        activities = Activity.query.filter_by(status='A').all()
+        # Modified to get active activities in reverse chronological order
+        activities = Activity.query.filter_by(status='A').order_by(Activity.activity_id.desc()).all()
         return jsonify([activity.to_dict() for activity in activities])
     except Exception as e:
         print("Error:", e)
@@ -50,7 +50,11 @@ def add_activity():
         db.session.add(new_activity)
         db.session.commit()
         
-        return jsonify({"message": "Activity added successfully"}), 201
+        # Return the newly created activity along with the success message
+        return jsonify({
+            "message": "Activity added successfully",
+            "activity": new_activity.to_dict()
+        }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -765,3 +769,24 @@ def google_auth():
             "success": False,
             "message": f"Authentication error: {str(e)}"
         }), 500
+
+@activities_bp.route('/tasks/client/<int:client_id>', methods=['GET'])
+def get_client_tasks(client_id):
+    try:
+        # Get the customer name for this client ID
+        customer = Customer.query.get(client_id)
+        if not customer:
+            return jsonify({"error": "Customer not found"}), 404
+
+        # Query to get all tasks for this customer
+        tasks = Task.query.filter_by(customer_name=customer.customer_name).all()
+        
+        # Extract unique activity IDs
+        assigned_activities = list(set([str(task.activity_id) for task in tasks]))
+        
+        print(f"Found assigned activities for customer {customer.customer_name}: {assigned_activities}")
+        
+        return jsonify(assigned_activities)
+    except Exception as e:
+        print(f"Error fetching client tasks: {e}")
+        return jsonify({"error": str(e)}), 500

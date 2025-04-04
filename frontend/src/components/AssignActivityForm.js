@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './AssignActivityForm.css';
 
-const AssignActivityForm = ({ customerId, activityId, activityName, customerName, onClose, onSuccess }) => {
+const AssignActivityForm = ({ customerId, activityId, activityName, customerName, onClose, onSuccess, onError }) => {
     const [formData, setFormData] = useState({
         assignTo: '',
         status: 'Yet to Start',
         link: '',
         remarks: '',
-        frequency: '1' // Default to Yearly
+        frequency: '1', // Default to Yearly
+        selectedClient: customerId // Add this new field
     });
     const [employees, setEmployees] = useState([]);
+    const [clients, setClients] = useState([]); // Add state for clients
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const actor_id = localStorage.getItem('actor_id');
@@ -21,6 +23,10 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
     useEffect(() => {
         const loadData = async () => {
             try {
+                // Load clients
+                const clientsResponse = await axios.get('/customers');
+                setClients(clientsResponse.data);
+                
                 // Load employees first
                 const employeesResponse = await axios.get('/actors_assign');
                 setEmployees(employeesResponse.data);
@@ -88,11 +94,10 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
         e.preventDefault();
         
         try {
-            // Create form data for the API call
             const formDataToSend = new FormData();
             formDataToSend.append('task_name', activityId);
             formDataToSend.append('assigned_to', formData.assignTo);
-            formDataToSend.append('customer_id', customerId);
+            formDataToSend.append('customer_id', formData.selectedClient); // Use selected client
             formDataToSend.append('remarks', formData.remarks);
             formDataToSend.append('link', formData.link);
             formDataToSend.append('frequency', formData.frequency);
@@ -100,18 +105,16 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             formDataToSend.append('actor_id', actor_id);
             formDataToSend.append('actor_name', actor_name);
             
-            // Call the API to assign the activity
             const response = await axios.post('/assign_activity', formDataToSend);
             
             if (response.data.success) {
-                // Call the success callback with the response
                 onSuccess(response.data);
             } else {
-                setError(response.data.message || 'Failed to assign activity');
+                onError({ response: { data: { message: response.data.message || 'Failed to assign activity' } } });
             }
         } catch (error) {
             console.error('Error assigning activity:', error);
-            setError(error.response?.data?.message || 'An error occurred while assigning the activity');
+            onError(error);
         }
     };
 
@@ -131,6 +134,11 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             <div className="assign-form-container">
                 <h2>Assign Activity</h2>
                 
+                <div className="client-info">
+                    <span className="label">Client:</span>
+                    <span className="value">{customerName}</span>
+                </div>
+                
                 {error && (
                     <div className="error-message">
                         <i className="fas fa-exclamation-circle"></i>
@@ -139,6 +147,28 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                 )}
                 
                 <form onSubmit={handleSubmit}>
+                    <div className="form-group">
+                        <label>Client:</label>
+                        <select 
+                            name="selectedClient"
+                            value={formData.selectedClient}
+                            onChange={handleInputChange}
+                            required
+                            className="client-select"
+                        >
+                            <option value="">Select Client</option>
+                            {clients.map(client => (
+                                <option 
+                                    key={client.customer_id} 
+                                    value={client.customer_id}
+                                    selected={client.customer_id === customerId}
+                                >
+                                    {client.customer_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    
                     <div className="form-group">
                         <label>Assign To:</label>
                         <select 

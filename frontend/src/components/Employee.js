@@ -95,6 +95,10 @@ const Employee = () => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState(null);
  
+  // Add state for delete confirmation modal
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+ 
   useEffect(() => {
     // Load both data types on component mount
     fetchData("actors");
@@ -265,73 +269,54 @@ const Employee = () => {
   };
  
   const handleDelete = async (id) => {
+    const item = data[activeTab].find(item => 
+      activeTab === "actors" ? item.actor_id === id : item.customer_id === id
+    );
+    setItemToDelete(item);
+    setShowDeleteConfirmModal(true);
+  };
+ 
+  // Add confirmDelete function
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    
     if (activeTab === "actors") {
-      if (!window.confirm("Are you sure you want to deactivate this auditor? All their tasks will be moved to pending.")) {
-        return;
-      }
-      
       try {
         setIsDeleting(true);
-        // Instead of deleting, we'll update the status to 'O' (inactive)
-        const response = await axios.put('/deactivate_actor', { actor_id: id });
+        const response = await axios.put('/deactivate_actor', { actor_id: itemToDelete.actor_id });
         
         if (response.status === 200) {
-          // Update the local data by changing the status of the actor
-          const updatedData = data[activeTab].map(item => {
-            if (item.actor_id === id) {
-              return { ...item, status: 'O' };
-            }
-            return item;
-          });
-          
-          setData({ ...data, [activeTab]: updatedData });
-          
-          // Get the task details and actor info from the response
           const { affected_tasks, task_details, actor_name } = response.data;
           
-          // Store the pending tasks and deactivated actor info
           setPendingTasks(task_details);
           setDeactivatedActor({
-            id: id,
+            id: itemToDelete.actor_id,
             name: actor_name
           });
           
-          // Show the pending tasks modal
           setShowPendingTasksModal(true);
-          
-          // Show success message
           handleSuccess(`Auditor deactivated successfully. ${affected_tasks} task${affected_tasks !== 1 ? 's' : ''} moved to pending.`);
-          
-          // Refresh stats
           fetchData(activeTab);
         }
       } catch (err) {
         console.error("Error deactivating auditor:", err);
-        alert(`Failed to deactivate auditor. Please try again.`);
+        alert("Failed to deactivate auditor. Please try again.");
       } finally {
         setIsDeleting(false);
+        setShowDeleteConfirmModal(false);
+        setItemToDelete(null);
       }
     } else {
-      // For customers, keep the original delete functionality
-      if (!window.confirm(`Are you sure you want to delete this client?`)) {
-        return;
-      }
-      
       try {
         setIsDeleting(true);
-        const endpoint = `/delete_customer/${id}`;
+        const endpoint = `/delete_customer/${itemToDelete.customer_id}`;
         
         const response = await axios.delete(endpoint);
         
         if (response.status === 200) {
-          // Update the local data by filtering out the deleted item
-          const updatedData = data[activeTab].filter(item => item.customer_id !== id);
+          const updatedData = data[activeTab].filter(item => item.customer_id !== itemToDelete.customer_id);
           setData({ ...data, [activeTab]: updatedData });
-          
-          // Show success message
           handleSuccess(`Client deleted successfully`);
-          
-          // Refresh stats
           fetchData(activeTab);
         }
       } catch (err) {
@@ -339,6 +324,8 @@ const Employee = () => {
         alert(`Failed to delete client. Please try again.`);
       } finally {
         setIsDeleting(false);
+        setShowDeleteConfirmModal(false);
+        setItemToDelete(null);
       }
     }
   };
@@ -1012,6 +999,75 @@ const Employee = () => {
                   </button>
                   <button className="btn-close" onClick={() => setShowPendingTasksModal(false)}>
                     Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+ 
+      {/* Add Delete Confirmation Modal */}
+      {showDeleteConfirmModal && itemToDelete && (
+        <div className="modal-overlay">
+          <div className="modal-content delete-confirm-modal">
+            <div className="modal-header">
+              <h2>
+                <i className="fas fa-exclamation-triangle"></i>
+                Confirm Deactivation
+              </h2>
+              <button className="close-btn" onClick={() => {
+                setShowDeleteConfirmModal(false);
+                setItemToDelete(null);
+              }}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="confirmation-message">
+                
+              <div className="message-line">
+                <i className="fas fa-info-circle"></i>
+                <span style={{ display: 'inline' }}>
+                  Are you sure you want to deactivate <strong style={{ display: 'inline' }}>{itemToDelete.actor_name}</strong>
+                </span>
+              </div>
+
+                <div className="message-line">
+                  <i className="fas fa-tasks"></i>
+                  <span>All their tasks will be moved to pending.</span>
+                </div>
+
+               
+                
+                <div className="modal-actions">
+                  <button 
+                    className="btn-cancel" 
+                    onClick={() => {
+                      setShowDeleteConfirmModal(false);
+                      setItemToDelete(null);
+                    }}
+                  >
+                    <i className="fas fa-times"></i>
+                    Cancel
+                  </button>
+                  <button 
+                    className="btn-delete" 
+                    onClick={confirmDelete}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin"></i>
+                        Deactivating...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-trash-alt"></i>
+                        Confirm Deactivation
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

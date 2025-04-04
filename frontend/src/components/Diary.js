@@ -36,6 +36,7 @@ const Diary = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [successMessage, setSuccessMessage] = useState(null);
   const navigate = useNavigate();
   const role_id = localStorage.getItem('role_id');
   const actor_id = localStorage.getItem('actor_id')
@@ -255,7 +256,10 @@ const Diary = () => {
       console.log("Save response:", saveResponse);
       
       if (saveResponse.status === 200) {
-        alert("Entries saved successfully!");
+        // Show success message
+        setSuccessMessage("All diary entries saved successfully!");
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccessMessage(null), 3000);
         
         // Refresh entries after save
         const response = await axios.get('http://localhost:5000/diary/entries', {
@@ -379,6 +383,45 @@ const fetchTaskDetails = async (taskId) => {
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <div style={{ padding: '20px' }}>
+        <style>
+          {`
+            @keyframes slideInRight {
+              from {
+                transform: translateX(100%);
+                opacity: 0;
+              }
+              to {
+                transform: translateX(0);
+                opacity: 1;
+              }
+            }
+          `}
+        </style>
+        
+        {/* Success Message Popup */}
+        {successMessage && (
+          <div 
+            style={{
+              position: 'fixed',
+              top: '20px',
+              right: '20px',
+              backgroundColor: '#4caf50',
+              color: 'white',
+              padding: '15px 20px',
+              borderRadius: '8px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              animation: 'slideInRight 0.5s ease-out'
+            }}
+          >
+            <i className="fas fa-check-circle" style={{ fontSize: '1.2rem' }}></i>
+            {successMessage}
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
           <Button variant="contained" color="primary" onClick={handleAddEntry}>
             Add Diary Entry

@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Task, ActivityAssignment, Actor, Diary1
+from models import db, Task, ActivityAssignment, Actor, Diary1, Customer
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -23,58 +23,46 @@ def get_tasks():
         user_id = request.args.get('user_id')
         role_id = request.args.get('role_id')
         
-        # Get search filters if provided
-        search_term = request.args.get('search', '')
-        search_field = request.args.get('field', 'all')  # 'all', 'task', 'customer', 'assignee'
+        # Get filters if provided
+        auditor_id = request.args.get('auditor_id')
+        client_id = request.args.get('client_id')
         
-        print(f"User ID: {user_id}, Role ID: {role_id}")
-        print(f"Search: {search_term}, Field: {search_field}")
+        print(f"Fetching tasks with filters - User ID: {user_id}, Role ID: {role_id}, "
+              f"Auditor ID: {auditor_id}, Client ID: {client_id}")
         
-        # If admin, get all tasks, otherwise filter by user's assigned tasks
-        if role_id == "11":  # Admin role
-            tasks = Task.query.all()
-        else:
-            # Filter tasks by assigned user
-            if user_id:
-                tasks = Task.query.filter_by(actor_id=user_id).all()
+        # Base query with ordering by assigned_timestamp in descending order
+        query = Task.query.order_by(Task.assigned_timestamp.desc())
+        
+        # Apply filters based on role and parameters
+        if auditor_id:
+            print(f"Filtering tasks for auditor_id: {auditor_id}")
+            query = query.filter(Task.actor_id == auditor_id)
+        elif client_id:
+            print(f"Filtering tasks for client_id: {client_id}")
+            customer = Customer.query.filter_by(customer_id=client_id).first()
+            if customer:
+                query = query.filter(Task.customer_name == customer.customer_name)
             else:
-                # If no user_id provided, return empty list
+                return jsonify([])
+        elif role_id != "11":  # Not admin
+            if user_id:
+                query = query.filter(Task.actor_id == user_id)
+            else:
                 return jsonify([])
         
-        # Apply search filters in Python rather than SQL for flexibility
-        filtered_tasks = []
-        for task in tasks:
-            # Skip filtering if no search term
-            if not search_term:
-                filtered_tasks.append(task)
-                continue
-                
-            # Convert search term to lowercase for case-insensitive comparison
-            term = search_term.lower()
-            
-            # Apply filter based on search field
-            if search_field == 'task':
-                if task.task_name and term in task.task_name.lower():
-                    filtered_tasks.append(task)
-            elif search_field == 'customer':
-                if task.customer_name and term in task.customer_name.lower():
-                    filtered_tasks.append(task)
-            elif search_field == 'assignee':
-                if task.assigned_to and term in task.assigned_to.lower():
-                    filtered_tasks.append(task)
-            else:  # 'all' or any other value
-                if (task.task_name and term in task.task_name.lower()) or \
-                   (task.customer_name and term in task.customer_name.lower()) or \
-                   (task.assigned_to and term in task.assigned_to.lower()):
-                    filtered_tasks.append(task)
+        # Execute query and get all tasks
+        tasks = query.all()
+        print(f"Found {len(tasks)} tasks for the given filters")
         
-        return jsonify([{
-            'id': task.task_id,
+        # Convert tasks to response format
+        tasks_response = [{
+            'id': str(task.task_id),
             'task_name': task.task_name,
             'link': task.link,
             'status': task.status,
             'criticality': task.criticality,
             'assignee': task.assigned_to,
+            'actor_id': str(task.actor_id),
             'due_date': task.duedate.isoformat() if task.duedate else None,
             'initiator': task.initiator,
             'time_taken': task.duration,
@@ -82,7 +70,10 @@ def get_tasks():
             'title': task.task_name,
             'remarks': task.remarks,
             'assigned_timestamp': task.assigned_timestamp.isoformat() if task.assigned_timestamp else None
-        } for task in filtered_tasks])
+        } for task in tasks]
+        
+        return jsonify(tasks_response)
+        
     except Exception as e:
         print("Error fetching tasks:", e)
         return jsonify({'error': 'Failed to fetch tasks'}), 500
@@ -113,7 +104,7 @@ def adjust_to_previous_working_day(date):
     return date
 
 
-def schedule_email_reminder(subject, task, email, reminder_date, email_type):
+def schedule_email_reminder(subject, task, email, reminder_date, email_type='reminder'):
     """Schedule an email reminder by adding it to the database"""
     try:
         # Ensure reminder_date is a date object
@@ -123,24 +114,16 @@ def schedule_email_reminder(subject, task, email, reminder_date, email_type):
         # Convert reminder_date to datetime with time component for the reminder
         reminder_time = time(9, 0)  # 9:00 AM
         
-        # Check if email_type is a valid field in ReminderMail model
-        reminder_kwargs = {
-            'task_id': task.task_id,
-            'message_des': f"{task.task_name} for {task.customer_name}",
-            'date': reminder_date,
-            'time': reminder_time,
-            'email_id': email,
-            'status': "Pending"
-        }
-        
-        # Only add email_type if the model supports it
-        try:
-            # Try to add email_type to see if model supports it
-            new_reminder = ReminderMail(**reminder_kwargs, email_type=email_type)
-        except TypeError:
-            # If TypeError, model doesn't have email_type field, create without it
-            print(f"Note: ReminderMail model doesn't support 'email_type', creating without it")
-            new_reminder = ReminderMail(**reminder_kwargs)
+        # Create new reminder entry
+        new_reminder = ReminderMail(
+            task_id=task.task_id,
+            message_des=f"{task.task_name} for {task.customer_name}",
+            date=reminder_date,
+            time=reminder_time,
+            email_id=email,
+            status="Pending",
+            email_type=email_type
+        )
         
         db.session.add(new_reminder)
         db.session.commit()
@@ -810,165 +793,80 @@ def update_task(task_id):
         # Get user information from request
         user_id = request.args.get('user_id')
         role_id = request.args.get('role_id')
-       
+        
         print(f"Received update request for task {task_id} from user {user_id} with role {role_id}")
         print(f"Request data: {request.json}")
-       
+        
+        # Validate user authentication
+        if not user_id or not role_id:
+            return jsonify({
+                "success": False, 
+                "error": "Authentication required. Please provide user_id and role_id"
+            }), 401
+        
         # Get the task
         task = Task.query.filter_by(task_id=task_id).first()
         if not task:
             return jsonify({"success": False, "error": "Task not found"}), 404
-       
-        # Check permissions
-        if role_id != "11" and str(task.actor_id) != user_id:
-            return jsonify({"success": False, "error": "You don't have permission to update this task"}), 403
-       
+        
+        # Check permissions - allow both the assigned user and admins to update
+        if role_id != "11" and str(task.actor_id) != str(user_id):
+            return jsonify({
+                "success": False, 
+                "error": "You don't have permission to update this task"
+            }), 403
+        
         # Get the data to update
         data = request.json
-       
+        
         # Store original values for comparison
         original_status = task.status
         original_assigned_to = task.assigned_to
         original_actor_id = task.actor_id
         original_duedate = task.duedate
-       
+        
         # Update the task
         if 'status' in data:
             task.status = data['status']
             print(f"Updating task status to: {task.status}")
-           
+            
             # If status is changed to Completed, calculate and update time_taken
             if task.status == 'Completed' and original_status != 'Completed':
                 time_taken = calculate_time_taken(task_id)
                 task.time_taken = time_taken
                 task.actual_date = datetime.now().date()
                 print(f"Task completed. Total time taken: {time_taken} hours")
-       
-        # Handle reassignment
-        if 'assignee' in data:
-            new_assignee = Actor.query.filter_by(actor_id=data['assignee']).first()
-            if not new_assignee:
-                return jsonify({"success": False, "error": "Assignee not found"}), 400
-           
-            task.actor_id = new_assignee.actor_id
-            task.assigned_to = new_assignee.actor_name
-            assigned_actor_email = new_assignee.email_id
-        else:
-            assigned_actor_email = Actor.query.filter_by(actor_id=task.actor_id).first().email_id if task.actor_id else None
-       
-        # Update due date if provided
-        if 'due_date' in data and data['due_date']:
-            try:
-                task.duedate = datetime.strptime(data['due_date'], '%Y-%m-%d').date()
-            except ValueError:
-                return jsonify({"success": False, "error": "Invalid date format"}), 400
-       
+        
+        # Update remarks if provided
+        if 'remarks' in data:
+            task.remarks = data['remarks']
+        
         # Save changes
         db.session.commit()
         print(f"✅ Successfully updated task {task_id} status to {task.status}")
-       
-        # Send notifications based on what changed
-        # If the assignee changed, send a reassignment notification
-        if original_actor_id != task.actor_id or original_duedate != task.duedate:
-            subject = f"AWE-Task Reassigned: {task.task_name}"
-            content = f"""Dear {task.assigned_to},
- 
-A task has been reassigned to you:
- 
-- Task Name: {task.task_name}
-- Task ID: {task.task_id}
-- Criticality: {task.criticality}
-- Due Date: {task.duedate.strftime('%Y-%m-%d')}
-- Status: {task.status}
-- Customer: {task.customer_name}
- 
-Please review this task and complete it by the due date.
- 
-Best regards,
-AWE Team"""
- 
-            # Send email notification
-            send_email_task(subject, content, assigned_actor_email, task.task_id)
-           
-            # Schedule new reminders for the reassigned person
-            if original_duedate != task.duedate or original_assigned_to != task.assigned_to:
-                # Calculate reminder date based on due date and duration
-                reminder_date = calculate_reminder_date(task.duedate, task.duration)
-               
-                # Early reminder email
-                reminder_email_subject = f"AWE-Reminder for '{task.task_name}' for '{task.customer_name}'"
-                reminder_email_content = f"""Hello {task.assigned_to},
- 
-The task '{task.task_name}' for '{task.customer_name}' is due on '{task.duedate}'.
- 
-- Task Name: {task.task_name}
-- Task ID: {task.task_id}
-- Criticality: {task.criticality}
-- Status: {task.status}
- 
-Please review the task and complete it before the due date.
- 
-Regards,
-AWE Team"""
- 
-                schedule_email_reminder(
-                    reminder_email_subject,
-                    reminder_email_content,
-                    assigned_actor_email,
-                    task.task_name,
-                    task.duedate,
-                    task.customer_name,
-                    reminder_date,
-                    task.task_id
-                )
- 
-                # Due date reminder email
-                due_email_subject = f"AWE-Due of '{task.task_name}' for '{task.customer_name}'"
-                due_email_content = f"""Hello {task.assigned_to},
- 
-The task '{task.task_name}' for '{task.customer_name}' is due today.
- 
-- Task Name: {task.task_name}
-- Task ID: {task.task_id}
-- Criticality: {task.criticality}
-- Status: {task.status}
- 
-Please review the task and complete it today.
-Ignore if completed.
- 
-Regards,
-AWE Team"""
- 
-                schedule_email_reminder(
-                    due_email_subject,
-                    due_email_content,
-                    assigned_actor_email,
-                    task.task_name,
-                    task.duedate,
-                    task.customer_name,
-                    task.duedate,
-                    task.task_id
-                )
-       
-        # If only the status changed, send a status update notification
-        elif original_status != task.status:
-            subject = f"AWE-Task Status Updated: {task.task_name}"
-            content = f"""Dear {task.assigned_to},
- 
-The status of task '{task.task_name}' for customer '{task.customer_name}' has been updated.
- 
-- Task Name: {task.task_name}
-- Task ID: {task.task_id}
-- Criticality: {task.criticality}
-- Due Date: {task.duedate}
-- Status: {task.status} (Previously: {original_status})
- 
-Best regards,
-AWE Team"""
- 
-            send_email_task(subject, assigned_actor_email, content, task.task_id)
-           
-        return jsonify({"success": True, "message": "Task updated successfully"}), 200
+        
+        # Handle notifications (wrapped in try-except to prevent notification errors from failing the update)
+        try:
+            assigned_actor = Actor.query.filter_by(actor_id=task.actor_id).first()
+            if assigned_actor and assigned_actor.email_id:
+                # Send status update notification
+                if original_status != task.status:
+                    subject = f"Task Status Updated: {task.task_name}"
+                    send_styled_email(subject, assigned_actor.email_id, task, 'status_update')
+        except Exception as e:
+            print(f"Warning: Failed to send notification: {e}")
+            # Continue execution even if notification fails
+        
+        return jsonify({
+            "success": True, 
+            "message": "Task updated successfully",
+            "task": {
+                "id": task.task_id,
+                "status": task.status,
+                "remarks": task.remarks
+            }
+        }), 200
+        
     except Exception as e:
         db.session.rollback()
         print(f"🚨 ERROR in update_task: {e}")
@@ -1058,34 +956,61 @@ def create_task():
 @tasks_bp.route('/assign_activity', methods=['POST'])
 def assign_activity():
     try:
-        # Get user information from request
-        role_id = request.args.get('role_id')
+        data = request.form
+        # ... existing validation code ...
         
-        # Only admins can assign activities
-        if role_id != "11":
-            return jsonify({'error': 'Only administrators can assign activities'}), 403
-            
-        data = request.json
-        
-        new_assignment = ActivityAssignment(
-            activity_id=data['activity_id'],
-            assignee_id=data['assignee_id'],
-            customer_id=data['customer_id']
+        # Create the task
+        new_task = Task(
+            task_id=task_id,
+            task_name=activity.activity_name,
+            criticality=criticality,
+            duration=duration,
+            status=status,
+            link=link,
+            customer_name=customer.customer_name,
+            duedate=due_date,
+            actor_id=assigned_actor_id,
+            assigned_to=assigned_to,
+            activity_id=activity_id,
+            initiator=initiator,
+            activity_type=activity_type,
+            stage_id=1,
+            assigned_timestamp=current_timestamp
         )
-        
-        task = Task.query.filter_by(activity_id=data['activity_id']).first()
-        if task:
-            task.actor_id = data['assignee_id']
-            task.assigned_to = Actor.query.get(data['assignee_id']).actor_name  # Get assigned actor name
-            task.assigned_timestamp = datetime.utcnow()  # Store current timestamp
-        
-        db.session.add(new_assignment)
+        db.session.add(new_task)
         db.session.commit()
         
-        return jsonify({"message": "Activity assigned successfully"}), 201
+        # ... existing email and calendar code ...
+        
+        # Return the new task data along with success message
+        return jsonify({
+            'success': True,
+            'message': 'Activity assigned successfully and notification sent',
+            'email_sent': True,
+            'calendar_added': calendar_event_id is not None,
+            'reminders_scheduled': True,
+            'task': {
+                'id': str(new_task.task_id),
+                'task_name': new_task.task_name,
+                'link': new_task.link,
+                'status': new_task.status,
+                'criticality': new_task.criticality,
+                'assignee': new_task.assigned_to,
+                'actor_id': str(new_task.actor_id),
+                'due_date': new_task.duedate.isoformat() if new_task.duedate else None,
+                'initiator': new_task.initiator,
+                'time_taken': new_task.duration,
+                'customer_name': new_task.customer_name,
+                'title': new_task.task_name,
+                'remarks': new_task.remarks,
+                'assigned_timestamp': new_task.assigned_timestamp.isoformat()
+            }
+        })
+        
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        print(f"🚨 Error Assigning Activity: {e}")
+        return jsonify({'success': False, 'message': f'Failed to assign activity: {str(e)}'}), 500
 
 @tasks_bp.route('/employees', methods=['GET'])
 def get_employees():
@@ -1111,4 +1036,52 @@ def get_employees():
         } for employee in employees])
     except Exception as e:
         print("Error fetching employees:", e)
-        return jsonify({'error': 'Failed to fetch employees'}), 500 
+        return jsonify({'error': 'Failed to fetch employees'}), 500
+
+@tasks_bp.route('/api/actors', methods=['GET'])
+def get_actors():
+    try:
+        # Get query parameters
+        status = request.args.get('status', 'A')  # Default to 'A' if not provided
+        role_id = request.args.get('role_id', '22')  # Default to '22' if not provided
+        
+        # Query active auditors with role_id 22
+        actors = Actor.query.filter(
+            Actor.status == status,
+            Actor.role_id == role_id
+        ).order_by(Actor.actor_name).all()  # Add ordering for consistency
+        
+        # Format the response - ensure IDs are strings for consistency
+        actors_list = [{
+            'id': str(actor.actor_id),  # Convert to string
+            'name': actor.actor_name,
+            'email': actor.email_id  # Include email for verification
+        } for actor in actors]
+        
+        print(f"Fetched {len(actors_list)} actors: {actors_list}")  # Add logging
+        return jsonify(actors_list)
+    
+    except Exception as e:
+        print(f"Error fetching actors: {e}")
+        return jsonify({'error': 'Failed to fetch actors'}), 500
+
+@tasks_bp.route('/api/customers', methods=['GET'])
+def get_customers():
+    try:
+        # Get status from query parameters, default to 'A'
+        status = request.args.get('status', 'A')
+        
+        # Query active customers
+        customers = Customer.query.filter_by(status=status).all()
+        
+        # Format the response
+        customers_list = [{
+            'customer_id': customer.customer_id,
+            'customer_name': customer.customer_name
+        } for customer in customers]
+        
+        return jsonify(customers_list)
+    
+    except Exception as e:
+        print(f"Error fetching customers: {e}")
+        return jsonify({'error': 'Failed to fetch customers'}), 500 

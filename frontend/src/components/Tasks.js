@@ -54,6 +54,13 @@ const Tasks = () => {
   const [showRemarksModal, setShowRemarksModal] = useState(false);
   const [remarks, setRemarks] = useState('');
   const [taskForRemarks, setTaskForRemarks] = useState(null);
+  const [viewType, setViewType] = useState(isAdmin ? 'status' : 'tasks'); // Default to 'tasks' for non-admin
+  const [entityType, setEntityType] = useState(''); // 'auditor' or 'client'
+  const [selectedEntity, setSelectedEntity] = useState(isAdmin ? '' : 'all'); // Default to 'all' for non-admin
+  const [auditors, setAuditors] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [isLoadingEntities, setIsLoadingEntities] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
  
   // Check if GIFs are loading correctly
   useEffect(() => {
@@ -92,9 +99,15 @@ const Tasks = () => {
   };
  
   useEffect(() => {
-    fetchTasks();
-    fetchEmployees();
-  }, []);
+    // For non-admin users, fetch tasks immediately
+    if (!isAdmin) {
+      fetchTasks();
+    }
+    // For admin users, wait for entity selection
+    else if (selectedEntity) {
+      fetchTasks();
+    }
+  }, [selectedEntity, isAdmin]);
 
   // Add a debounced search effect
   useEffect(() => {
@@ -174,76 +187,67 @@ const Tasks = () => {
   const fetchTasks = async () => {
     setLoading(true);
     try {
-      // Get user info from localStorage
-      const userData = JSON.parse(localStorage.getItem('user')) || {};
-      const userId = userData.user_id;
-      const roleId = userData.role_id || (userData.role === 'admin' ? '11' : '22');
-     
-      // Build query parameters including search filters
-      let queryParams = `user_id=${userId}&role_id=${roleId}`;
-      
-      // Add search parameters if they exist
-      if (searchTerm) {
-        queryParams += `&search=${encodeURIComponent(searchTerm)}&field=${searchField}`;
-      }
-     
-      // Make API request with user info and search parameters
-      const response = await axios.get(`http://localhost:5000/tasks?${queryParams}`);
-      
-      // Log a sample task to check if remarks are included
-      if (response.data.length > 0) {
-        console.log("Sample task from API:", response.data[0]);
-      }
-     
-      const tasksWithIds = response.data.map(task => {
-        const mappedStatus = getColumnForStatus(task.status);
-        console.log(`Task ${task.id}: ${task.status} → ${mappedStatus}`);
-       
-        return {
-          ...task,
-          id: task.id.toString(),
-          status: mappedStatus
-        };
-      });
-      
-      // Sort tasks by assigned_timestamp (most recent first)
-      tasksWithIds.sort((a, b) => {
-        // Check if assigned_timestamp exists on both tasks
-        if (a.assigned_timestamp && b.assigned_timestamp) {
-          return new Date(b.assigned_timestamp) - new Date(a.assigned_timestamp);
+        const userData = JSON.parse(localStorage.getItem('user')) || {};
+        const userId = userData.user_id;
+        const roleId = userData.role_id || (userData.role === 'admin' ? '11' : '22');
+        
+        let queryParams = `user_id=${userId}&role_id=${roleId}`;
+        
+        // Add entity filtering only for admin users
+        if (isAdmin && selectedEntity && selectedEntity !== 'all') {
+            if (entityType === 'auditor') {
+                console.log(`Fetching tasks for auditor: ${selectedEntity}`);
+                queryParams += `&auditor_id=${selectedEntity}`;
+            } else if (entityType === 'client') {
+                console.log(`Fetching tasks for client: ${selectedEntity}`);
+                queryParams += `&client_id=${selectedEntity}`;
+            }
         }
-        // If only one task has a timestamp, prioritize it
-        if (a.assigned_timestamp) return -1;
-        if (b.assigned_timestamp) return 1;
-        // If neither has a timestamp, keep original order
-        return 0;
-      });
-     
-      setTasks(tasksWithIds);
-
-      // Calculate stats - update to separate pending from in-progress
-      const total = tasksWithIds.length;
-      const todo = tasksWithIds.filter(task => task.status === 'todo').length;
-      const inProgress = tasksWithIds.filter(task => task.status === 'in-progress').length;
-      const pending = tasksWithIds.filter(task => task.status === 'pending').length;
-      const completed = tasksWithIds.filter(task => task.status === 'completed').length;
-
-      setStats({
-        total,
-        todo,
-        inProgress,
-        completed,
-        pending
-      });
-
-      setError(null);
+        
+        if (searchTerm) {
+            queryParams += `&search=${encodeURIComponent(searchTerm)}&field=${searchField}`;
+        }
+        
+        const response = await axios.get(`http://localhost:5000/tasks?${queryParams}`);
+        console.log("Fetched tasks:", response.data);
+        
+        // Map the tasks and ensure proper status mapping
+        const tasksWithIds = response.data.map(task => {
+            const mappedStatus = getColumnForStatus(task.status);
+            console.log(`Task ${task.id} for actor ${task.actor_id}: ${task.status} → ${mappedStatus}`);
+            
+            return {
+                ...task,
+                id: task.id.toString(),
+                status: mappedStatus
+            };
+        });
+        
+        setTasks(tasksWithIds);
+        
+        // Calculate stats
+        const total = tasksWithIds.length;
+        const todo = tasksWithIds.filter(task => task.status === 'todo').length;
+        const inProgress = tasksWithIds.filter(task => task.status === 'in-progress').length;
+        const pending = tasksWithIds.filter(task => task.status === 'pending').length;
+        const completed = tasksWithIds.filter(task => task.status === 'completed').length;
+        
+        setStats({
+            total,
+            todo,
+            inProgress,
+            completed,
+            pending
+        });
+        
+        setError(null);
     } catch (err) {
-      console.error('Error fetching tasks:', err);
-      setError('Failed to load tasks. Please try again later.');
+        console.error('Error fetching tasks:', err);
+        setError('Failed to load tasks. Please try again later.');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
  
   const fetchEmployees = async () => {
     try {
@@ -312,19 +316,13 @@ const Tasks = () => {
   };
  
   const getSortedTasks = (tasks) => {
-    if (sortBy === 'none') return tasks;
-
     return [...tasks].sort((a, b) => {
-        const criticalityOrder = {
-            'High': 3,
-            'Medium': 2,
-            'Low': 1
-        };
-
-        const aValue = criticalityOrder[a.criticality] || 0;
-        const bValue = criticalityOrder[b.criticality] || 0;
-
-        return sortBy === 'high-to-low' ? bValue - aValue : aValue - bValue;
+        // First sort by assigned_timestamp (newest first)
+        if (a.assigned_timestamp && b.assigned_timestamp) {
+            return new Date(b.assigned_timestamp) - new Date(a.assigned_timestamp);
+        }
+        // Then by other criteria if needed
+        return 0;
     });
   };
  
@@ -363,53 +361,69 @@ const Tasks = () => {
   };
  
   const handleStatusChange = async (taskId, newStatus, remarks = null) => {
-    console.log(`Updating task ${taskId} status from UI: ${newStatus} to backend: ${newStatus}`);
-    
     try {
+      setIsUpdating(true);
+      const taskToUpdate = tasks.find(task => task.id === taskId);
+      
+      // Get user info from localStorage
       const userData = JSON.parse(localStorage.getItem('user')) || {};
       const userId = userData.user_id;
       const roleId = userData.role_id || (userData.role === 'admin' ? '11' : '22');
-      
-      const apiUrl = `http://localhost:5000/tasks/${taskId}?user_id=${userId}&role_id=${roleId}`;
-      
-      const updateData = { 
-        status: newStatus,
-        remarks: remarks || '' // Always include remarks field, empty string if not provided
-      };
-      
+
       const response = await axios.patch(
-        apiUrl,
-        updateData,
-        { 
-          headers: { 'Content-Type': 'application/json' },
-          withCredentials: false
+        `/tasks/${taskId}?user_id=${userId}&role_id=${roleId}`,
+        {
+          status: newStatus,
+          remarks: remarks
         }
       );
-      
-      console.log('Task update response:', response.data);
-      
-      // Update local task data with the response
+
       if (response.data.success) {
-        setTasks(prevTasks => prevTasks.map(task => 
-          task.id === taskId 
-            ? { ...task, status: newStatus, remarks: remarks || task.remarks }
+        // Update local state
+        const updatedTasks = tasks.map(task =>
+          task.id === taskId
+            ? { ...task, status: newStatus, remarks: remarks }
             : task
-        ));
+        );
+        setTasks(updatedTasks);
+        
+        // Show success message
+        displaySuccess('Task updated successfully');
+        
+        // Close modals and reset states
+        setShowReassignModal(false);
+        setRemarks('');
+        setTaskForRemarks(null);
       }
-      
-      displaySuccess("Task status updated successfully!");
-      fetchTasks(); // Refresh tasks to get latest data
-      
-    } catch (err) {
-      console.error('Error updating task status:', err);
-      fetchTasks();
-      setError('Failed to update task status. Please try again.');
-      setTimeout(() => setError(null), 3000);
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      // Show error message to user
+      alert('Failed to update task status. Please try again.');
+    } finally {
+      setIsUpdating(false);
     }
   };
+
   const displaySuccess = (message) => {
-    setSuccess(message);
-    setTimeout(() => setSuccess(null), 3000);
+    const successMessage = document.createElement('div');
+    successMessage.className = 'success-message';
+    
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-check-circle';
+    successMessage.appendChild(icon);
+    
+    const text = document.createElement('span');
+    text.textContent = message;
+    successMessage.appendChild(text);
+    
+    document.body.appendChild(successMessage);
+    
+    // Remove the message after 3 seconds
+    setTimeout(() => {
+      if (successMessage.parentNode) {
+        document.body.removeChild(successMessage);
+      }
+    }, 3000);
   };
  
   const handleReassign = async () => {
@@ -862,6 +876,132 @@ const Tasks = () => {
     }
   };
  
+  // Only fetch entities data for admin users
+  useEffect(() => {
+    if (isAdmin && entityType) {
+      setIsLoadingEntities(true);
+      if (entityType === 'auditor') {
+        fetchAuditors().finally(() => setIsLoadingEntities(false));
+      } else if (entityType === 'client') {
+        fetchClients().finally(() => setIsLoadingEntities(false));
+      }
+    }
+  }, [entityType, isAdmin]);
+
+  // Update the fetchAuditors function
+  const fetchAuditors = async () => {
+    try {
+        setIsLoadingEntities(true);
+        const response = await axios.get('http://localhost:5000/api/actors', {
+            params: {
+                status: 'A',
+                role_id: '22'
+            }
+        });
+        
+        // Log the received data
+        console.log("Received auditors data:", response.data);
+        
+        // Ensure consistent data structure
+        const activeAuditors = response.data.map(auditor => ({
+            id: String(auditor.id), // Ensure ID is string
+            name: auditor.name
+        }));
+        
+        console.log("Mapped auditors:", activeAuditors);
+        setAuditors(activeAuditors);
+    } catch (error) {
+        console.error('Error fetching auditors:', error);
+        setError('Failed to load auditors. Please try again.');
+    } finally {
+        setIsLoadingEntities(false);
+    }
+  };
+
+  // Update the fetchClients function
+  const fetchClients = async () => {
+    try {
+        setIsLoadingEntities(true);
+        const response = await axios.get('http://localhost:5000/api/customers', {
+            params: {
+                status: 'A'
+            }
+        });
+        
+        // Log the received data
+        console.log("Received clients data:", response.data);
+        
+        // Ensure consistent data structure
+        const activeClients = response.data.map(client => ({
+            id: String(client.customer_id),
+            name: client.customer_name
+        }));
+        
+        console.log("Mapped clients:", activeClients);
+        setClients(activeClients);
+    } catch (error) {
+        console.error('Error fetching clients:', error);
+        setError('Failed to load clients. Please try again.');
+    } finally {
+        setIsLoadingEntities(false);
+    }
+  };
+
+  // Update the entity selection handler
+  const handleEntitySelect = (e) => {
+    const value = e.target.value;
+    console.log("Selected entity value:", value);
+    setSelectedEntity(value);
+    
+    if (value) {
+        setViewType('tasks');
+        // Reset filters when changing entity
+        setFilterStatus('all');
+        setFilterMonth('all');
+        setFilterCriticality('all');
+        setSortBy('none');
+        setSearchTerm('');
+        
+        // Log selected entity details
+        if (entityType === 'auditor') {
+            const selectedAuditor = auditors.find(a => a.id === value);
+            console.log("Selected auditor:", selectedAuditor);
+        } else if (entityType === 'client') {
+            const selectedClient = clients.find(c => c.id === value);
+            console.log("Selected client:", selectedClient);
+        }
+        
+        // Fetch tasks for the selected entity
+        fetchTasks();
+    }
+  };
+ 
+  // Add this function to handle new task assignments
+  const handleNewTaskAssignment = (newTask) => {
+    setTasks(prevTasks => [newTask, ...prevTasks]);
+  };
+
+  // Modify the existing handleAssign function
+  const handleAssign = async (data) => {
+    try {
+        const response = await axios.post('/assign_activity', data);
+        if (response.data.success) {
+            // Add the new task to the beginning of the list
+            if (response.data.task) {
+                handleNewTaskAssignment(response.data.task);
+            } else {
+                // If task data not included in response, refresh the list
+                fetchTasks();
+            }
+            // Show success message
+            displaySuccess(response.data.message);
+        }
+    } catch (error) {
+        console.error('Error assigning task:', error);
+        // Handle error...
+    }
+  };
+ 
   return (
     <div className="tasks-container">
       {success && (
@@ -875,179 +1015,240 @@ const Tasks = () => {
         <p>Manage and track your team's tasks</p>
       </div> */}
  
-      {/* Quick Stats Section with click handlers */}
+      {/* Entity Type Selection */}
+      {isAdmin && (
+        <div className="entity-selection">
+          <select 
+            value={entityType}
+            onChange={(e) => {
+              setEntityType(e.target.value);
+              setSelectedEntity('');
+              setViewType('status');
+            }}
+            className="entity-type-select"
+          >
+            <option value="">Select Type</option>
+            <option value="auditor">Auditor</option>
+            <option value="client">Client</option>
+          </select>
+
+          {entityType === 'auditor' && (
+            <select
+              value={selectedEntity}
+              onChange={handleEntitySelect}
+              className="entity-select"
+              disabled={isLoadingEntities}
+            >
+              <option value="">
+                {isLoadingEntities 
+                  ? 'Loading Auditors...'
+                  : 'Select Auditor'
+                }
+              </option>
+              <option value="all">All Auditors</option>
+              {auditors.map(auditor => (
+                <option key={auditor.id} value={auditor.id}>
+                  {auditor.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {entityType === 'client' && (
+            <select
+              value={selectedEntity}
+              onChange={handleEntitySelect}
+              className="entity-select"
+              disabled={isLoadingEntities}
+            >
+              <option value="">
+                {isLoadingEntities 
+                  ? 'Loading Clients...'
+                  : 'Select Client'
+                }
+              </option>
+              <option value="all">All Clients</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+ 
+      {/* Quick Stats Section - Always visible */}
       <div className="quick-stats-section">
         <StatCard 
-            type="todo"
-            count={stats.todo}
-            total={stats.total}
-            title="To Do"
-            subtitle="Yet to Start"
-            onClick={handleFilterByTodo}
-            isActive={filterStatus === 'todo'}
-            gifSrc={todoGif}
+          type="todo"
+          count={stats.todo}
+          total={stats.total}
+          title="To Do"
+          subtitle="Yet to Start"
+          onClick={handleFilterByTodo}
+          isActive={filterStatus === 'todo'}
+          gifSrc={todoGif}
         />
         
         <StatCard 
-            type="progress"
-            count={stats.inProgress}
-            total={stats.total}
-            title="Work In Progress"
-            subtitle="In Progress"
-            onClick={handleFilterByInProgress}
-            isActive={filterStatus === 'in-progress'}
-            gifSrc={progressGif}
+          type="progress"
+          count={stats.inProgress}
+          total={stats.total}
+          title="Work In Progress"
+          subtitle="In Progress"
+          onClick={handleFilterByInProgress}
+          isActive={filterStatus === 'in-progress'}
+          gifSrc={progressGif}
         />
         
         <StatCard 
-            type="pending"
-            count={stats.pending}
-            total={stats.total}
-            title="Pending"
-            subtitle="Awaiting Action"
-            onClick={handleFilterByPending}
-            isActive={filterStatus === 'pending'}
-            gifSrc={pendingGif}
+          type="pending"
+          count={stats.pending}
+          total={stats.total}
+          title="Pending"
+          subtitle="Awaiting Action"
+          onClick={handleFilterByPending}
+          isActive={filterStatus === 'pending'}
+          gifSrc={pendingGif}
         />
         
         <StatCard 
-            type="completed"
-            count={stats.completed}
-            total={stats.total}
-            title="Done"
-            subtitle="Completed"
-            onClick={handleFilterByCompleted}
-            isActive={filterStatus === 'completed'}
-            gifSrc={doneGif}
+          type="completed"
+          count={stats.completed}
+          total={stats.total}
+          title="Done"
+          subtitle="Completed"
+          onClick={handleFilterByCompleted}
+          isActive={filterStatus === 'completed'}
+          gifSrc={doneGif}
         />
       </div>
  
-      <div className="controls-container">
-        <div className="search-filter-container">
-          <div className="search-box">
-            <i className="fas fa-search"></i>
-            <input
-              type="text"
-              placeholder={`Search ${searchField === 'all' ? 'all fields' : searchField + 's'}...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <select 
-              value={searchField}
-              onChange={(e) => setSearchField(e.target.value)}
-              className="search-field-selector"
-            >
-              <option value="all">All Fields</option>
-              <option value="task">Task Name</option>
-              <option value="customer">Customer</option>
-              <option value="assignee">Assignee</option>
-            </select>
-          </div>
-         
-          <div className="filter-group">
-            <select
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="month-filter"
-            >
-              <option value="all">All Time</option>
-              <option value="current">Current Month</option>
-              <option value="previous">Previous Month</option>
-              <option value="next">Next Month</option>
-              <option value="last3">Last 3 Months</option>
-            </select>
-          </div>
-          
-          <div className="filter-group">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="status-filter"
-            >
-              <option value="all">All Status</option>
-              <option value="todo">Yet to Start</option>
-              <option value="in-progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="pending">Pending</option>
-            </select>
-          </div>
-         
-          <div className="filter-group">
-            <select
-              value={filterCriticality}
-              onChange={(e) => setFilterCriticality(e.target.value)}
-              className="criticality-filter"
-            >
-              <option value="all">All Criticality</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-         
-          <div className="filter-group">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="sort-filter"
-            >
-              <option value="none">Sort by Criticality</option>
-              <option value="high-to-low">High to Low</option>
-              <option value="low-to-high">Low to High</option>
-            </select>
-          </div>
-         
-          <div className="view-toggle">
-            <button
-              className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
-              onClick={() => handleViewModeChange('grid')}
-            >
-              <i className="fas fa-th-large"></i> Grid
-            </button>
-            <button
-              className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
-              onClick={() => handleViewModeChange('list')}
-            >
-              <i className="fas fa-list"></i> List
-            </button>
-          </div>
-        </div>
-       
-        {/* Only show add/reassign button if user is admin, and moved outside the filter container */}
-        {/* {isAdmin && (
-          <button className="add-button" onClick={() => setShowReassignModal(true)}>
-            <i className="fas fa-plus"></i> Reassign Task
-          </button>
-        )} */}
-      </div>
- 
-      {loading ? (
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>Loading tasks...</p>
-        </div>
-      ) : error ? (
-        <div className="error-container">
-          <i className="fas fa-exclamation-triangle"></i>
-          <p>{error}</p>
-          <button onClick={fetchTasks} className="retry-button">
-            <i className="fas fa-sync-alt"></i> Retry
-          </button>
-        </div>
-      ) : filteredTasks.length > 0 ? (
-        viewMode === 'grid' ? (
-            <div className="task-cards-grid">
-                {getCurrentPageTasks().map(task => renderTaskCard(task))}
+      {/* Only show tasks view when entity is selected */}
+      {viewType === 'tasks' && selectedEntity && (
+        <>
+          <div className="controls-container">
+            <div className="search-filter-container">
+              <div className="search-box">
+                <i className="fas fa-search"></i>
+                <input
+                  type="text"
+                  placeholder={`Search ${searchField === 'all' ? 'all fields' : searchField + 's'}...`}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <select 
+                  value={searchField}
+                  onChange={(e) => setSearchField(e.target.value)}
+                  className="search-field-selector"
+                >
+                  <option value="all">All Fields</option>
+                  <option value="task">Task Name</option>
+                  <option value="customer">Customer</option>
+                  <option value="assignee">Assignee</option>
+                </select>
+              </div>
+             
+              <div className="filter-group">
+                <select
+                  value={filterMonth}
+                  onChange={(e) => setFilterMonth(e.target.value)}
+                  className="month-filter"
+                >
+                  <option value="all">All Time</option>
+                  <option value="current">Current Month</option>
+                  <option value="previous">Previous Month</option>
+                  <option value="next">Next Month</option>
+                  <option value="last3">Last 3 Months</option>
+                </select>
+              </div>
+              
+              <div className="filter-group">
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="status-filter"
+                >
+                  <option value="all">All Status</option>
+                  <option value="todo">Yet to Start</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="pending">Pending</option>
+                </select>
+              </div>
+             
+              <div className="filter-group">
+                <select
+                  value={filterCriticality}
+                  onChange={(e) => setFilterCriticality(e.target.value)}
+                  className="criticality-filter"
+                >
+                  <option value="all">All Criticality</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+             
+              <div className="filter-group">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="sort-filter"
+                >
+                  <option value="none">Sort by Criticality</option>
+                  <option value="high-to-low">High to Low</option>
+                  <option value="low-to-high">Low to High</option>
+                </select>
+              </div>
+             
+              <div className="view-toggle">
+                <button
+                  className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                  onClick={() => handleViewModeChange('grid')}
+                >
+                  <i className="fas fa-th-large"></i> Grid
+                </button>
+                <button
+                  className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+                  onClick={() => handleViewModeChange('list')}
+                >
+                  <i className="fas fa-list"></i> List
+                </button>
+              </div>
             </div>
-        ) : (
-            renderListView()
-        )
-      ) : (
-        <div className="empty-state">
-          <i className="fas fa-clipboard-list"></i>
-          <h3>No tasks found</h3>
-          <p>Try adjusting your filters or search criteria</p>
-        </div>
+          </div>
+ 
+          {loading ? (
+            <div className="loading-container">
+              <div className="loading-spinner"></div>
+              <p>Loading tasks...</p>
+            </div>
+          ) : error ? (
+            <div className="error-container">
+              <i className="fas fa-exclamation-triangle"></i>
+              <p>{error}</p>
+              <button onClick={fetchTasks} className="retry-button">
+                <i className="fas fa-sync-alt"></i> Retry
+              </button>
+            </div>
+          ) : filteredTasks.length > 0 ? (
+            viewMode === 'grid' ? (
+                <div className="task-cards-grid">
+                    {getCurrentPageTasks().map(task => renderTaskCard(task))}
+                </div>
+            ) : (
+                renderListView()
+            )
+          ) : (
+            <div className="empty-state">
+              <i className="fas fa-clipboard-list"></i>
+              <h3>No tasks found</h3>
+              <p>Try adjusting your filters or search criteria</p>
+            </div>
+          )}
+        </>
       )}
  
       {showReassignModal && selectedTask && (
@@ -1088,7 +1289,7 @@ const Tasks = () => {
                     className="status-select"
                     value={selectedStatus}
                     onChange={(e) => setSelectedStatus(e.target.value)}
-                    disabled={isLoading}
+                    disabled={isUpdating}
                   >
                     <option value="Yet to Start">Yet to Start</option>
                     <option value="WIP">In Progress</option>
@@ -1121,7 +1322,7 @@ const Tasks = () => {
                     className="assignee-select"
                     onChange={(e) => setSelectedAssignee(e.target.value)}
                     value={selectedAssignee}
-                    disabled={isLoading}
+                    disabled={isUpdating}
                   >
                     <option value="">-- Select an employee --</option>
                     {employees.map(employee => (
@@ -1130,7 +1331,7 @@ const Tasks = () => {
                       </option>
                     ))}
                   </select>
-                  {isLoading && <div className="select-spinner"></div>}
+                  {isUpdating && <div className="select-spinner"></div>}
                 </div>
               </div>
             </div>
@@ -1139,16 +1340,16 @@ const Tasks = () => {
               <button
                 className="cancel-btn"
                 onClick={() => setShowReassignModal(false)}
-                disabled={isLoading}
+                disabled={isUpdating}
               >
                 Cancel
               </button>
               <button
                 className="save-btn"
                 onClick={handleReassign}
-                disabled={!selectedAssignee || isLoading}
+                disabled={!selectedAssignee || isUpdating}
               >
-                {isLoading ? (
+                {isUpdating ? (
                   <>
                     <div className="btn-spinner"></div>
                     Processing...

@@ -9,6 +9,7 @@
     justify-content: center;
     align-items: center;
     z-index: 1000;
+    animation: fadeIn 0.3s ease-out;
 }
 
 .assign-form-container {
@@ -16,28 +17,29 @@
     border-radius: 8px;
     width: 90%;
     max-width: 500px;
-    padding: 20px;
+    padding: 24px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     animation: slideUp 0.3s ease-out;
+    position: relative;
 }
 
 .assign-form-container h2 {
     margin-top: 0;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     color: #333;
     font-size: 1.5rem;
     text-align: center;
 }
 
 .form-group {
-    margin-bottom: 15px;
+    margin-bottom: 20px;
 }
 
 .form-group label {
     display: block;
-    margin-bottom: 5px;
-    font-weight: 500;
-    color: #555;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--dark-gray, #34495e);
 }
 
 .form-group select,
@@ -104,7 +106,8 @@
     color: #e74c3c;
     padding: 10px;
     border-radius: 4px;
-    margin-bottom: 15px;
+    margin-top: 16px;
+    margin-bottom: 20px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -129,13 +132,68 @@
     100% { transform: rotate(360deg); }
 }
 
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 @keyframes slideUp {
     from {
-        transform: translateY(20px);
+        transform: translateY(30px);
         opacity: 0;
     }
     to {
         transform: translateY(0);
         opacity: 1;
     }
+}
+
+/* Add these styles for the client dropdown */
+.client-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--medium-gray, #e0e6ed);
+    border-radius: 4px;
+    font-size: 14px;
+    color: var(--text-color, #2c3e50);
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.client-select:hover {
+    border-color: var(--primary-color, #3498db);
+}
+
+.client-select:focus {
+    outline: none;
+    border-color: var(--primary-color, #3498db);
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* Style for the selected option */
+.client-select option:checked {
+    background-color: var(--primary-color, #3498db);
+    color: white;
+}
+
+/* Remove the static client info styles since we're replacing it with a dropdown */
+.client-info {
+    display: none;
+}
+
+/* Update form group spacing */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--dark-gray, #34495e);
 } 
