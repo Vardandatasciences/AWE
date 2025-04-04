@@ -39,7 +39,7 @@ def load_user(user_id):
     return Actor.query.get(int(user_id))
 
 # ✅ Enable CORS globally for all routes
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
+CORS(app)
 
 # Initialize extensions
 db.init_app(app)

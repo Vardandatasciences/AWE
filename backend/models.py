@@ -105,9 +105,10 @@ class Activity(db.Model):
     due_by = db.Column(db.Date, default=datetime(2000, 1, 1))
     activity_type = db.Column(db.String(10), default='R')
     status = db.Column(db.String(1), default='A')  # 'A' for Active, 'O' for Obsolete
+    sub_activities = db.Column(db.JSON)  # New JSON column for subtasks
     
     # Relationships
-    tasks = db.relationship('Task', backref='activity', lazy=True)
+    # tasks = db.relationship('Task', backref='activity', lazy=True)
     
     def to_dict(self):
         return {
@@ -121,7 +122,8 @@ class Activity(db.Model):
             'frequency': self.frequency,
             'due_by': self.due_by.strftime('%Y-%m-%d') if self.due_by else None,
             'activity_type': self.activity_type,
-            'status': self.status
+            'status': self.status,
+            'sub_activities': self.sub_activities  # Include subtasks in the response
         }
 
 class Task(db.Model):

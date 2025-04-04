@@ -27,27 +27,44 @@ const AssignActivity = ({ activityId, onClose }) => {
 
 
   useEffect(() => {
-    // Fetch assignees from the actors table
+    // Fetch assignees from the actors table with full URL
     axios.get("http://127.0.0.1:5000/actors_assign")
     .then(response => {
-      console.log("🔹 Raw API Response:", response.data); // ✅ Log original data from API
+      console.log("🔹 Raw API Response:", response);
       
-      const filteredAssignees = response.data.filter(actor => {
-        console.log(`Checking actor: ${actor.actor_name}, role_id: ${actor.role_id}`); // Debugging each actor
-        return actor.role_id !== 11;
-      });
+      if (Array.isArray(response.data)) {
+        const filteredAssignees = response.data.filter(actor => {
+          console.log(`Checking actor: ${actor.actor_name}, role_id: ${actor.role_id}`);
+          return actor.role_id !== 11;
+        });
 
-      console.log("✅ Filtered Assignees:", filteredAssignees); // ✅ Log filtered data
-
-      setAssignees([]); // ✅ First, clear old state to prevent caching issues
-      
+        console.log("✅ Filtered Assignees:", filteredAssignees);
+        setAssignees(filteredAssignees); // Set the filtered data
+      } else {
+        console.error("❌ API response is not an array:", response.data);
+        setAssignees([]); // Set empty array if response is not an array
+      }
     })
-    .catch(error => console.error("❌ Error fetching assignees:", error));
+    .catch(error => {
+      console.error("❌ Error fetching assignees:", error);
+      setAssignees([]); // Set empty array on error
+    });
 
-    // Fetch customers from the customers table
+    // Fetch customers from the customers table with full URL
     axios.get("http://127.0.0.1:5000/customers_assign")
-      .then(response => setCustomers(response.data))
-      .catch(error => console.error("Error fetching customers:", error));
+      .then(response => {
+        console.log("Customer response:", response);
+        if (Array.isArray(response.data)) {
+          setCustomers(response.data);
+        } else {
+          console.error("Customer data not an array:", response.data);
+          setCustomers([]);
+        }
+      })
+      .catch(error => {
+        console.error("Error fetching customers:", error);
+        setCustomers([]);
+      });
   }, []);
 
   useEffect(() => {

@@ -2,21 +2,22 @@
 const API_BASE_URL = 'http://localhost:5000';
 
 export const API_ENDPOINTS = {
+  BASE_URL: API_BASE_URL,
   // Activities
-  ACTIVITIES: `${API_BASE_URL}/activities`,
+  ACTIVITIES: 'http://localhost:5000/activities',
   ADD_ACTIVITY: `${API_BASE_URL}/add_activity`,
   DELETE_ACTIVITY: (id) => `${API_BASE_URL}/delete_activity/${id}`,
   UPDATE_ACTIVITY: `${API_BASE_URL}/update_activity`,
   
   // Actors
-  ACTORS: `${API_BASE_URL}/actors`,
+  ACTORS: 'http://127.0.0.1:5000/actors',
   ACTORS_ASSIGN: `${API_BASE_URL}/actors_assign`,
   ADD_ACTOR: `${API_BASE_URL}/add_actor`,
   DELETE_ACTOR: (id) => `${API_BASE_URL}/delete_actor/${id}`,
   UPDATE_ACTOR: `${API_BASE_URL}/update_actor`,
   
   // Customers
-  CUSTOMERS: `${API_BASE_URL}/customers`,
+  CUSTOMERS: 'http://127.0.0.1:5000/customers_assign',
   CUSTOMERS_ASSIGN: `${API_BASE_URL}/customers_assign`,
   ADD_CUSTOMER: `${API_BASE_URL}/add_customer`,
   DELETE_CUSTOMER: (id) => `${API_BASE_URL}/delete_customer/${id}`,
@@ -48,6 +49,8 @@ export const API_ENDPOINTS = {
 
   ANALYTICS: `${API_BASE_URL}/analytics`,
   REPORTS: `${API_BASE_URL}/reports`,
+
+  ACTIVITY_MAPPINGS: (id) => `http://127.0.0.1:5000/activity_mappings/${id}`
 };
 
 export default API_ENDPOINTS; 
