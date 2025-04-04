@@ -480,11 +480,13 @@ def get_recent_messages():
                 'status': message.status
             })
         
+        # Always return an array, even if empty
         return jsonify(result)
     
     except Exception as e:
-        messages_bp.logger.error(f"Error fetching recent messages: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Error fetching recent messages: {str(e)}")
+        # Return an empty array on error
+        return jsonify([]), 500
 
 
 @messages_bp.route('/stop_email_thread', methods=['POST'])

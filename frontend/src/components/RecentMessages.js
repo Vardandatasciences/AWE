@@ -24,10 +24,17 @@ const RecentMessages = () => {
         }
       });
       
-      setRecentMessages(response.data);
+      // Make sure we're setting an array, even if the response is empty or not an array
+      const messagesData = response.data || [];
+      // Ensure messagesData is an array
+      setRecentMessages(Array.isArray(messagesData) ? messagesData : []);
+      
+      console.log("Recent messages data:", messagesData);
     } catch (err) {
       console.error("Error fetching recent messages:", err);
       setError("Failed to load recent messages");
+      // Initialize to empty array on error
+      setRecentMessages([]);
     } finally {
       setLoading(false);
     }
@@ -64,7 +71,6 @@ const RecentMessages = () => {
           Recent Sent Messages
           <button className="retry-button" onClick={fetchRecentMessages}>
             <i className="fas fa-sync-alt"></i>
-            
           </button>
         </h2>
       </div>
@@ -99,16 +105,22 @@ const RecentMessages = () => {
               </tr>
             </thead>
             <tbody>
-              {recentMessages.map((message) => (
-                <tr key={message.s_no} className="message-row">
-                  <td className="message-content">
-                    <div className="message-description">{truncateText(message.message_des)}</div>
-                  </td>
-                  <td>{formatDate(message.date)}</td>
-                  <td className="message-email">{message.email_id}</td>
-                  <td>{formatTime(message.time)}</td>
+              {Array.isArray(recentMessages) ? (
+                recentMessages.map((message) => (
+                  <tr key={message.s_no} className="message-row">
+                    <td className="message-content">
+                      <div className="message-description">{truncateText(message.message_des)}</div>
+                    </td>
+                    <td>{formatDate(message.date)}</td>
+                    <td className="message-email">{message.email_id}</td>
+                    <td>{formatTime(message.time)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4">No messages found</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

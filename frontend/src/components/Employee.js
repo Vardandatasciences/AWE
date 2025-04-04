@@ -57,6 +57,67 @@ styleSheet.type = "text/css";
 styleSheet.innerText = editFormStyles;
 document.head.appendChild(styleSheet);
  
+// Create a configured instance of axios
+const api = axios.create({
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+const PieChart = ({ data, onSegmentClick, selectedSegment }) => {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  let currentAngle = 0;
+
+  return (
+    <svg viewBox="0 0 100 100">
+      {data.map((item, index) => {
+        if (item.value === 0) return null;
+       
+        const angle = (item.value / total) * 360;
+        const startAngle = currentAngle;
+        currentAngle += angle;
+       
+        const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
+        const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
+        const x2 = 50 + 40 * Math.cos(((startAngle + angle) * Math.PI) / 180);
+        const y2 = 50 + 40 * Math.sin(((startAngle + angle) * Math.PI) / 180);
+       
+        const largeArcFlag = angle > 180 ? 1 : 0;
+       
+        return (
+          <path
+            key={item.title}
+            d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
+            fill={item.color}
+            stroke="white"
+            strokeWidth="1"
+            className={selectedSegment === item.title ? 'selected' : ''}
+            onClick={() => onSegmentClick(item.title)}
+          />
+        );
+      })}
+    </svg>
+  );
+};
+
+// Add this near the top of your file after importing axios
+axios.interceptors.request.use(request => {
+  console.log('Axios Request:', request);
+  return request;
+});
+
+axios.interceptors.response.use(
+  response => {
+    console.log('Axios Response:', response);
+    return response;
+  },
+  error => {
+    console.log('Axios Response Error:', error);
+    return Promise.reject(error);
+  }
+);
+
 const Employee = () => {
   const [data, setData] = useState([]);
   const [activeTab, setActiveTab] = useState("actors");
@@ -103,7 +164,17 @@ const Employee = () => {
     // Load both data types on component mount
     fetchData("actors");
     fetchData("customers");
+    
+    // Add debug log
+    console.log("Component mounted, initial data fetch started");
   }, []);
+ 
+  // Add a debugging effect to see when data changes
+  useEffect(() => {
+    console.log("Data updated:", data);
+    console.log("Active tab:", activeTab);
+    console.log("Current tab data:", data[activeTab]);
+  }, [data, activeTab]);
  
   // Add useEffect to handle progress animation
   useEffect(() => {
@@ -151,23 +222,62 @@ const Employee = () => {
     try {
       let response;
       if (cat === "actors") {
-        response = await axios.get("/actors");
-        setData(prevData => ({ ...prevData, actors: response.data }));
-       
+        console.log("Fetching actors data...");
+        // Use the configured axios instance
+        response = await api.get("/actors");
+        
+        // Log the raw response to debug
+        console.log("Raw actors response:", response);
+        
+        // Parse the response if it's a string
+        let responseData = response.data;
+        if (typeof responseData === 'string') {
+          try {
+            responseData = JSON.parse(responseData);
+            console.log("Parsed actors data:", responseData);
+          } catch (parseError) {
+            console.error("Error parsing actors data:", parseError);
+            responseData = [];
+          }
+        }
+        
+        // Make sure responseData is an array
+        responseData = Array.isArray(responseData) ? responseData : [];
+        console.log("Final actors data:", responseData);
+        
+        setData(prevData => ({ ...prevData, actors: responseData }));
+        
         // Calculate stats
-        const total = response.data.length;
-        const active = response.data.filter(item => item.status === "A").length;
+        const total = responseData.length;
+        const active = responseData.filter(item => item.status === "A").length;
         setStats(prev => ({
           ...prev,
           actors: { total, active, inactive: total - active }
         }));
       } else if (cat === "customers") {
-        response = await axios.get("/customers");
-        setData(prevData => ({ ...prevData, customers: response.data }));
-       
-        // Calculate stats
-        const total = response.data.length;
-        const active = response.data.filter(item => item.status === "A").length;
+        console.log("Fetching customers data...");
+        response = await api.get("/customers");
+        
+        console.log("Raw customers response:", response);
+        
+        let responseData = response.data;
+        if (typeof responseData === 'string') {
+          try {
+            responseData = JSON.parse(responseData);
+            console.log("Parsed customers data:", responseData);
+          } catch (parseError) {
+            console.error("Error parsing customers data:", parseError);
+            responseData = [];
+          }
+        }
+        
+        responseData = Array.isArray(responseData) ? responseData : [];
+        console.log("Final customers data:", responseData);
+        
+        setData(prevData => ({ ...prevData, customers: responseData }));
+        
+        const total = responseData.length;
+        const active = responseData.filter(item => item.status === "A").length;
         setStats(prev => ({
           ...prev,
           customers: { total, active, inactive: total - active }
@@ -175,6 +285,7 @@ const Employee = () => {
       }
     } catch (err) {
       console.error("Error fetching data:", err);
+      console.log("Error details:", err.response || err.message);
     } finally {
       setLoading(false);
     }
@@ -191,9 +302,20 @@ const Employee = () => {
  
   // Filter and search functionality
   const getFilteredData = () => {
-    const currentData = data[activeTab] || [];
-   
-    return currentData.filter(item => {
+    // Get the current data array safely
+    const currentTabData = data[activeTab];
+    
+    // Return empty array if no data exists for this tab
+    if (!currentTabData) {
+      console.log(`No data available for tab: ${activeTab}`);
+      return [];
+    }
+    
+    // Ensure we're working with an array
+    const dataArray = Array.isArray(currentTabData) ? currentTabData : [];
+    console.log(`Filtered data for ${activeTab}:`, dataArray.length, "items");
+    
+    return dataArray.filter(item => {
       const statusMatch = filterStatus === "all" ||
         (filterStatus === "active" && item.status === "A") ||
         (filterStatus === "inactive" && item.status === "O");
@@ -387,31 +509,58 @@ const Employee = () => {
     setSelectedEmployee(employee);
     try {
       const response = await axios.get(`/employee-performance/${employee.actor_id}`);
-      setPerformanceData(response.data);
+      // Ensure performanceData is always an array
+      setPerformanceData(Array.isArray(response.data) ? response.data : []);
       setShowReportModal(true);
     } catch (error) {
       console.error("Error fetching performance data:", error);
+      // Initialize with empty array on error
+      setPerformanceData([]);
+      alert("Failed to load performance data. Please try again.");
     }
   };
 
   const handleDownloadReport = async (employee) => {
     try {
-      const response = await axios.get(`/download-performance/${employee.actor_id}`, {
-        responseType: 'blob'
-      });
-     
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-     
-      const currentDate = new Date().toISOString().split('T')[0];
-      link.setAttribute('download', `${currentDate}_${employee.actor_name}_Performance.pdf`);
-     
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-     
-      window.URL.revokeObjectURL(url);
+      // Show loading indicator or message
+      alert("Generating report, please wait...");
+      
+      // Use a direct browser window approach for reliable PDF downloads
+      const url = `/download-performance/${employee.actor_id}`;
+      
+      // Open in a new tab first
+      const newTab = window.open(url, '_blank');
+      
+      // If popup blocked, fallback to the blob approach
+      if (!newTab || newTab.closed || typeof newTab.closed === 'undefined') {
+        console.log("Popup blocked, trying alternative download method...");
+        
+        const response = await axios.get(url, {
+          responseType: 'blob'
+        });
+        
+        // Check if we got a valid PDF
+        if (response.headers['content-type'] === 'application/pdf') {
+          const blob = new Blob([response.data], { type: 'application/pdf' });
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          
+          const currentDate = new Date().toISOString().split('T')[0];
+          link.setAttribute('download', `${currentDate}_${employee.actor_name}_Performance.pdf`);
+          
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          // Clean up
+          setTimeout(() => {
+            window.URL.revokeObjectURL(downloadUrl);
+          }, 100);
+        } else {
+          throw new Error("The server did not return a PDF file");
+        }
+      }
     } catch (error) {
       console.error('Error downloading report:', error);
       alert('Failed to download report. Please try again.');
@@ -431,6 +580,24 @@ const Employee = () => {
     { type: 'delete', entity: 'employee', name: 'Jane Doe', time: '1 day ago' },
   ];
  
+  const testDirectApiCall = async () => {
+    try {
+      console.log("Testing direct API call to /actors...");
+      const response = await fetch('http://localhost:5000/actors');
+      const text = await response.text();
+      console.log("Raw response:", text);
+      
+      try {
+        const data = JSON.parse(text);
+        console.log("Parsed response:", data);
+      } catch (e) {
+        console.log("Could not parse as JSON");
+      }
+    } catch (err) {
+      console.error("Direct API test failed:", err);
+    }
+  };
+  
   // Add a function to navigate to the Tasks page
   const navigateToTasks = () => {
     navigate('/tasks');
@@ -889,7 +1056,7 @@ const Employee = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {performanceData.map(task => (
+                    {Array.isArray(performanceData) && performanceData.map(task => (
                       <tr
                         key={task.task_id}
                         className={selectedStatus === task.status ? 'highlighted' : ''}
@@ -900,7 +1067,7 @@ const Employee = () => {
                         <td>{task.completion_date}</td>
                         <td>{task.time_taken}</td>
                         <td>{task.standard_time}</td>
-                        <td className={`status-${task.status.toLowerCase()}`}>
+                        <td className={`status-${task.status?.toLowerCase()}`}>
                           {task.status}
                         </td>
                       </tr>
@@ -915,17 +1082,17 @@ const Employee = () => {
                     data={[
                       {
                         title: 'ON-TIME',
-                        value: performanceData.filter(t => t.status === 'ON-TIME').length,
+                        value: Array.isArray(performanceData) ? performanceData.filter(t => t.status === 'ON-TIME').length : 0,
                         color: '#3498db'
                       },
                       {
                         title: 'EARLY',
-                        value: performanceData.filter(t => t.status === 'EARLY').length,
+                        value: Array.isArray(performanceData) ? performanceData.filter(t => t.status === 'EARLY').length : 0,
                         color: '#1a5e2d'
                       },
                       {
                         title: 'DELAY',
-                        value: performanceData.filter(t => t.status === 'DELAY').length,
+                        value: Array.isArray(performanceData) ? performanceData.filter(t => t.status === 'DELAY').length : 0,
                         color: '#e74c3c'
                       }
                     ]}
@@ -944,6 +1111,9 @@ const Employee = () => {
         </div>
       )}
  
+      <button onClick={testDirectApiCall} style={{marginTop: '20px'}}>
+        Test Direct API Call
+      </button>
       {/* Add Pending Tasks Modal */}
       {showPendingTasksModal && deactivatedActor && (
         <div className="modal-overlay">
@@ -1078,42 +1248,5 @@ const Employee = () => {
     </div>
   );
 };
- 
+
 export default Employee;
-
-const PieChart = ({ data, onSegmentClick, selectedSegment }) => {
-  const total = data.reduce((sum, item) => sum + item.value, 0);
-  let currentAngle = 0;
-
-  return (
-    <svg viewBox="0 0 100 100">
-      {data.map((item, index) => {
-        if (item.value === 0) return null;
-       
-        const angle = (item.value / total) * 360;
-        const startAngle = currentAngle;
-        currentAngle += angle;
-       
-        const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
-        const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
-        const x2 = 50 + 40 * Math.cos(((startAngle + angle) * Math.PI) / 180);
-        const y2 = 50 + 40 * Math.sin(((startAngle + angle) * Math.PI) / 180);
-       
-        const largeArcFlag = angle > 180 ? 1 : 0;
-       
-        return (
-          <path
-            key={item.title}
-            d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
-            fill={item.color}
-            stroke="white"
-            strokeWidth="1"
-            className={selectedSegment === item.title ? 'selected' : ''}
-            onClick={() => onSegmentClick(item.title)}
-          />
-        );
-      })}
-    </svg>
-  );
-};
-

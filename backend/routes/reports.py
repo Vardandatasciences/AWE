@@ -14,6 +14,10 @@ from reportlab.lib.styles import getSampleStyleSheet
 import numpy as np
 import os
 import tempfile
+from reportlab.pdfgen import canvas
+
+
+import traceback
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -644,7 +648,7 @@ def get_employee_performance(actor_id):
 @reports_bp.route('/download-performance/<int:actor_id>', methods=['GET'])
 def download_employee_performance(actor_id):
     try:
-        # Get employee name
+        # Get the employee details
         actor = Actor.query.get_or_404(actor_id)
         
         # Get all completed tasks with activity and customer info
@@ -659,21 +663,22 @@ def download_employee_performance(actor_id):
             Task.status == 'completed'
         ).all()
         
-        # Create a PDF file
+        # Create a figure for the plot
+        plt.figure(figsize=(10, 8))
+        
+        # Create a PDF
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
-        elements = []
+        pdf = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
         
         # Add title
-        styles = getSampleStyleSheet()
-        title = Paragraph(f"Employee Performance Report: {actor.actor_name}", styles['Heading1'])
-        elements.append(title)
-        elements.append(Spacer(1, 12))
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(50, height - 50, f"Performance Report: {actor.actor_name}")
+        pdf.setFont("Helvetica", 12)
+        pdf.drawString(50, height - 70, f"Generated on: {datetime.now().strftime('%Y-%m-%d')}")
         
-        # Add date
-        date_text = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d')}", styles['Normal'])
-        elements.append(date_text)
-        elements.append(Spacer(1, 12))
+        # Add a horizontal line
+        pdf.line(50, height - 80, width - 50, height - 80)
         
         # Convert to list format for PDF
         task_data = []
@@ -890,15 +895,14 @@ def download_employee_performance(actor_id):
         
         # Return the PDF
         buffer.seek(0)
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        file_name = f"{current_date}_{actor.actor_name}_Performance.pdf"
         
         return send_file(
             buffer,
             as_attachment=True,
-            download_name=file_name,
+            download_name=f"{datetime.now().strftime('%Y-%m-%d')}_{actor.actor_name}_Performance.pdf",
             mimetype="application/pdf"
         )
+        
     except Exception as e:
         print(f"Error generating PDF: {str(e)}")
         return jsonify({"error": str(e)}), 500
