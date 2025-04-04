@@ -25,6 +25,7 @@ def get_activities():
     try:
         # Modified to only get active activities
         activities = Activity.query.filter_by(status='A').all()
+        print(activities)
         return jsonify([activity.to_dict() for activity in activities])
     except Exception as e:
         print("Error:", e)
@@ -34,6 +35,7 @@ def get_activities():
 def add_activity():
     try:
         data = request.json
+        print("Received data for new activity:", data)
         
         new_activity = Activity(
             activity_name=data.get('activity_name', 'Unnamed Activity'),
@@ -44,7 +46,9 @@ def add_activity():
             role_id=data.get('role_id', 0),
             frequency=data.get('frequency', 0),
             due_by=datetime.strptime(data.get('due_by', '2000-01-01'), '%Y-%m-%d').date(),
-            activity_type=data.get('activity_type', 'R')
+            activity_type=data.get('activity_type', 'R'),
+            status=data.get('status', 'A'),
+            sub_activities=data.get('sub_activities')  # Store subtasks as JSON
         )
         
         db.session.add(new_activity)
@@ -53,6 +57,7 @@ def add_activity():
         return jsonify({"message": "Activity added successfully"}), 201
     except Exception as e:
         db.session.rollback()
+        print(f"Error adding activity: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @activities_bp.route('/delete_activity/<int:activity_id>', methods=['DELETE'])
@@ -67,6 +72,8 @@ def delete_activity(activity_id):
         ).filter(
             Task.status != 'COMPLETED'
         ).first()
+
+        
         
         if incomplete_tasks:
             return jsonify({
@@ -103,6 +110,10 @@ def update_activity():
         activity.frequency = data.get('frequency', activity.frequency)
         activity.activity_type = data.get('activity_type', activity.activity_type)
         
+        # Update subtasks if provided
+        if 'sub_activities' in data:
+            activity.sub_activities = data['sub_activities']
+        
         # Handle due_by date conversion
         if 'due_by' in data and data['due_by']:
             activity.due_by = datetime.strptime(data['due_by'], '%Y-%m-%d').date()
@@ -120,7 +131,6 @@ def update_activity():
 def get_activity_mappings(activity_id):
     try:
         # Query to get all customers and their assigned actors for a specific activity
-        # This uses the CustomerActivity table from your app.py
         from models import db, Customer, Actor
         
         # Using raw SQL query to match your existing database structure
@@ -152,11 +162,54 @@ def get_activity_mappings(activity_id):
                 "employee_name": row.employee_name
             })
         
-        return jsonify(mappings)
+        # Set proper CORS headers to ensure JSON is treated correctly
+        response = jsonify(mappings)
+        response.headers.add('Content-Type', 'application/json')
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
     except Exception as e:
         print(f"Error fetching activity mappings: {e}")
-        return jsonify({"error": str(e)}), 500
+        # Return an empty array on error with proper headers
+        response = jsonify([])
+        response.headers.add('Content-Type', 'application/json')
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
 
+@activities_bp.route('/actors_assign', methods=['GET'])
+def get_actors_assign():
+    try:
+        actors = Actor.query.all()
+        actors_data = [{"actor_id": actor.actor_id, "actor_name": actor.actor_name, "role_id": actor.role_id} for actor in actors]
+        
+        # Set proper CORS headers
+        response = jsonify(actors_data)
+        response.headers.add('Content-Type', 'application/json')
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+    except Exception as e:
+        print(f"Error fetching actors: {e}")
+        response = jsonify([])
+        response.headers.add('Content-Type', 'application/json')
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
+
+@activities_bp.route('/customers_assign', methods=['GET'])
+def get_customers_assign():
+    try:
+        customers = Customer.query.all()
+        customers_data = [{"customer_id": customer.customer_id, "customer_name": customer.customer_name} for customer in customers]
+        
+        # Set proper CORS headers
+        response = jsonify(customers_data)
+        response.headers.add('Content-Type', 'application/json')
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+    except Exception as e:
+        print(f"Error fetching customers: {e}")
+        response = jsonify([])
+        response.headers.add('Content-Type', 'application/json')
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
 
 def calculate_new_duedate(start_date, iteration, frequency):
     """Calculate the new due date based on frequency."""

@@ -76,7 +76,17 @@ const Activities = () => {
     const [activitiesPerPage] = useState(12);
     const [totalPages, setTotalPages] = useState(1);
 
+    // Add new state for subtasks
+    const [subtasks, setSubtasks] = useState([]);
+    const [subtaskCounter, setSubtaskCounter] = useState(1);
+
+    // Add a new state for the subtask workflow popup
+    const [showSubtaskWorkflow, setShowSubtaskWorkflow] = useState(false);
+    const [selectedSubtasks, setSelectedSubtasks] = useState([]);
+
     useEffect(() => {
+        // Ensure activityMappings is always an array
+        setActivityMappings([]);
         fetchActivities();
         // fetchGroups();
         fetchEmployees();
@@ -128,18 +138,30 @@ const Activities = () => {
     
     const fetchEmployees = async () => {
         try {
-            const response = await axios.get('/actors');
+            // Use the full URL with protocol and host
+            const response = await axios.get('http://127.0.0.1:5000/actors');
             setEmployees(response.data);
         } catch (error) {
             console.error('Error fetching employees:', error);
+            setEmployees([]);
         }
     };
     
     const fetchActivityMappings = async (activityId) => {
         setMappingLoading(true);
         try {
-            const response = await axios.get(`/activity_mappings/${activityId}`);
-            setActivityMappings(response.data);
+            // Make sure the URL is correct and includes proper protocol/host
+            const response = await axios.get(`http://127.0.0.1:5000/activity_mappings/${activityId}`);
+            
+            console.log("Activity mappings response:", response);
+            
+            // Ensure response.data is an array
+            if (Array.isArray(response.data)) {
+                setActivityMappings(response.data);
+            } else {
+                console.error('Expected array but received:', response.data);
+                setActivityMappings([]); // Set empty array as fallback
+            }
         } catch (error) {
             console.error('Error fetching activity mappings:', error);
             setActivityMappings([]);
@@ -152,12 +174,60 @@ const Activities = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    // Add function to handle subtask input change
+    const handleSubtaskChange = (index, field, value) => {
+        const updatedSubtasks = [...subtasks];
+        updatedSubtasks[index][field] = value;
+        setSubtasks(updatedSubtasks);
+        
+        // Calculate total time
+        calculateTotalTime(updatedSubtasks);
+    };
+
+    // Function to calculate total standard time from subtasks
+    const calculateTotalTime = (updatedSubtasks) => {
+        const totalTime = updatedSubtasks.reduce((sum, subtask) => {
+            return sum + (parseFloat(subtask.time) || 0);
+        }, 0);
+        
+        // Update the form data with calculated total time
+        setFormData(prev => ({
+            ...prev,
+            standard_time: totalTime.toString()
+        }));
+    };
+
+    // Add function to add new subtask
+    const addSubtask = () => {
+        setSubtasks([...subtasks, { 
+            id: subtaskCounter,
+            name: '', 
+            description: '', 
+            time: '0' 
+        }]);
+        setSubtaskCounter(prev => prev + 1);
+    };
+
+    // Add function to remove subtask
+    const removeSubtask = (index) => {
+        const updatedSubtasks = subtasks.filter((_, i) => i !== index);
+        setSubtasks(updatedSubtasks);
+        calculateTotalTime(updatedSubtasks);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            // Include subtasks in the data sent to the server, but use "sub_activities" as the key
+            const dataToSubmit = {
+                ...formData,
+                sub_activities: subtasks.length > 0 ? subtasks : null
+            };
+            
             let response;
             if (editingActivity) {
-                response = await axios.put('/update_activity', formData);
+                // Make sure to use full URL to backend
+                response = await axios.put(`${API_ENDPOINTS.BASE_URL}/update_activity`, dataToSubmit);
                 if (response.data.activity) {
                     // Update the activity in the local state
                     setActivities(activities.map(activity => 
@@ -167,7 +237,8 @@ const Activities = () => {
                     ));
                 }
             } else {
-                response = await axios.post('/add_activity', formData);
+                // Make sure to use full URL to backend
+                response = await axios.post(`${API_ENDPOINTS.BASE_URL}/add_activity`, dataToSubmit);
                 // Refresh activities list after adding
                 fetchActivities();
             }
@@ -178,18 +249,7 @@ const Activities = () => {
             // Reset form and close modal
             setShowForm(false);
             setEditingActivity(null);
-            setFormData({
-                activity_name: "",
-                standard_time: "",
-                act_des: "",
-                criticality: "Low",
-                duration: "",
-                role_id: "",
-                frequency: "0",
-                due_by: "",
-                activity_type: "R",
-                status: "A"
-            });
+            resetFormData();
             
             // If we're in the workflow process, mark this step as completed
             if (isInWorkflow) {
@@ -204,6 +264,25 @@ const Activities = () => {
         }
     };
 
+    // Add function to reset form data including subtasks
+    const resetFormData = () => {
+        setFormData({
+            activity_name: "",
+            standard_time: "",
+            act_des: "",
+            criticality: "Low",
+            duration: "",
+            role_id: "",
+            frequency: "0",
+            due_by: "",
+            activity_type: "R",
+            status: "A"
+        });
+        setSubtasks([]);
+        setSubtaskCounter(1);
+    };
+
+    // Modify the edit function to handle subtasks
     const handleEdit = (activity) => {
         setEditingActivity(activity);
         setFormData({
@@ -219,6 +298,16 @@ const Activities = () => {
             activity_type: activity.activity_type || 'R',
             status: activity.status || 'A'
         });
+        
+        // If activity has subtasks, load them - use sub_activities as the field name
+        if (activity.sub_activities && Array.isArray(activity.sub_activities)) {
+            setSubtasks(activity.sub_activities);
+            setSubtaskCounter(activity.sub_activities.length + 1);
+        } else {
+            setSubtasks([]);
+            setSubtaskCounter(1);
+        }
+        
         setShowForm(true);
     };
 
@@ -559,6 +648,16 @@ const fetchActivityReport = async (activityId) => {
         );
     };
 
+    // Add function to view subtasks workflow
+    const handleViewSubtasks = (activity) => {
+        if (activity.sub_activities && Array.isArray(activity.sub_activities) && activity.sub_activities.length > 0) {
+            setSelectedSubtasks(activity.sub_activities);
+            setShowSubtaskWorkflow(true);
+        } else {
+            alert("This activity doesn't have any subtasks.");
+        }
+    };
+
     return (
         <div className="activities-container">
             {/* <div className="page-header">
@@ -750,14 +849,22 @@ const fetchActivityReport = async (activityId) => {
                                 <div className="activity-icon">
                                     <i className="fas fa-clipboard-check"></i>
                                 </div>
-                                <button 
-                                    className="report-btn"
-                                    onClick={() => handleReportClick(activity)}
-                                    title="View Activity Performance Report"
-                                >
-                                    <i className="fas fa-chart-pie"></i>
-                                </button>
-                                
+                                <div className="card-actions">
+                                    <button 
+                                        className="view-subtasks-btn"
+                                        onClick={() => handleViewSubtasks(activity)}
+                                        title="View Subtasks Workflow"
+                                    >
+                                        <i className="fas fa-eye"></i>
+                                    </button>
+                                    <button 
+                                        className="report-btn"
+                                        onClick={() => handleReportClick(activity)}
+                                        title="View Activity Performance Report"
+                                    >
+                                        <i className="fas fa-chart-pie"></i>
+                                    </button>
+                                </div>
                             </div>
                             
                             <div className="activity-card-body">
@@ -856,7 +963,10 @@ const fetchActivityReport = async (activityId) => {
                                 <i className="fas fa-clipboard-check"></i>
                                 {editingActivity ? 'Edit Activity' : 'Add New Activity'}
                             </h2>
-                            <button className="close-btn" onClick={() => setShowForm(false)}>
+                            <button className="close-btn" onClick={() => {
+                                setShowForm(false);
+                                resetFormData();
+                            }}>
                                 <i className="fas fa-times"></i>
                             </button>
                         </div>
@@ -871,6 +981,71 @@ const fetchActivityReport = async (activityId) => {
                                     required
                                 />
                             </div>
+                            
+                            {/* Add Subtask Button */}
+                            <div className="subtask-control">
+                                <button 
+                                    type="button" 
+                                    className="add-subtask-btn"
+                                    onClick={addSubtask}
+                                >
+                                    <i className="fas fa-plus-circle"></i> Add Subtask
+                                </button>
+                            </div>
+                            
+                            {/* Subtasks Area */}
+                            {subtasks.length > 0 && (
+                                <div className="subtasks-container">
+                                    <h3>Subtasks</h3>
+                                    
+                                    {subtasks.map((subtask, index) => (
+                                        <div key={subtask.id} className="subtask-item">
+                                            <div className="subtask-header">
+                                                <h4>Subtask {index + 1}</h4>
+                                                <button 
+                                                    type="button" 
+                                                    className="remove-subtask-btn"
+                                                    onClick={() => removeSubtask(index)}
+                                                >
+                                                    <i className="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                            
+                                            <div className="subtask-form-group">
+                                                <label>Name:</label>
+                                                <input
+                                                    type="text"
+                                                    value={subtask.name}
+                                                    onChange={(e) => handleSubtaskChange(index, 'name', e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                            
+                                            <div className="subtask-form-group">
+                                                <label>Description:</label>
+                                                <textarea
+                                                    value={subtask.description}
+                                                    onChange={(e) => handleSubtaskChange(index, 'description', e.target.value)}
+                                                    rows="2"
+                                                ></textarea>
+                                            </div>
+                                            
+                                            <div className="subtask-form-group">
+                                                <label>Time (hours):</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    min="0"
+                                                    value={subtask.time}
+                                                    onChange={(e) => handleSubtaskChange(index, 'time', e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
                             <div className="form-group">
                                 <label>Estimated Time to complete (in hours):</label>
                                 <input
@@ -879,7 +1054,15 @@ const fetchActivityReport = async (activityId) => {
                                     value={formData.standard_time}
                                     onChange={handleInputChange}
                                     required
+                                    readOnly={subtasks.length > 0}
+                                    className={subtasks.length > 0 ? 'calculated-field' : ''}
                                 />
+                                {subtasks.length > 0 && (
+                                    <div className="field-note">
+                                        <i className="fas fa-info-circle"></i> 
+                                        Automatically calculated from subtasks
+                                    </div>
+                                )}
                             </div>
                             <div className="form-group">
                                 <label>Activity Description:</label>
@@ -967,22 +1150,6 @@ const fetchActivityReport = async (activityId) => {
                                 </select>
                             </div>
                             <div className="form-group">
-                                {/* <label>Group:</label>
-                                <select
-                                    name="group_id"
-                                    value={formData.group_id}
-                                    onChange={handleInputChange}
-                                    required
-                                >
-                                    <option value="">Select a group</option>
-                                    {groups.map(group => (
-                                        <option key={group.id} value={group.id}>
-                                            {group.group_name}
-                                        </option>
-                                    ))}
-                                </select> */}
-                            </div>
-                            <div className="form-group">
                                 <label>Status:</label>
                                 <select
                                     name="status"
@@ -1000,7 +1167,10 @@ const fetchActivityReport = async (activityId) => {
                                 <button 
                                     type="button" 
                                     className="btn-cancel" 
-                                    onClick={() => setShowForm(false)}
+                                    onClick={() => {
+                                        setShowForm(false);
+                                        resetFormData();
+                                    }}
                                 >
                                     <i className="fas fa-times"></i> Cancel
                                 </button>
@@ -1055,7 +1225,7 @@ const fetchActivityReport = async (activityId) => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {activityMappings.length > 0 ? (
+                                        {Array.isArray(activityMappings) && activityMappings.length > 0 ? (
                                             activityMappings.map(mapping => (
                                                 <tr key={mapping.id}>
                                                     <td>{mapping.customer_name}</td>
@@ -1194,6 +1364,71 @@ const fetchActivityReport = async (activityId) => {
                                     selectedSegment={selectedStatus}
                                 />
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showSubtaskWorkflow && (
+                <div className="modal-overlay">
+                    <div className="subtask-workflow-modal">
+                        <div className="modal-header">
+                            <h2>
+                                <i className="fas fa-project-diagram"></i>
+                                Subtask Workflow
+                            </h2>
+                            <button 
+                                className="close-btn" 
+                                onClick={() => setShowSubtaskWorkflow(false)}
+                            >
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        
+                        <div className="workflow-content">
+                            {selectedSubtasks.length > 0 ? (
+                                <div className="horizontal-workflow">
+                                    <div className="workflow-step start-step">
+                                        <div className="workflow-node start">
+                                            <i className="fas fa-play"></i>
+                                            <span>Start</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="workflow-line"></div>
+                                    
+                                    {selectedSubtasks.map((subtask, index) => (
+                                        <React.Fragment key={subtask.id || index}>
+                                            <div className="workflow-step task-step">
+                                                <div className="task-card">
+                                                    <div className="task-header">
+                                                        <div className="task-number">{index + 1}</div>
+                                                        <h3 className="task-name">{subtask.name}</h3>
+                                                    </div>
+                                                    <p className="task-description">{subtask.description || 'No description'}</p>
+                                                    <div className="task-time">
+                                                        <i className="far fa-clock"></i> {subtask.time} hours
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="workflow-line"></div>
+                                        </React.Fragment>
+                                    ))}
+                                    
+                                    <div className="workflow-step end-step">
+                                        <div className="workflow-node end">
+                                            <i className="fas fa-flag-checkered"></i>
+                                            <span>Complete</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="no-subtasks">
+                                    <i className="fas fa-exclamation-circle"></i>
+                                    <p>No subtasks found for this activity.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
