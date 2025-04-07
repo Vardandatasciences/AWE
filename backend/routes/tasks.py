@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Task, ActivityAssignment, Actor, Diary1, Customer
+from models import db, Task, ActivityAssignment, Actor, Diary1 ,Activity,Customer
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -1038,50 +1038,25 @@ def get_employees():
         print("Error fetching employees:", e)
         return jsonify({'error': 'Failed to fetch employees'}), 500
 
-@tasks_bp.route('/api/actors', methods=['GET'])
-def get_actors():
+@tasks_bp.route('/task_subtasks/<task_id>', methods=['GET'])
+def get_task_subtasks(task_id):
     try:
-        # Get query parameters
-        status = request.args.get('status', 'A')  # Default to 'A' if not provided
-        role_id = request.args.get('role_id', '22')  # Default to '22' if not provided
-        
-        # Query active auditors with role_id 22
-        actors = Actor.query.filter(
-            Actor.status == status,
-            Actor.role_id == role_id
-        ).order_by(Actor.actor_name).all()  # Add ordering for consistency
-        
-        # Format the response - ensure IDs are strings for consistency
-        actors_list = [{
-            'id': str(actor.actor_id),  # Convert to string
-            'name': actor.actor_name,
-            'email': actor.email_id  # Include email for verification
-        } for actor in actors]
-        
-        print(f"Fetched {len(actors_list)} actors: {actors_list}")  # Add logging
-        return jsonify(actors_list)
-    
+        # Get the task
+        task = Task.query.filter_by(task_id=task_id).first()
+        if not task:
+            return jsonify({"error": "Task not found"}), 404
+            
+        # Get the activity associated with this task
+        activity = Activity.query.filter_by(activity_id=task.activity_id).first()
+        if not activity:
+            return jsonify([])  # No activity found, so no subtasks
+            
+        # Check if activity has subtasks
+        if activity.sub_activities:
+            return jsonify(activity.sub_activities)
+        else:
+            return jsonify([])
+            
     except Exception as e:
-        print(f"Error fetching actors: {e}")
-        return jsonify({'error': 'Failed to fetch actors'}), 500
-
-@tasks_bp.route('/api/customers', methods=['GET'])
-def get_customers():
-    try:
-        # Get status from query parameters, default to 'A'
-        status = request.args.get('status', 'A')
-        
-        # Query active customers
-        customers = Customer.query.filter_by(status=status).all()
-        
-        # Format the response
-        customers_list = [{
-            'customer_id': customer.customer_id,
-            'customer_name': customer.customer_name
-        } for customer in customers]
-        
-        return jsonify(customers_list)
-    
-    except Exception as e:
-        print(f"Error fetching customers: {e}")
-        return jsonify({'error': 'Failed to fetch customers'}), 500 
+        print(f"Error fetching task subtasks: {e}")
+        return jsonify({"error": str(e)}), 500 
