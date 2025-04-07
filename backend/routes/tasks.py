@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Task, ActivityAssignment, Actor, Diary1
+from models import db, Task, ActivityAssignment, Actor, Diary1 ,Activity
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -1111,4 +1111,27 @@ def get_employees():
         } for employee in employees])
     except Exception as e:
         print("Error fetching employees:", e)
-        return jsonify({'error': 'Failed to fetch employees'}), 500 
+        return jsonify({'error': 'Failed to fetch employees'}), 500
+
+@tasks_bp.route('/task_subtasks/<task_id>', methods=['GET'])
+def get_task_subtasks(task_id):
+    try:
+        # Get the task
+        task = Task.query.filter_by(task_id=task_id).first()
+        if not task:
+            return jsonify({"error": "Task not found"}), 404
+            
+        # Get the activity associated with this task
+        activity = Activity.query.filter_by(activity_id=task.activity_id).first()
+        if not activity:
+            return jsonify([])  # No activity found, so no subtasks
+            
+        # Check if activity has subtasks
+        if activity.sub_activities:
+            return jsonify(activity.sub_activities)
+        else:
+            return jsonify([])
+            
+    except Exception as e:
+        print(f"Error fetching task subtasks: {e}")
+        return jsonify({"error": str(e)}), 500 

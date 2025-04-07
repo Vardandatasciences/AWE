@@ -1469,3 +1469,276 @@
     font-weight: 600;
     text-transform: uppercase;
 }
+
+/* View Subtasks button */
+.view-subtasks-button {
+  background-color: #4a6cf7;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 8px;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.view-subtasks-button:hover {
+  background-color: #3a5ce5;
+}
+
+/* Subtasks Modal */
+.subtasks-modal {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.subtasks-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+.subtasks-table th, 
+.subtasks-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.subtasks-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+}
+
+.empty-subtasks {
+  text-align: center;
+  padding: 30px;
+  color: #888;
+}
+
+.empty-subtasks i {
+  font-size: 48px;
+  margin-bottom: 15px;
+  opacity: 0.5;
+}
+
+/* View Subtasks Button */
+.view-subtasks-btn {
+  background-color: #4a6cf7;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 8px;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.view-subtasks-btn:hover {
+  background-color: #3a5ce5;
+}
+
+/* Subtask Workflow Modal */
+.subtask-workflow-modal {
+  background: white;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 1200px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+  padding-bottom: 20px;
+}
+
+.subtask-workflow-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.subtask-workflow-modal .modal-header h2 {
+  font-size: 20px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #333;
+}
+
+.subtask-workflow-modal .modal-header h2 i {
+  color: #4a6cf7;
+}
+
+.workflow-content {
+  padding: 20px;
+  overflow-x: auto;
+}
+
+.horizontal-workflow {
+  display: flex;
+  align-items: center;
+  min-width: min-content;
+  padding: 20px 40px;
+}
+
+.workflow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.workflow-node {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 2;
+}
+
+.workflow-node.start {
+  background: #e6f7e7;
+  color: #27ae60;
+}
+
+.workflow-node.end {
+  background: #f7e6e6;
+  color: #e74c3c;
+}
+
+.workflow-node i {
+  font-size: 20px;
+  margin-bottom: 2px;
+}
+
+.workflow-node span {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.workflow-line {
+  height: 3px;
+  width: 80px;
+  background: #e0e0e0;
+  position: relative;
+  z-index: 1;
+}
+
+.workflow-step.task-step {
+  margin: 0 -20px;
+}
+
+.workflow-step .task-card {
+  width: 200px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  padding: 15px;
+  margin-bottom: 15px;
+  border-top: 4px solid #4a6cf7;
+}
+
+.workflow-step .task-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.workflow-step .task-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #4a6cf7;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 12px;
+  margin-right: 10px;
+}
+
+.workflow-step .task-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+}
+
+.workflow-step .task-description {
+  font-size: 12px;
+  color: #777;
+  margin: 8px 0;
+  height: 36px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.workflow-step .task-time {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: #555;
+  margin-top: 5px;
+}
+
+.workflow-step .task-time i {
+  margin-right: 5px;
+  color: #4a6cf7;
+}
+
+.no-subtasks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #777;
+}
+
+.no-subtasks i {
+  font-size: 48px;
+  margin-bottom: 15px;
+  color: #ddd;
+}
+
+.no-subtasks p {
+  font-size: 16px;
+}
+
+/* Ensure the workflow is scrollable on smaller screens */
+@media (max-width: 768px) {
+  .horizontal-workflow {
+    padding: 20px 10px;
+  }
+  
+  .workflow-line {
+    width: 40px;
+  }
+  
+  .workflow-step .task-card {
+    width: 160px;
+  }
+}

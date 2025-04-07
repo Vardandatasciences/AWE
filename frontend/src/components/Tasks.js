@@ -54,6 +54,10 @@ const Tasks = () => {
   const [showRemarksModal, setShowRemarksModal] = useState(false);
   const [remarks, setRemarks] = useState('');
   const [taskForRemarks, setTaskForRemarks] = useState(null);
+  const [showSubtasksModal, setShowSubtasksModal] = useState(false);
+  const [selectedTaskForSubtasks, setSelectedTaskForSubtasks] = useState(null);
+  const [showSubtaskWorkflow, setShowSubtaskWorkflow] = useState(false);
+  const [selectedSubtasks, setSelectedSubtasks] = useState([]);
  
   // Check if GIFs are loading correctly
   useEffect(() => {
@@ -529,6 +533,35 @@ const Tasks = () => {
     return (now - assigned) < 24 * 60 * 60 * 1000;
   };
  
+  // Add this function to handle viewing subtasks
+  const handleViewSubtasks = (task) => {
+    // Check if task has subtasks field directly
+    if (task.sub_activities && Array.isArray(task.sub_activities) && task.sub_activities.length > 0) {
+      setSelectedSubtasks(task.sub_activities);
+      setShowSubtaskWorkflow(true);
+    } else {
+      // If not, we need to fetch the subtasks from the backend
+      fetchTaskSubtasks(task.id);
+    }
+  };
+  
+  // Function to fetch subtasks from backend
+  const fetchTaskSubtasks = async (taskId) => {
+    try {
+      const response = await axios.get(`${API_ENDPOINTS.BASE_URL}/task_subtasks/${taskId}`);
+      
+      if (response.data && Array.isArray(response.data)) {
+        setSelectedSubtasks(response.data);
+        setShowSubtaskWorkflow(true);
+      } else {
+        alert("This task doesn't have any subtasks.");
+      }
+    } catch (error) {
+      console.error("Error fetching subtasks:", error);
+      alert("Failed to load subtasks. Please try again.");
+    }
+  };
+ 
   const renderTaskCard = (task, index) => {
     const isDelayed = isTaskDelayed(task.due_date);
     const isNew = isRecentlyAssigned(task.assigned_timestamp);
@@ -554,6 +587,14 @@ const Tasks = () => {
                 )}
                 
                 <div className="task-actions">
+                  <button 
+                    className="view-subtasks-btn"
+                    onClick={() => handleViewSubtasks(task)}
+                    title="View Subtasks Workflow"
+                  >
+                    <i className="fas fa-eye"></i>
+                  </button>
+                  
                   {isAdmin && (
                     <button
                       className="reassign-button"
@@ -690,6 +731,14 @@ const Tasks = () => {
                         {isAdmin && <td data-label="Assignee">{task.assignee || 'Unassigned'}</td>}
                         {isAdmin && <td data-label="Time">{task.time_taken || '0'} hours</td>}
                         <td data-label="Actions">
+                            <button 
+                              className="view-subtasks-btn"
+                              onClick={() => handleViewSubtasks(task)}
+                              title="View Subtasks Workflow"
+                            >
+                              <i className="fas fa-eye"></i>
+                            </button>
+                            
                             {isAdmin && (
                                 <button
                                     className="reassign-button"
@@ -1206,6 +1255,131 @@ const Tasks = () => {
               >
                 Submit
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Add the Subtasks Modal */}
+      {showSubtasksModal && selectedTaskForSubtasks && (
+        <div className="modal-overlay">
+          <div className="subtasks-modal">
+            <div className="modal-header">
+              <h3>Subtasks for {selectedTaskForSubtasks.task_name}</h3>
+              <button className="close-btn" onClick={() => setShowSubtasksModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="modal-content">
+              {selectedTaskForSubtasks.subtasks && selectedTaskForSubtasks.subtasks.length > 0 ? (
+                <div className="subtasks-list">
+                  <table className="subtasks-table">
+                    <thead>
+                      <tr>
+                        <th>Subtask</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Time (hours)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedTaskForSubtasks.subtasks.map((subtask, index) => (
+                        <tr key={index}>
+                          <td>{subtask.name}</td>
+                          <td>{subtask.description || 'No description'}</td>
+                          <td>
+                            <span className={`status-badge ${subtask.status?.toLowerCase()}`}>
+                              {subtask.status || 'Not Started'}
+                            </span>
+                          </td>
+                          <td>{subtask.time || '0'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="empty-subtasks">
+                  <i className="fas fa-clipboard-list"></i>
+                  <p>No subtasks found for this task</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="modal-actions">
+              <button
+                className="close-btn"
+                onClick={() => setShowSubtasksModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Add Subtask Workflow Modal */}
+      {showSubtaskWorkflow && (
+        <div className="modal-overlay">
+          <div className="subtask-workflow-modal">
+            <div className="modal-header">
+              <h2>
+                <i className="fas fa-project-diagram"></i>
+                Subtask Workflow
+              </h2>
+              <button 
+                className="close-btn" 
+                onClick={() => setShowSubtaskWorkflow(false)}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="workflow-content">
+              {selectedSubtasks.length > 0 ? (
+                <div className="horizontal-workflow">
+                  <div className="workflow-step start-step">
+                    <div className="workflow-node start">
+                      <i className="fas fa-play"></i>
+                      <span>Start</span>
+                    </div>
+                  </div>
+                  
+                  <div className="workflow-line"></div>
+                  
+                  {selectedSubtasks.map((subtask, index) => (
+                    <React.Fragment key={subtask.id || index}>
+                      <div className="workflow-step task-step">
+                        <div className="task-card">
+                          <div className="task-header">
+                            <div className="task-number">{index + 1}</div>
+                            <h3 className="task-name">{subtask.name}</h3>
+                          </div>
+                          <p className="task-description">{subtask.description || 'No description'}</p>
+                          <div className="task-time">
+                            <i className="far fa-clock"></i> {subtask.time} hours
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="workflow-line"></div>
+                    </React.Fragment>
+                  ))}
+                  
+                  <div className="workflow-step end-step">
+                    <div className="workflow-node end">
+                      <i className="fas fa-flag-checkered"></i>
+                      <span>Complete</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="no-subtasks">
+                  <i className="fas fa-exclamation-circle"></i>
+                  <p>No subtasks found for this activity.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
