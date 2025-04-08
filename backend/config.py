@@ -10,7 +10,7 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URI', 'mysql+mysqlconnector://root:root@localhost/aawe')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # CORS settings
+    # CORS settings     
     CORS_HEADERS = 'Content-Type'
     
     # Secret key for session management
