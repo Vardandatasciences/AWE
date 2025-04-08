@@ -4,6 +4,7 @@ import axios from "axios";
 import AddCustomerForm from './AddCustomerForm';
 import { useNavigate } from 'react-router-dom';
 import SubNav from './SubNav';
+import api from '../services/api';
 
 const Clients = () => {
   const [data, setData] = useState([]);
@@ -32,7 +33,7 @@ const Clients = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await axios.get("/customers");
+      const response = await api.get("/customers");
       setData(response.data);
       
       // Calculate stats
@@ -72,13 +73,24 @@ const Clients = () => {
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      const response = await axios.put("/update_customer", editedData);
+      
+      // Make sure we don't accidentally change the status
+      const dataToSend = { ...editedData };
+      
+      // Always preserve the original status when editing
+      if (editIndex !== null && data[editIndex]) {
+        dataToSend.status = data[editIndex].status;
+      }
+      
+      console.log("Sending update request with data:", dataToSend);
+      
+      const response = await api.put("/update_customer", dataToSend);
       
       if (response.status === 200) {
         const updatedData = [...data];
-        const index = updatedData.findIndex(item => item.customer_id === editedData.customer_id);
+        const index = updatedData.findIndex(item => item.customer_id === dataToSend.customer_id);
         if (index !== -1) {
-          updatedData[index] = editedData;
+          updatedData[index] = { ...updatedData[index], ...dataToSend };
           setData(updatedData);
         }
         
@@ -89,7 +101,7 @@ const Clients = () => {
       }
     } catch (err) {
       console.error("Error updating client:", err);
-      alert("Failed to update client. Please try again.");
+      alert(`Failed to update client: ${err.response?.data?.error || err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -106,17 +118,21 @@ const Clients = () => {
     
     try {
       setIsDeleting(true);
-      const response = await axios.delete(`/delete_customer/${itemToDelete.customer_id}`);
+      
+      // Always use force=true to ensure tasks are marked as pending
+      const response = await api.delete(`/customers/${itemToDelete.customer_id}?force=true`);
       
       if (response.status === 200) {
         const updatedData = data.filter(item => item.customer_id !== itemToDelete.customer_id);
         setData(updatedData);
-        handleSuccess("Client deleted successfully");
+        
+        const message = `Client deactivated and ${response.data.tasks_affected || 0} tasks marked as pending`;
+        handleSuccess(message);
         fetchData();
       }
     } catch (err) {
       console.error("Error deleting client:", err);
-      alert("Failed to delete client. Please try again.");
+      alert(`Failed to delete client: ${err.response?.data?.error || err.message}`);
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirmModal(false);
@@ -137,24 +153,41 @@ const Clients = () => {
 
   const handleDownloadClientReport = async (customer) => {
     try {
-      const response = await axios.get(`/download-customer-report/${customer.customer_id}`, {
-        responseType: 'blob'
+      // Show a loading indicator
+      setIsSaving(true);
+      
+      // Use the api service
+      const response = await api.get(`/customers/report/${customer.customer_id}`, {
+        responseType: 'blob'  // Important for handling binary data
       });
       
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Create a blob URL from the response data
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create and click a temporary download link
       const link = document.createElement('a');
       link.href = url;
       
       const currentDate = new Date().toISOString().split('T')[0];
-      link.setAttribute('download', `${currentDate}_${customer.customer_name}_Report.pdf`);
+      const fileName = `${currentDate}_${customer.customer_name.replace(/\s+/g, '_')}_Report.pdf`;
       
+      link.setAttribute('download', fileName);
+      link.style.display = 'none';
       document.body.appendChild(link);
+      
       link.click();
-      document.body.removeChild(link);
+      
+      // Clean up
       window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+      
+      handleSuccess(`Report for ${customer.customer_name} downloaded successfully`);
     } catch (error) {
       console.error('Error downloading client report:', error);
-      alert('Failed to download client report. Please try again.');
+      alert(`Failed to download report: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -280,14 +313,6 @@ const Clients = () => {
                         placeholder="City"
                         className="form-input"
                       />
-                      <select
-                        value={editedData.status || 'A'}
-                        onChange={(e) => setEditedData({...editedData, status: e.target.value})}
-                        className="form-select"
-                      >
-                        <option value="A">Active</option>
-                        <option value="O">Inactive</option>
-                      </select>
                       <div className="form-actions">
                         <button 
                           className="btn-save" 
@@ -349,7 +374,7 @@ const Clients = () => {
                           {isDeleting ? (
                             <i className="fas fa-spinner fa-spin"></i>
                           ) : (
-                            <i className="fas fa-trash-alt"></i>
+                            <i className="fas fa-user-slash"></i>
                           )}
                         </button>
                       </div>
@@ -388,7 +413,7 @@ const Clients = () => {
               <div className="modal-header">
                 <h2>
                   <i className="fas fa-exclamation-triangle"></i>
-                  Confirm Delete
+                  Confirm Deactivate
                 </h2>
                 <button className="close-btn" onClick={() => {
                   setShowDeleteConfirmModal(false);
@@ -404,7 +429,8 @@ const Clients = () => {
                     <div className="message-line">
                       <i className="fas fa-info-circle"></i>
                       <span style={{ display: 'inline' }}>
-                        Are you sure you want to delete <strong style={{ display: 'inline' }}>{itemToDelete.customer_name}</strong>
+                        Are you sure you want to deactivate <strong style={{ display: 'inline' }}>{itemToDelete.customer_name}</strong>? 
+                        All related tasks will be marked as pending.
                       </span>
                     </div>
                   </p>
@@ -422,18 +448,18 @@ const Clients = () => {
                     </button>
                     <button 
                       className="btn-delete" 
-                      onClick={confirmDelete}
+                      onClick={() => confirmDelete()}
                       disabled={isDeleting}
                     >
                       {isDeleting ? (
                         <>
                           <i className="fas fa-spinner fa-spin"></i>
-                          Deleting...
+                          Processing...
                         </>
                       ) : (
                         <>
                           <i className="fas fa-trash-alt"></i>
-                          Confirm Delete
+                          Confirm Deactivate
                         </>
                       )}
                     </button>

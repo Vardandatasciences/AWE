@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './Profile.css';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 // Add Font Awesome icons
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -77,29 +78,18 @@ const Profile = () => {
   const fetchProfileData = () => {
     const actor_id = localStorage.getItem('actor_id');
     
-    fetch(`/profile?actor_id=${actor_id}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    })
+    api.get(`/api/profile?actor_id=${actor_id}`)
       .then(response => {
-        if (!response.ok) {
-          throw new Error(`Server responded with ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (data.success) {
-          setProfileData(data.user);
+        console.log("Profile response:", response.data);
+        if (response.data.success) {
+          setProfileData(response.data.user);
           setEditedData({
-            email_id: data.user.email_id,
-            mobile1: data.user.mobile1
+            email_id: response.data.user.email_id,
+            mobile1: response.data.user.mobile1
           });
           setError(null);
         } else {
-          setError(data.message || 'Failed to fetch profile data');
+          setError(response.data.message || 'Failed to fetch profile data');
         }
       })
       .catch(error => {
@@ -115,7 +105,6 @@ const Profile = () => {
     });
     setIsEditing(true);
     setError(null);
-    setSuccess(null);
   };
 
   const handleCancel = () => {
@@ -140,24 +129,9 @@ const Profile = () => {
         ...editedData
       };
       
-      const response = await fetch('/profile/update', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(updateData)
-      });
+      const response = await api.post('/api/profile/update', updateData);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server response error:', response.status, errorText);
-        throw new Error(`Server responded with ${response.status}: ${errorText}`);
-      }
-
-      const data = await response.json();
-      if (data.success) {
+      if (response.data.success) {
         setProfileData(prev => ({
           ...prev,
           ...editedData
@@ -176,7 +150,7 @@ const Profile = () => {
         
         fetchProfileData();
       } else {
-        setError(data.message || 'Failed to update profile');
+        setError(response.data.message || 'Failed to update profile');
       }
     } catch (err) {
       console.error('Error updating profile:', err);
@@ -230,32 +204,12 @@ const Profile = () => {
       const actor_id = localStorage.getItem('actor_id');
       
       // First, verify the current password
-      const verifyResponse = await fetch('/verify-current-password', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          actor_id: actor_id,
-          password: passwordData.currentPassword
-        })
+      const verifyResponse = await api.post('/api/verify-current-password', {
+        actor_id: actor_id,
+        password: passwordData.currentPassword
       });
 
-      if (!verifyResponse.ok) {
-        const errorText = await verifyResponse.text();
-        console.error("Password verification error response:", errorText);
-        
-        if (verifyResponse.status === 400) {
-          setPasswordError('Incorrect password. Please try again.');
-        } else {
-          setPasswordError(`Server error (${verifyResponse.status}). Please try again later.`);
-        }
-        setIsVerifyingPassword(false);
-        return;
-      }
-
-      const verifyData = await verifyResponse.json();
+      const verifyData = verifyResponse.data;
       
       if (!verifyData.success) {
         setPasswordError(verifyData.message || 'Current password is incorrect');
@@ -263,24 +217,30 @@ const Profile = () => {
         return;
       }
 
-      // Then request OTP 
-      const otpResponse = await fetch('/request-otp', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: profileData.email_id,
-          actorId: actor_id
-        })
+      // Then request OTP
+      const otpResponse = await api.post('/api/request-otp', {
+        email: profileData.email_id,
+        actorId: actor_id
       });
 
-      const otpData = await otpResponse.json();
+      const otpData = otpResponse.data;
       
       if (otpData.success) {
         setIsPasswordVerified(true);
-        setPasswordSuccess('OTP sent to your email address');
+        
+        // Extract OTP from the response message if available
+        const otpMatch = otpData.message.match(/successfully: (\d+)/);
+        if (otpMatch && otpMatch[1]) {
+          // Display the OTP in the success message for testing
+          setPasswordSuccess(`OTP sent to your email. For testing purposes, the OTP is: ${otpMatch[1]}`);
+          // Auto-fill the OTP field for testing
+          setPasswordData(prev => ({
+            ...prev,
+            otp: otpMatch[1]
+          }));
+        } else {
+          setPasswordSuccess(otpData.message);
+        }
       } else {
         setPasswordError(otpData.message || 'Failed to send OTP');
       }
@@ -305,18 +265,12 @@ const Profile = () => {
         return;
       }
 
-      const response = await fetch('/verify-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: profileData.email_id,
-          otp: passwordData.otp
-        })
+      const response = await api.post('/api/verify-otp', {
+        email: profileData.email_id,
+        otp: passwordData.otp
       });
 
-      const data = await response.json();
+      const data = response.data;
       
       if (data.success) {
         setIsOtpVerified(true);
@@ -358,19 +312,13 @@ const Profile = () => {
         return;
       }
 
-      const response = await fetch('/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: profileData.email_id,
-          password: passwordData.newPassword,
-          confirmPassword: passwordData.confirmNewPassword
-        })
+      const response = await api.post('/api/reset-password', {
+        email: profileData.email_id,
+        password: passwordData.newPassword,
+        confirmPassword: passwordData.confirmNewPassword
       });
 
-      const data = await response.json();
+      const data = response.data;
       
       if (data.success) {
         setShowPasswordModal(false);

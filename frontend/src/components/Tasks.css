@@ -1606,7 +1606,7 @@
 
 .cancel-btn:disabled {
   opacity: 0.7;
-  cursor: not-allowed;
+  cursor: not-allowed;}
 /* View Subtasks button */
 .view-subtasks-button {
   background-color: #4a6cf7;

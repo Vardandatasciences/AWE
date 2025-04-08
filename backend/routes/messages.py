@@ -174,7 +174,7 @@ def get_customer_count_in_group(group_id):
         print(f"Error counting customers: {e}")
         return 0
 
-def schedule_message(message_des, date, time_str, email_id, status):
+def schedule_message_to_queue(message_des, date, time_str, email_id, status):
     """Schedule a message in the message queue"""
     if not time_str:
         raise ValueError("Time is required")
@@ -203,9 +203,8 @@ def send_custom_messages_to_group(group_id, message_description, date, time_str,
     """Send custom messages to all members of a group"""
     try:
         customer_details = fetch_customer_details(group_id)
-        for customer_detail in customer_details:
-            customer_name, customer_email = customer_detail[:2]
-            schedule_message(message_description, date, time_str, customer_email, status)
+        for customer_name, customer_email in customer_details:
+            schedule_message_to_queue(message_description, date, time_str, customer_email, status)
             print(f"Message scheduled successfully for {customer_name} ({customer_email})!")
     except Exception as e:
         print(f"Error sending messages to group: {e}")
@@ -379,7 +378,7 @@ def schedule_message_route():
             # Schedule for individual email
             for future_date in future_dates:
                 status = "Scheduled"
-                schedule_message(message_description, future_date, time, email_id, status)
+                schedule_message_to_queue(message_description, future_date, time, email_id, status)
             
             return jsonify({"message": f"Message scheduled successfully for {email_id}"}), 200
         elif group_name_list:
@@ -435,7 +434,7 @@ def custom_message_route():
             # Schedule for individual email
             for future_date in future_dates:
                 status = "Scheduled"
-                schedule_message(message_description, future_date, time, email_id, status)
+                schedule_message_to_queue(message_description, future_date, time, email_id, status)
             
             return jsonify({"message": f"Custom message scheduled successfully for {email_id}"}), 200
         elif group_name_list:
@@ -537,4 +536,165 @@ def send_pending_emails():
         }), 200
     except Exception as e:
         print(f"Error sending pending emails: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@messages_bp.route('/api/schedule_message', methods=['POST'])
+def schedule_message_api():
+    try:
+        # Get data from request
+        data = request.json
+        message_id = data.get('message_id')
+        group_names = data.get('group_name', [])
+        date = data.get('date')
+        time = data.get('time')
+        email_id = data.get('email_id', '')
+
+        # Validate required fields
+        if not message_id:
+            return jsonify({"error": "Message ID is required"}), 400
+        if not date:
+            return jsonify({"error": "Date is required"}), 400
+        if not time:
+            return jsonify({"error": "Time is required"}), 400
+        
+        # Fetch the message details
+        message = Message.query.get_or_404(message_id)
+        message_description = message.message_description
+        frequency = int(message.frequency) if message.frequency else 0
+        
+        # Calculate future dates based on frequency
+        future_dates = calculate_future_dates(date, frequency)
+        
+        if email_id:
+            # Schedule for individual email
+            for future_date in future_dates:
+                new_queue_item = MessageQueue(
+                    message_des=message_description,
+                    date=future_date,
+                    time=time,
+                    email_id=email_id,
+                    status="Scheduled"
+                )
+                db.session.add(new_queue_item)
+            
+            db.session.commit()
+            return jsonify({"message": f"Message scheduled successfully for {email_id}"}), 200
+            
+        elif group_names:
+            # Schedule for groups
+            scheduled_count = 0
+            
+            for group_name in group_names:
+                if isinstance(group_name, str):
+                    group_id = group_id_from_group_table(group_name)
+                    if group_id:
+                        # Get all customers in this group
+                        customers = fetch_customer_details(group_id)
+                        for customer_name, customer_email in customers:
+                            # Schedule for each date
+                            for future_date in future_dates:
+                                new_queue_item = MessageQueue(
+                                    message_des=message_description,
+                                    date=future_date,
+                                    time=time,
+                                    email_id=customer_email,
+                                    status="Scheduled"
+                                )
+                                db.session.add(new_queue_item)
+                                scheduled_count += 1
+            
+            db.session.commit()
+            return jsonify({"message": f"Message scheduled successfully for {scheduled_count} recipients"}), 200
+        else:
+            return jsonify({"error": "Either email or group must be provided"}), 400
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error scheduling message: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@messages_bp.route('/api/custom_message', methods=['POST'])
+def custom_message_api():
+    try:
+        # Get data from request
+        data = request.json
+        message_description = data.get('message_description')
+        group_names = data.get('group_name', [])
+        date = data.get('date')
+        time = data.get('time')
+        email_id = data.get('email_id', '')
+        frequency = int(data.get('frequency', '0'))
+
+        # Validate required fields
+        if not message_description:
+            return jsonify({"error": "Message description is required"}), 400
+        if not date:
+            return jsonify({"error": "Date is required"}), 400
+        if not time:
+            return jsonify({"error": "Time is required"}), 400
+        
+        # First, save the message to the messages table
+        # Convert group_name to string if it's a list
+        group_name = ','.join(group_names) if isinstance(group_names, list) else group_names
+        
+        new_message = Message(
+            message_description=message_description,
+            group_name=group_name,
+            frequency=str(frequency),
+            date=datetime.strptime(date, '%Y-%m-%d').date() if date else None,
+            email_id=email_id,
+            time=time,
+            status='A'
+        )
+        
+        db.session.add(new_message)
+        db.session.commit()
+        
+        # Calculate future dates based on frequency
+        future_dates = calculate_future_dates(date, frequency)
+        
+        if email_id:
+            # Schedule for individual email
+            for future_date in future_dates:
+                new_queue_item = MessageQueue(
+                    message_des=message_description,
+                    date=future_date,
+                    time=time,
+                    email_id=email_id,
+                    status="Scheduled"
+                )
+                db.session.add(new_queue_item)
+            
+            db.session.commit()
+            return jsonify({"message": f"Custom message scheduled successfully for {email_id}"}), 200
+            
+        elif group_names:
+            # Schedule for groups
+            scheduled_count = 0
+            
+            for group_name in group_names:
+                if isinstance(group_name, str):
+                    group_id = group_id_from_group_table(group_name)
+                    if group_id:
+                        # Get all customers in this group
+                        customers = fetch_customer_details(group_id)
+                        for customer_name, customer_email in customers:
+                            # Schedule for each date
+                            for future_date in future_dates:
+                                new_queue_item = MessageQueue(
+                                    message_des=message_description,
+                                    date=future_date,
+                                    time=time,
+                                    email_id=customer_email,
+                                    status="Scheduled"
+                                )
+                                db.session.add(new_queue_item)
+                                scheduled_count += 1
+            
+            db.session.commit()
+            return jsonify({"message": f"Custom message scheduled successfully for {scheduled_count} recipients"}), 200
+        else:
+            return jsonify({"error": "Either email or group must be provided"}), 400
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error scheduling custom message: {str(e)}")
         return jsonify({"error": str(e)}), 500

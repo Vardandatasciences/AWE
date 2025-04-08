@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import api from '../services/api';
 import './FormStyles.css';
 
 const AddEmployeeForm = ({ onClose, onSuccess }) => {
@@ -20,6 +21,7 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formErrors, setFormErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   useEffect(() => {
     // Fetch groups for dropdown
@@ -84,31 +86,26 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
     e.preventDefault();
     
     if (!validateForm()) {
-      return;
+      return; // Stop if validation fails
     }
     
-    setLoading(true);
-    setError(null);
-    
     try {
-      // Make sure we're not sending any actor_id in the request
-      const dataToSend = { ...formData };
-      if (dataToSend.actor_id) {
-        delete dataToSend.actor_id; // Remove actor_id if it exists
-      }
+      setIsSubmitting(true);
+      setError(null);
       
-      const response = await axios.post('/add_actor', dataToSend);
+      console.log("Submitting new auditor:", formData);
+      
+      const response = await api.post('/add_actor', formData);
       
       if (response.status === 201) {
-        // Pass the newly created actor_id from the response if needed
-        onSuccess('Auditor added successfully', response.data.actor_id);
+        onSuccess("Auditor added successfully");
         onClose();
       }
     } catch (err) {
-      console.error('Error adding auditor:', err);
-      setError(err.response?.data?.error || 'Failed to add auditor. Please try again.');
+      console.error("Error adding auditor:", err);
+      setError(`Failed to add auditor: ${err.response?.data?.error || err.message}`);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
   

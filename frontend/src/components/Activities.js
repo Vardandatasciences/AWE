@@ -6,6 +6,7 @@ import './Activities.css';
 import AssignActivity from './AssignActivity';
 import { API_ENDPOINTS } from '../config/api';
 import AssignActivityForm from './AssignActivityForm';
+import api from '../services/api';
 
 const Activities = () => {
     const [activities, setActivities] = useState([]);
@@ -120,7 +121,7 @@ const Activities = () => {
     const fetchActivities = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(API_ENDPOINTS.ACTIVITIES);
+            const response = await api.get(API_ENDPOINTS.ACTIVITIES);
             setActivities(response.data);
 
             // Calculate stats
@@ -184,24 +185,12 @@ const Activities = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            let response;
-            if (editingActivity) {
-                response = await axios.put('/update_activity', formData);
-                if (response.data.activity) {
-                    setActivities(activities.map(activity => 
-                        activity.activity_id === response.data.activity.activity_id 
-                            ? response.data.activity 
-                            : activity
-                    ));
-                }
+            const response = await api.post('/add_activity', formData);
+            
+            if (response.data.activity) {
+                setActivities([response.data.activity, ...activities]);
             } else {
-                response = await axios.post('/add_activity', formData);
-                const newActivity = response.data.activity;
-                if (newActivity) {
-                    setActivities([newActivity, ...activities]);
-                } else {
-                    fetchActivities();
-                }
+                fetchActivities();
             }
             
             // Show success message
@@ -241,7 +230,7 @@ const Activities = () => {
         }
     };
 
-    const handleEdit = (activity) => {
+    const handleEdit = async (activity) => {
         setEditingActivity(activity);
         setFormData({
             activity_id: activity.activity_id,
@@ -259,32 +248,21 @@ const Activities = () => {
         setShowForm(true);
     };
 
-    const handleDelete = (activity) => {
-        setItemToDelete(activity);
-        setShowDeleteConfirmModal(true);
-    };
-
-    const confirmDelete = async () => {
-        if (!itemToDelete) return;
-        
-        setIsDeleting(true);
+    const handleDelete = async (activity) => {
         try {
-            const response = await fetch(`/api/activities/${itemToDelete.id}`, {
-                method: 'DELETE',
-            });
-
-            if (response.ok) {
-                setActivities(activities.filter(activity => activity.id !== itemToDelete.id));
-                setSuccessMessage('Activity deleted successfully');
-                setShowDeleteConfirmModal(false);
-                setItemToDelete(null);
-            } else {
-                console.error('Failed to delete activity');
+            // Get the activity
+            const response = await api.delete(`/delete_activity/${activity.activity_id}`);
+            
+            if (response.status === 200) {
+                fetchActivities();
+                setSuccessMessage("Activity deleted successfully");
+                setTimeout(() => {
+                    setSuccessMessage(null);
+                }, 3000);
             }
         } catch (error) {
             console.error('Error deleting activity:', error);
-        } finally {
-            setIsDeleting(false);
+            alert(error.response?.data?.message || 'Error deleting activity');
         }
     };
 
@@ -335,7 +313,7 @@ const Activities = () => {
 
     const fetchClients = async () => {
         try {
-            const response = await axios.get('/customers'); // Changed from '/clients' to '/customers'
+            const response = await api.get('/customers'); // Use the API service here
             setClients(response.data);
         } catch (error) {
             console.error('Error fetching clients:', error);
@@ -344,13 +322,15 @@ const Activities = () => {
 
     const fetchAssignedActivities = async (clientId) => {
         try {
-            const response = await axios.get(`/tasks/client/${clientId}`);
+            const response = await api.get(`/tasks/client/${clientId}`);
             console.log("Tasks response:", response.data);
             
-            // Convert all activity IDs to strings for consistent comparison
-            const assignedIds = response.data.map(id => String(id));
+            // Ensure we're working with an array
+            const assignedIds = Array.isArray(response.data) 
+                ? response.data.map(id => String(id))
+                : [];
+                
             console.log("Assigned activity IDs:", assignedIds);
-            
             setAssignedActivities(assignedIds);
         } catch (error) {
             console.error('Error fetching assigned activities:', error);
@@ -358,10 +338,13 @@ const Activities = () => {
         }
     };
 
-    // Update the filteredActivities function
+    // Update the filteredActivities function to handle "all" client option
     const filteredActivities = activities.filter(activity => {
         // If no client is selected, return empty array
         if (!selectedClient) return false;
+        
+        // If "all" is selected, show all activities based on search term and assignment filter
+        const showAllClients = selectedClient === 'all';
 
         // First check the search term
         const matchesSearch = !searchTerm || 
@@ -371,8 +354,14 @@ const Activities = () => {
             (activity.duration && activity.duration.toString().includes(searchTerm)) ||
             (activity.due_by && activity.due_by.includes(searchTerm));
 
-        // Then check the assignment filter
-        const isAssigned = assignedActivities.includes(String(activity.activity_id));
+        // For "all" clients option, only filter by search term
+        if (showAllClients) {
+            return matchesSearch; 
+        }
+
+        // For specific client, check assignment status
+        const activityIdStr = String(activity.activity_id);
+        const isAssigned = assignedActivities.some(id => String(id) === activityIdStr);
         
         switch (assignmentFilter) {
             case 'assigned':
@@ -794,21 +783,27 @@ const fetchActivityReport = async (activityId) => {
                             onChange={(e) => {
                                 const clientId = e.target.value;
                                 setSelectedClient(clientId);
-                                // Get and set the selected client name
-                                const selectedClient = clients.find(c => c.customer_id === parseInt(clientId));
-                                setSelectedClientName(selectedClient ? selectedClient.customer_name : '');
                                 
-                                if (clientId) {
+                                if (clientId === 'all') {
+                                    // Handle "ALL" option - show all activities
+                                    setSelectedClientName('All Clients');
+                                    setAssignedActivities([]); // Reset assigned activities
+                                } else if (clientId) {
+                                    // Handle specific client selection
+                                    const selectedClient = clients.find(c => c.customer_id === parseInt(clientId));
+                                    setSelectedClientName(selectedClient ? selectedClient.customer_name : '');
                                     console.log("Selected client ID:", clientId);
                                     console.log("Selected client name:", selectedClient?.customer_name);
                                     fetchAssignedActivities(clientId);
                                 } else {
+                                    // Handle empty selection
                                     setAssignedActivities([]);
                                     setSelectedClientName('');
                                 }
                             }}
                         >
                             <option value="">Select Client</option>
+                            <option value="all">ALL CLIENTS</option>
                             {clients.map(client => (
                                 <option key={client.customer_id} value={client.customer_id}>
                                     {client.customer_name}
@@ -986,7 +981,11 @@ const fetchActivityReport = async (activityId) => {
                 <div className="empty-state">
                     <i className="fas fa-clipboard"></i>
                     <h3>No activities found</h3>
-                    <p>No activities available for the selected client</p>
+                    <p>
+                        {selectedClient === 'all' 
+                            ? 'No activities match your search criteria' 
+                            : 'No activities available for the selected client'}
+                    </p>
                 </div>
             )}
 

@@ -1,48 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
+import api from '../services/api';
 import './FormStyles.css';
-import { useWorkflow } from '../context/WorkflowContext';
-import { showWorkflowGuide } from '../App';
-import { useNavigate } from 'react-router-dom';
 
 const AddCustomerForm = ({ onClose, onSuccess }) => {
-  const { completeStep } = useWorkflow();
-  const navigate = useNavigate();
-  
   const [formData, setFormData] = useState({
     customer_name: '',
-    customer_type: 'Business',
-    gender: '',
-    DOB: '',
     email_id: '',
     mobile1: '',
     mobile2: '',
-    address: '',
     city: '',
+    status: 'A',
+    gender: 'M',
+    customer_type: 'Client',
+    DOB: '',
+    address: '',
+    country: '',
     pincode: '',
-    country: 'India',
-    group_id: '',
-    status: 'A'  // Active by default
+    group_id: '1'
   });
   
-  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formErrors, setFormErrors] = useState({});
-  
-  useEffect(() => {
-    // Fetch groups for dropdown
-    const fetchGroups = async () => {
-      try {
-        const response = await axios.get('/groups');
-        setGroups(response.data);
-      } catch (err) {
-        console.error('Error fetching groups:', err);
-      }
-    };
-    
-    fetchGroups();
-  }, []);
   
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -64,7 +43,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
     const errors = {};
     
     if (!formData.customer_name.trim()) {
-      errors.customer_name = 'Client name is required';
+      errors.customer_name = 'Name is required';
     }
     
     if (!formData.mobile1.trim()) {
@@ -73,9 +52,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
       errors.mobile1 = 'Phone number must be 10 digits';
     }
     
-    if (!formData.email_id.trim()) {
-      errors.email_id = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email_id)) {
+    if (formData.email_id && !/\S+@\S+\.\S+/.test(formData.email_id)) {
       errors.email_id = 'Email is invalid';
     }
     
@@ -87,57 +64,25 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
     e.preventDefault();
     
     if (!validateForm()) {
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    
-    // Create a copy of the form data to modify before sending
-    const submissionData = { ...formData };
-    
-    // Convert gender to single character format (M/F) to match database
-    if (submissionData.gender === 'Male') {
-      submissionData.gender = 'M';
-    } else if (submissionData.gender === 'Female') {
-      submissionData.gender = 'F';
-    } else if (!submissionData.gender) {
-      submissionData.gender = '';
-    }
-    
-    // Handle empty group_id
-    if (!submissionData.group_id) {
-      submissionData.group_id = null;
-    } else {
-      // Ensure group_id is a number if provided
-      submissionData.group_id = parseInt(submissionData.group_id, 10);
-    }
-    
-    // Ensure DOB is in the correct format or null if empty
-    if (!submissionData.DOB) {
-      submissionData.DOB = null;
+      return; // Stop if validation fails
     }
     
     try {
-      const response = await axios.post('/add_customer', submissionData);
+      setLoading(true);
+      setError(null);
+      
+      console.log("Submitting new client:", formData);
+      
+      // Make sure you're using the correct endpoint and service
+      const response = await api.post('/add_customer', formData);
       
       if (response.status === 201) {
-        // Mark the first step (Create Customer) as completed
-        completeStep(1);
-        
-        onSuccess('Client added successfully!');
-        
-        // Close the form
+        onSuccess("Client added successfully");
         onClose();
-        
-        // Show the workflow guide again to guide to the next step
-        setTimeout(() => {
-          showWorkflowGuide();
-        }, 500);
       }
     } catch (err) {
-      console.error('Error adding customer:', err);
-      setError(err.response?.data?.error || 'Failed to add customer. Please try again.');
+      console.error("Error adding client:", err);
+      setError(`Failed to add client: ${err.response?.data?.error || err.message}`);
     } finally {
       setLoading(false);
     }
@@ -145,7 +90,12 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
   
   return (
     <div className="form-container">
-      <h2><i className="fas fa-building"></i> Add New Client</h2>
+      <div className="modal-header">
+        <h2><i className="fas fa-building"></i> Add New Client</h2>
+        <button className="close-btn" onClick={onClose}>
+          <i className="fas fa-times"></i>
+        </button>
+      </div>
       
       {error && (
         <div className="error-message">
@@ -158,7 +108,7 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
         <div className="form-grid">
           <div className="form-group">
             <label htmlFor="customer_name">
-              ClientName <span className="required">*</span>
+              Client Name <span className="required">*</span>
             </label>
             <div className="input-with-icon">
               <i className="fas fa-building"></i>
@@ -176,59 +126,8 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
           </div>
           
           <div className="form-group">
-            <label htmlFor="customer_type">Client Type</label>
-            <div className="input-with-icon">
-              <i className="fas fa-tag"></i>
-              <select
-                id="customer_type"
-                name="customer_type"
-                value={formData.customer_type}
-                onChange={handleChange}
-              >
-                <option value="Business">Business</option>
-                <option value="Individual">Individual</option>
-                <option value="Government">Government</option>
-                <option value="Non-profit">Non-profit</option>
-              </select>
-            </div>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="gender">Gender</label>
-            <div className="input-with-icon">
-              <i className="fas fa-venus-mars"></i>
-              <select
-                id="gender"
-                name="gender"
-                value={formData.gender}
-                onChange={handleChange}
-              >
-                <option value="">Not Applicable</option>
-                <option value="M">Male</option>
-                <option value="F">Female</option>
-                <option value="O">Other</option>
-              </select>
-            </div>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="DOB">Date of Establishment</label>
-            <div className="input-with-icon">
-              <i className="fas fa-calendar-alt"></i>
-              <input
-                type="date"
-                id="DOB"
-                name="DOB"
-                value={formData.DOB}
-                onChange={handleChange}
-                max={new Date().toISOString().split('T')[0]}
-              />
-            </div>
-          </div>
-          
-          <div className="form-group">
             <label htmlFor="email_id">
-              Email <span className="required">*</span>
+              Email
             </label>
             <div className="input-with-icon">
               <i className="fas fa-envelope"></i>
@@ -280,24 +179,9 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
           </div>
           
           <div className="form-group">
-            <label htmlFor="address">Address</label>
-            <div className="input-with-icon">
-              <i className="fas fa-map-marker-alt"></i>
-              <input
-                type="text"
-                id="address"
-                name="address"
-                value={formData.address}
-                onChange={handleChange}
-                placeholder="Enter address"
-              />
-            </div>
-          </div>
-          
-          <div className="form-group">
             <label htmlFor="city">City</label>
             <div className="input-with-icon">
-              <i className="fas fa-city"></i>
+              <i className="fas fa-map-marker-alt"></i>
               <input
                 type="text"
                 id="city"
@@ -310,18 +194,74 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
           </div>
           
           <div className="form-group">
-            <label htmlFor="pincode">Pincode</label>
+            <label htmlFor="status">Status</label>
             <div className="input-with-icon">
-              <i className="fas fa-map-pin"></i>
-              <input
-                type="text"
-                id="pincode"
-                name="pincode"
-                value={formData.pincode}
+              <i className="fas fa-toggle-on"></i>
+              <select
+                id="status"
+                name="status"
+                value={formData.status}
                 onChange={handleChange}
-                placeholder="Enter pincode"
+              >
+                <option value="A">Active</option>
+                <option value="O">Inactive</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="gender">Gender</label>
+            <div className="input-with-icon">
+              <i className="fas fa-venus-mars"></i>
+              <select
+                id="gender"
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+              >
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+                <option value="O">Other</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="DOB">Date of Birth</label>
+            <div className="input-with-icon">
+              <i className="fas fa-calendar"></i>
+              <input
+                type="date"
+                id="DOB"
+                name="DOB"
+                value={formData.DOB}
+                onChange={handleChange}
+                placeholder="Enter date of birth"
               />
             </div>
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="address">
+              Address <span className="form-hint">(Max 255 characters)</span>
+            </label>
+            <div className="input-with-icon">
+              <i className="fas fa-map-marker"></i>
+              <input
+                type="text"
+                id="address"
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                placeholder="Enter address"
+                maxLength={255}
+              />
+            </div>
+            {formData.address && 
+              <div className="character-count">
+                {formData.address.length}/255
+              </div>
+            }
           </div>
           
           <div className="form-group">
@@ -340,40 +280,17 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
           </div>
           
           <div className="form-group">
-            <label htmlFor="group_id">Group
-              <span className="required">*</span>
-            </label>
+            <label htmlFor="pincode">Pincode</label>
             <div className="input-with-icon">
-              <i className="fas fa-users"></i>
-              <select
-                id="group_id"
-                name="group_id"
-                value={formData.group_id}
+              <i className="fas fa-map-pin"></i>
+              <input
+                type="text"
+                id="pincode"
+                name="pincode"
+                value={formData.pincode}
                 onChange={handleChange}
-              >
-                <option value="">Select a group</option>
-                {groups.map(group => (
-                  <option key={group.group_id} value={group.group_id}>
-                    {group.group_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="status">Status</label>
-            <div className="input-with-icon">
-              <i className="fas fa-toggle-on"></i>
-              <select
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-              >
-                <option value="A">Active</option>
-                <option value="I">Inactive</option>
-              </select>
+                placeholder="Enter pincode"
+              />
             </div>
           </div>
         </div>
@@ -385,13 +302,13 @@ const AddCustomerForm = ({ onClose, onSuccess }) => {
           <button type="submit" className="btn-submit" disabled={loading}>
             {loading ? (
               <>
-                <div className="spinner-small"></div>
-                <span>Saving...</span>
+                <i className="fas fa-spinner fa-spin"></i>
+                <span>Adding...</span>
               </>
             ) : (
               <>
                 <i className="fas fa-save"></i>
-                <span>Save Client</span>
+                <span>Add Client</span>
               </>
             )}
           </button>

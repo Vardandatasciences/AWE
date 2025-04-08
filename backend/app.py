@@ -19,6 +19,7 @@ from routes.diary import diary_bp
 from flask_bcrypt import Bcrypt
 from routes.users import users_bp
 from datetime import timedelta
+from flask_mail import Mail
 
 
 app = Flask(__name__)
@@ -38,8 +39,16 @@ login_manager.login_view = 'auth.login'
 def load_user(user_id):
     return Actor.query.get(int(user_id))
 
-# ✅ Enable CORS globally for all routes
-CORS(app)
+# Setup CORS properly - this is critical to fix the error
+CORS(app, supports_credentials=True, origins=["http://localhost:3000"], methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+
+# Remove or comment out this section as it's redundant
+# CORS(app, resources={
+#     r"/customers/*": {"origins": "http://localhost:3000"},
+#     r"/delete_customer/*": {"origins": "http://localhost:3000"},
+#     r"/add_customer": {"origins": "http://localhost:3000"},
+#     r"/update_customer": {"origins": "http://localhost:3000"}
+# })
 
 # Initialize extensions
 db.init_app(app)
@@ -64,6 +73,16 @@ app.register_blueprint(users_bp, url_prefix='/users')
 # Initialize the email thread
 init_app(app)
 
+# Mail settings
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'  # Or your mail server
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'your-email@gmail.com'  # Replace with your email
+app.config['MAIL_PASSWORD'] = 'your-app-password'    # Replace with your app password
+app.config['MAIL_DEFAULT_SENDER'] = ('ProSync Support', 'your-email@gmail.com')
+
+mail = Mail(app)
+
 @app.before_request
 def make_session_permanent():
     session.permanent = True
@@ -71,6 +90,20 @@ def make_session_permanent():
 @app.route('/')
 def index():
     return "AAWE API Server is running"
+
+# For Flask 2.0+, you may need more specific CORS configuration:
+@app.after_request
+def after_request(response):
+    # Only add header if it doesn't exist
+    if 'Access-Control-Allow-Origin' not in response.headers:
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+    if 'Access-Control-Allow-Headers' not in response.headers:
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    if 'Access-Control-Allow-Methods' not in response.headers:
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS')
+    if 'Access-Control-Allow-Credentials' not in response.headers:
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../services/api';
 import axiosInstance from '../config/axios';
 import './Mailer.css';
 import './MessageModal.css';
@@ -252,25 +253,20 @@ const Mailer = () => {
         return;
       }
       
-      // Prepare form data for submission
-      const formDataToSubmit = new FormData();
-      formDataToSubmit.append('message_id', selectedMessageId);
+      // Create a regular JSON object instead of FormData
+      const scheduleData = {
+        message_id: selectedMessageId,
+        group_name: formData.group_name,
+        date: formData.date,
+        time: formData.time,
+        email_id: formData.email_id || ''
+      };
       
-      // Add group names as array if selected
-      if (Array.isArray(formData.group_name) && formData.group_name.length > 0) {
-        formData.group_name.forEach(group => {
-          formDataToSubmit.append('group_name[]', group);
-        });
-      } else if (formData.group_name) {
-        formDataToSubmit.append('group_name[]', formData.group_name);
-      }
+      console.log("Sending schedule data:", scheduleData);
       
-      // Add other form fields
-      formDataToSubmit.append('date', formData.date);
-      formDataToSubmit.append('time', formData.time);
-      formDataToSubmit.append('email_id', formData.email_id || '');
+      // Use the correct endpoint with api service
+      const response = await api.post('/api/schedule_message', scheduleData);
       
-      const response = await axiosInstance.post('/schedule_message', formDataToSubmit);
       displaySuccess(response.data.message || "Message scheduled successfully!");
       
       setShowScheduledForm(false);
@@ -290,24 +286,21 @@ const Mailer = () => {
       setLoading(true);
       setError(null);
       
-      // Prepare form data for submission
-      const formDataToSubmit = new FormData();
-      formDataToSubmit.append('message_description', formData.message_description);
+      // Create a regular JSON object
+      const customData = {
+        message_description: formData.message_description,
+        group_name: formData.group_name,
+        date: formData.date,
+        time: formData.time,
+        email_id: formData.email_id || '',
+        frequency: formData.frequency
+      };
       
-      // Add group names as array if selected
-      if (Array.isArray(formData.group_name) && formData.group_name.length > 0) {
-        formData.group_name.forEach(group => {
-          formDataToSubmit.append('group_name[]', group);
-        });
-      }
+      console.log("Sending custom message data:", customData);
       
-      // Add other form fields
-      formDataToSubmit.append('date', formData.date);
-      formDataToSubmit.append('time', formData.time);
-      formDataToSubmit.append('email_id', formData.email_id || '');
-      formDataToSubmit.append('frequency', formData.frequency);
+      // Use the correct endpoint with api service
+      const response = await api.post('/api/custom_message', customData);
       
-      const response = await axiosInstance.post('/custom_message', formDataToSubmit);
       displaySuccess(response.data.message || "Custom message scheduled successfully!");
       
       setShowCustomForm(false);

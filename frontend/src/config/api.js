@@ -4,7 +4,7 @@ const API_BASE_URL = 'http://localhost:5000';
 export const API_ENDPOINTS = {
   BASE_URL: API_BASE_URL,
   // Activities
-  ACTIVITIES: 'http://localhost:5000/activities',
+  ACTIVITIES: '/activities',
   ADD_ACTIVITY: `${API_BASE_URL}/add_activity`,
   DELETE_ACTIVITY: (id) => `${API_BASE_URL}/delete_activity/${id}`,
   UPDATE_ACTIVITY: `${API_BASE_URL}/update_activity`,

@@ -75,7 +75,12 @@ const Auditors = () => {
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      const response = await axios.put("/update_actor", editedData);
+      
+      // Log the data being sent
+      console.log("Sending data to update auditor:", editedData);
+      
+      // Use the correct endpoint from your backend route
+      const response = await axios.put("/actors/update", editedData);
       
       if (response.status === 200) {
         const updatedData = [...data];
@@ -92,7 +97,7 @@ const Auditors = () => {
       }
     } catch (err) {
       console.error("Error updating auditor:", err);
-      alert("Failed to update auditor. Please try again.");
+      alert(`Failed to update auditor: ${err.response?.data?.error || err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -109,24 +114,29 @@ const Auditors = () => {
     
     try {
       setIsDeleting(true);
-      const response = await axios.put('/deactivate_actor', { actor_id: actorToDelete.actor_id });
+      // Use the correct endpoint for deactivation
+      const response = await axios.post('/actors/deactivate', { actor_id: actorToDelete.actor_id });
       
       if (response.status === 200) {
         const { affected_tasks, task_details, actor_name } = response.data;
         
-        setPendingTasks(task_details);
+        setPendingTasks(task_details || []);
         setDeactivatedActor({
           id: actorToDelete.actor_id,
-          name: actor_name
+          name: actor_name || actorToDelete.actor_name
         });
         
-        setShowPendingTasksModal(true);
-        handleSuccess(`Auditor deactivated successfully. ${affected_tasks} task${affected_tasks !== 1 ? 's' : ''} moved to pending.`);
+        // Only show pending tasks modal if there are tasks
+        if (task_details && task_details.length > 0) {
+          setShowPendingTasksModal(true);
+        }
+        
+        handleSuccess(`Auditor deactivated successfully. ${affected_tasks || 0} task${affected_tasks !== 1 ? 's' : ''} moved to pending.`);
         fetchData();
       }
     } catch (err) {
       console.error("Error deactivating auditor:", err);
-      alert("Failed to deactivate auditor. Please try again.");
+      alert(`Failed to deactivate auditor: ${err.response?.data?.error || err.message}`);
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirmModal(false);
@@ -147,24 +157,40 @@ const Auditors = () => {
 
   const handleDownloadReport = async (auditor) => {
     try {
-      const response = await axios.get(`/download-performance/${auditor.actor_id}`, {
-        responseType: 'blob'
+      // Show loading indicator
+      setIsSaving(true);
+      
+      // Use the correct endpoint with proper parameters
+      const response = await axios.get(`/actors/performance-report/${auditor.actor_id}`, {
+        responseType: 'blob'  // Important: This tells axios to handle the response as binary data
       });
       
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Create a blob URL from the PDF data
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link and trigger the download
       const link = document.createElement('a');
       link.href = url;
       
       const currentDate = new Date().toISOString().split('T')[0];
-      link.setAttribute('download', `${currentDate}_${auditor.actor_name}_Performance.pdf`);
+      const fileName = `${currentDate}_${auditor.actor_name.replace(/\s+/g, '_')}_Performance.pdf`;
       
+      link.setAttribute('download', fileName);
+      link.style.display = 'none';
       document.body.appendChild(link);
+      
+      // Simulate click and then clean up
       link.click();
-      document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+      
+      handleSuccess(`Performance report for ${auditor.actor_name} downloaded successfully`);
     } catch (error) {
       console.error('Error downloading report:', error);
-      alert('Failed to download report. Please try again.');
+      alert(`Failed to download report: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -287,13 +313,6 @@ const Auditors = () => {
                         placeholder="Phone"
                         className="form-input"
                       />
-                      <input
-                        type="text"
-                        value={editedData.city || ''}
-                        onChange={(e) => setEditedData({...editedData, city: e.target.value})}
-                        placeholder="City"
-                        className="form-input"
-                      />
                       <select
                         value={editedData.gender || 'M'}
                         onChange={(e) => setEditedData({...editedData, gender: e.target.value})}
@@ -348,10 +367,12 @@ const Auditors = () => {
                           <i className="fas fa-phone"></i>
                           <span>{item.mobile1}</span>
                         </div>
-                        <div className="detail-item">
-                          <i className="fas fa-map-marker-alt"></i>
-                          <span>{item.city || 'N/A'}</span>
-                        </div>
+                        {item.city && (
+                          <div className="detail-item">
+                            <i className="fas fa-map-marker-alt"></i>
+                            <span>{item.city}</span>
+                          </div>
+                        )}
                       </div>
                       <div className="card-actions">
                         <button className="btn-edit" onClick={() => handleEdit(index)}>

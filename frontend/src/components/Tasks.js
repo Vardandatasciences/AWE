@@ -14,6 +14,7 @@ import progressGif from '../assets/wip.gif';
 import pendingGif from '../assets/pending.gif';
 import doneGif from '../assets/done.gif';
 import { useWorkflow } from '../context/WorkflowContext';
+import api from '../services/api';
  
 const Tasks = () => {
   const [tasks, setTasks] = useState([]);
@@ -107,9 +108,13 @@ const Tasks = () => {
     if (!isAdmin) {
       fetchTasks();
     }
-    // For admin users, wait for entity selection
+    // For admin users, wait for entity selection or "all" option
     else if (selectedEntity) {
       fetchTasks();
+      // When an entity is selected, always show tasks
+      if (viewType !== 'tasks') {
+        setViewType('tasks');
+      }
     }
   }, [selectedEntity, isAdmin]);
 
@@ -163,9 +168,6 @@ const Tasks = () => {
       return;
     }
     
-    // Map the UI-friendly status to the backend status values - ensure exact match
-    let backendStatus = newStatus; // Already in the correct format for backend
-    
     // Update the task in the UI immediately for better user experience
     const updatedTasks = tasks.map(task => {
       if (task.id === taskId) {
@@ -185,46 +187,48 @@ const Tasks = () => {
     setTasks(updatedTasks);
     
     // Call the API to update the status in the backend
-    handleStatusChange(taskId, backendStatus);
+    handleStatusChange(taskId, newStatus);
   };
  
   const fetchTasks = async () => {
     setLoading(true);
     try {
-        const userData = JSON.parse(localStorage.getItem('user')) || {};
-        const userId = userData.user_id;
-        const roleId = userData.role_id || (userData.role === 'admin' ? '11' : '22');
-        
-        let queryParams = `user_id=${userId}&role_id=${roleId}`;
-        
-        // Add entity filtering only for admin users
-        if (isAdmin && selectedEntity && selectedEntity !== 'all') {
-            if (entityType === 'auditor') {
-                console.log(`Fetching tasks for auditor: ${selectedEntity}`);
-                queryParams += `&auditor_id=${selectedEntity}`;
-            } else if (entityType === 'client') {
-                console.log(`Fetching tasks for client: ${selectedEntity}`);
-                queryParams += `&client_id=${selectedEntity}`;
-            }
+      const userData = JSON.parse(localStorage.getItem('user')) || {};
+      const userId = userData.user_id;
+      const roleId = userData.role_id || (userData.role === 'admin' ? '11' : '22');
+      
+      let queryParams = `user_id=${userId}&role_id=${roleId}`;
+      
+      // Add entity filtering only for admin users
+      if (isAdmin && selectedEntity) {
+        if (entityType === 'auditor' && selectedEntity !== 'all') {
+          console.log(`Fetching tasks for auditor: ${selectedEntity}`);
+          queryParams += `&auditor_id=${selectedEntity}`;
+        } else if (entityType === 'client' && selectedEntity !== 'all') {
+          console.log(`Fetching tasks for client: ${selectedEntity}`);
+          queryParams += `&client_id=${selectedEntity}`;
         }
-        
-        if (searchTerm) {
-            queryParams += `&search=${encodeURIComponent(searchTerm)}&field=${searchField}`;
-        }
-        
-        const response = await axios.get(`http://localhost:5000/tasks?${queryParams}`);
-        console.log("Fetched tasks:", response.data);
-        
+        // If "all" is selected, don't add any filter to get all tasks
+      }
+      
+      if (searchTerm) {
+        queryParams += `&search=${encodeURIComponent(searchTerm)}&field=${searchField}`;
+      }
+      
+      console.log(`Fetching tasks with params: ${queryParams}`);
+      // Use api service instead of direct axios call
+      const response = await api.get(`/tasks?${queryParams}`);
+      console.log("Fetched tasks:", response.data);
+      
+      if (Array.isArray(response.data)) {
         // Map the tasks and ensure proper status mapping
         const tasksWithIds = response.data.map(task => {
-            const mappedStatus = getColumnForStatus(task.status);
-            console.log(`Task ${task.id} for actor ${task.actor_id}: ${task.status} → ${mappedStatus}`);
-            
-            return {
-                ...task,
-                id: task.id.toString(),
-                status: mappedStatus
-            };
+          const mappedStatus = getColumnForStatus(task.status);
+          return {
+            ...task,
+            id: task.id.toString(),
+            status: mappedStatus
+          };
         });
         
         setTasks(tasksWithIds);
@@ -237,21 +241,33 @@ const Tasks = () => {
         const completed = tasksWithIds.filter(task => task.status === 'completed').length;
         
         setStats({
-            total,
-            todo,
-            inProgress,
-            completed,
-            pending
+          total,
+          todo,
+          inProgress,
+          completed,
+          pending
         });
         
         setError(null);
+      } else {
+        console.error("Invalid task data format:", response.data);
+        setTasks([]);
+        setStats({
+          total: 0,
+          todo: 0,
+          inProgress: 0,
+          completed: 0,
+          pending: 0
+        });
+      }
     } catch (err) {
-        console.error('Error fetching tasks:', err);
-        setError('Failed to load tasks. Please try again later.');
+      console.error('Error fetching tasks:', err);
+      setError('Failed to load tasks. Please try again later.');
+      setTasks([]);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-};
+  };
  
   const fetchEmployees = async () => {
     try {
@@ -367,44 +383,90 @@ const Tasks = () => {
   const handleStatusChange = async (taskId, newStatus, remarks = null) => {
     try {
       setIsUpdating(true);
-      const taskToUpdate = tasks.find(task => task.id === taskId);
       
       // Get user info from localStorage
       const userData = JSON.parse(localStorage.getItem('user')) || {};
       const userId = userData.user_id;
       const roleId = userData.role_id || (userData.role === 'admin' ? '11' : '22');
 
-      const response = await axios.patch(
-        `/tasks/${taskId}?user_id=${userId}&role_id=${roleId}`,
-        {
-          status: newStatus,
-          remarks: remarks
-        }
-      );
+      const updateData = {
+        status: newStatus,
+        remarks: remarks
+      };
 
-      if (response.data.success) {
-        // Update local state
-        const updatedTasks = tasks.map(task =>
-          task.id === taskId
-            ? { ...task, status: newStatus, remarks: remarks }
-            : task
+      console.log(`Updating task ${taskId} status to ${newStatus}`);
+      
+      try {
+        // First try with the /api/ prefix
+        const response = await api.patch(
+          `/api/tasks/${taskId}`, 
+          updateData,
+          {
+            params: {
+              user_id: userId,
+              role_id: roleId
+            }
+          }
         );
-        setTasks(updatedTasks);
         
-        // Show success message
-        displaySuccess('Task updated successfully');
+        // If successful, process the response
+        handleSuccessfulUpdate(response, taskId, newStatus, remarks);
+      } catch (prefixError) {
+        console.log("Error with /api/ prefix, trying without prefix...");
         
-        // Close modals and reset states
-        setShowReassignModal(false);
-        setRemarks('');
-        setTaskForRemarks(null);
+        // If that fails, try without the /api/ prefix
+        try {
+          const fallbackResponse = await api.patch(
+            `/tasks/${taskId}`, 
+            updateData,
+            {
+              params: {
+                user_id: userId,
+                role_id: roleId
+              }
+            }
+          );
+          
+          // If successful, process the response
+          handleSuccessfulUpdate(fallbackResponse, taskId, newStatus, remarks);
+        } catch (noPrefixError) {
+          // If both fail, throw the error
+          console.error("Both API endpoint attempts failed:", prefixError, noPrefixError);
+          throw noPrefixError;
+        }
       }
     } catch (error) {
       console.error('Error updating task status:', error);
       // Show error message to user
-      alert('Failed to update task status. Please try again.');
+      setError('Failed to update task status. Please try again.');
+      setTimeout(() => setError(null), 3000);
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  // Helper function to handle successful updates
+  const handleSuccessfulUpdate = (response, taskId, newStatus, remarks) => {
+    if (response.data.success) {
+      // Update local state
+      const updatedTasks = tasks.map(task =>
+        task.id === taskId
+          ? { ...task, status: getColumnForStatus(newStatus), remarks: remarks }
+          : task
+      );
+      setTasks(updatedTasks);
+      
+      // Show success message
+      displaySuccess('Task updated successfully');
+      
+      // Close modals and reset states
+      setShowReassignModal(false);
+      setRemarks('');
+      setTaskForRemarks(null);
+    } else {
+      // Handle unsuccessful response
+      setError(response.data.message || 'Error updating task status');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -652,7 +714,7 @@ const Tasks = () => {
                             className="status-select"
                             disabled={task.status === 'completed'}
                         >
-                            <option value="Yet to Start">Yet to Start</option>
+                            <option value="Yet to Start" disabled={task.status !== 'Yet to Start'}>Yet to Start</option>
                             <option value="WIP">In Progress</option>
                             <option value="Pending">Pending</option>
                             <option value="Completed">Completed</option>
@@ -727,7 +789,7 @@ const Tasks = () => {
                                     className="status-select"
                                     disabled={task.status === 'completed'}
                                 >
-                                    <option value="Yet to Start">Yet to Start</option>
+                                    <option value="Yet to Start" disabled={task.status !== 'Yet to Start'}>Yet to Start</option>
                                     <option value="Pending">Pending</option>
                                     <option value="WIP">In Progress</option>
                                     <option value="Completed">Completed</option>
@@ -940,59 +1002,44 @@ const Tasks = () => {
   // Update the fetchAuditors function
   const fetchAuditors = async () => {
     try {
-        setIsLoadingEntities(true);
-        const response = await axios.get('http://localhost:5000/api/actors', {
-            params: {
-                status: 'A',
-                role_id: '22'
-            }
-        });
-        
-        // Log the received data
-        console.log("Received auditors data:", response.data);
-        
-        // Ensure consistent data structure
-        const activeAuditors = response.data.map(auditor => ({
-            id: String(auditor.id), // Ensure ID is string
-            name: auditor.name
-        }));
-        
-        console.log("Mapped auditors:", activeAuditors);
-        setAuditors(activeAuditors);
+      // Use api service instead of axios directly
+      const response = await api.get('/actors');
+      
+      if (response.data && Array.isArray(response.data)) {
+        console.log("Fetched auditors:", response.data);
+        setAuditors(response.data.map(auditor => ({
+          id: auditor.actor_id,
+          name: auditor.actor_name || `Auditor ${auditor.actor_id}`
+        })));
+      } else {
+        console.error("Invalid auditor data format:", response.data);
+        setAuditors([]);
+      }
     } catch (error) {
-        console.error('Error fetching auditors:', error);
-        setError('Failed to load auditors. Please try again.');
-    } finally {
-        setIsLoadingEntities(false);
+      console.error("Error fetching auditors:", error);
+      setAuditors([]);
     }
   };
 
   // Update the fetchClients function
   const fetchClients = async () => {
     try {
-        setIsLoadingEntities(true);
-        const response = await axios.get('http://localhost:5000/api/customers', {
-            params: {
-                status: 'A'
-            }
-        });
-        
-        // Log the received data
-        console.log("Received clients data:", response.data);
-        
-        // Ensure consistent data structure
-        const activeClients = response.data.map(client => ({
-            id: String(client.customer_id),
-            name: client.customer_name
-        }));
-        
-        console.log("Mapped clients:", activeClients);
-        setClients(activeClients);
+      // Use api service instead of axios directly
+      const response = await api.get('/customers');
+      
+      if (response.data && Array.isArray(response.data)) {
+        console.log("Fetched clients:", response.data);
+        setClients(response.data.map(client => ({
+          id: client.customer_id,
+          name: client.customer_name || `Client ${client.customer_id}`
+        })));
+      } else {
+        console.error("Invalid client data format:", response.data);
+        setClients([]);
+      }
     } catch (error) {
-        console.error('Error fetching clients:', error);
-        setError('Failed to load clients. Please try again.');
-    } finally {
-        setIsLoadingEntities(false);
+      console.error("Error fetching clients:", error);
+      setClients([]);
     }
   };
 
@@ -1071,7 +1118,7 @@ const Tasks = () => {
             value={entityType}
             onChange={(e) => {
               setEntityType(e.target.value);
-              setSelectedEntity('');
+              setSelectedEntity(''); // Reset selected entity when type changes
               setViewType('status');
             }}
             className="entity-type-select"
@@ -1175,7 +1222,7 @@ const Tasks = () => {
       </div>
  
       {/* Only show tasks view when entity is selected */}
-      {viewType === 'tasks' && selectedEntity && (
+      {(viewType === 'tasks' && selectedEntity) || !isAdmin ? (
         <>
           <div className="controls-container">
             <div className="search-filter-container">
@@ -1298,6 +1345,12 @@ const Tasks = () => {
             </div>
           )}
         </>
+      ) : (
+        <div className="empty-state">
+          <i className="fas fa-user-circle"></i>
+          <h3>Select {entityType || 'a type'}</h3>
+          <p>Please select {entityType === 'auditor' ? 'an auditor' : entityType === 'client' ? 'a client' : 'a type'} to view tasks</p>
+        </div>
       )}
  
       {showReassignModal && selectedTask && (
@@ -1340,7 +1393,7 @@ const Tasks = () => {
                     onChange={(e) => setSelectedStatus(e.target.value)}
                     disabled={isUpdating}
                   >
-                    <option value="Yet to Start">Yet to Start</option>
+                    <option value="Yet to Start" disabled={selectedStatus !== 'Yet to Start'}>Yet to Start</option>
                     <option value="WIP">In Progress</option>
                     <option value="Pending">Pending</option>
                     <option value="Completed">Completed</option>

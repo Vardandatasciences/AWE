@@ -180,4 +180,17 @@
   .form-container {
     padding: 16px;
   }
+}
+
+.form-hint {
+  font-size: 0.8em;
+  color: #666;
+  font-weight: normal;
+}
+
+.character-count {
+  font-size: 0.75em;
+  color: #666;
+  text-align: right;
+  margin-top: 2px;
 } 
