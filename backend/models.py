@@ -169,6 +169,27 @@ class Task(db.Model):
             'remarks': self.remarks,
             'assigned_timestamp': self.assigned_timestamp.strftime('%Y-%m-%d %H:%M:%S') if self.assigned_timestamp else None
         }
+    
+
+class SubTask(db.Model):
+    __tablename__ = 'sub_task'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.String(50), db.ForeignKey('tasks.task_id'), nullable=False)
+    sub_task = db.Column(db.JSON)
+    status = db.Column(db.String(50), default='Pending')
+    
+    # Relationship
+    task = db.relationship('Task', backref='subtasks')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'task_id': self.task_id,
+            'sub_task': self.sub_task,
+            'status': self.status
+        }
+
 
 
 class ActivityAssignment(db.Model):
@@ -333,5 +354,6 @@ class Role(db.Model):
             'activity_id': self.activity_id,
             'stage_id': self.stage_id
         }
+
 
     

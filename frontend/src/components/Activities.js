@@ -6,6 +6,7 @@ import './Activities.css';
 import AssignActivity from './AssignActivity';
 import { API_ENDPOINTS } from '../config/api';
 import AssignActivityForm from './AssignActivityForm';
+import { toast } from 'react-hot-toast';
 
 const Activities = () => {
     const [activities, setActivities] = useState([]);
@@ -83,6 +84,13 @@ const Activities = () => {
     // Add a new state for the subtask workflow popup
     const [showSubtaskWorkflow, setShowSubtaskWorkflow] = useState(false);
     const [selectedSubtasks, setSelectedSubtasks] = useState([]);
+
+    // Add state for selectedEmployee
+    const [selectedEmployee, setSelectedEmployee] = useState('');
+    const [assignmentRemarks, setAssignmentRemarks] = useState('');
+    const [assignmentLink, setAssignmentLink] = useState('');
+    const [frequency, setFrequency] = useState('1');
+    const [currentUser, setCurrentUser] = useState(null);
 
     useEffect(() => {
         // Ensure activityMappings is always an array
@@ -337,15 +345,44 @@ const Activities = () => {
     };
 
     const handleAssign = (activity) => {
-        setAssignActivity(activity);
+        setSelectedActivity(activity);
+        setShowActivityMapping(true);
+        fetchActivityMappings(activity.activity_id);
+        setAssigningActivityId(activity.activity_id);
     };
     
     const handleAssignEmployee = (customerId, customerName) => {
-        setAssigningCustomer({
-            id: customerId,
-            name: customerName
-        });
-        setShowAssignForm(true);
+        // Before creating FormData, check if employee is selected
+        if (!selectedEmployee) {
+            toast.error("Please select an employee first");
+            return;
+        }
+        
+        // Create form data with all necessary information
+        const formData = new FormData();
+        formData.append('task_name', selectedActivity.activity_id);
+        formData.append('assigned_to', selectedEmployee);
+        formData.append('customer_id', customerId);
+        formData.append('customer_name', customerName);
+        formData.append('actor_id', currentUser?.id || sessionStorage.getItem('userId'));
+        formData.append('remarks', assignmentRemarks || '');
+        formData.append('link', assignmentLink || '');
+        formData.append('frequency', frequency || '1');
+        
+        // Add subtasks information
+        if (selectedActivity.sub_activities) {
+            formData.append('sub_tasks', JSON.stringify(selectedActivity.sub_activities));
+        }
+        
+        // Send API request
+        axios.post('/api/assign_activity', formData)
+            .then(response => {
+                handleAssignSuccess(response.data);
+            })
+            .catch(error => {
+                console.error('Error assigning activity:', error);
+                toast.error('Failed to assign activity');
+            });
     };
 
     const handleAssignSuccess = (response) => {
@@ -657,6 +694,20 @@ const fetchActivityReport = async (activityId) => {
             alert("This activity doesn't have any subtasks.");
         }
     };
+
+    // Make sure you have this effect to get the current user
+    useEffect(() => {
+        // Get current user from session storage
+        const userId = sessionStorage.getItem('userId');
+        const userName = sessionStorage.getItem('userName');
+        
+        if (userId) {
+            setCurrentUser({
+                id: userId,
+                name: userName
+            });
+        }
+    }, []);
 
     return (
         <div className="activities-container">
@@ -1237,7 +1288,7 @@ const fetchActivityReport = async (activityId) => {
                                                     <td>
                                                         {!mapping.assigned_employee ? (
                                                             <button 
-                                                                className="assign-btn"
+                                                                className="btn btn-primary" 
                                                                 onClick={() => handleAssignEmployee(mapping.customer_id, mapping.customer_name)}
                                                             >
                                                                 Assign
