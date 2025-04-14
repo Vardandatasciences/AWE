@@ -105,6 +105,13 @@ const Activities = () => {
     const [itemToDelete, setItemToDelete] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
+    // Add state for subtasks
+    const [subtasks, setSubtasks] = useState([]);
+
+    // Add this state for viewing subtasks
+    const [viewingSubtasks, setViewingSubtasks] = useState(null);
+    const [subtaskFlow, setSubtaskFlow] = useState([]);
+
     useEffect(() => {
         fetchActivities();
         // fetchGroups();
@@ -182,10 +189,50 @@ const Activities = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const handleSubtaskChange = (index, field, value) => {
+        const updatedSubtasks = [...subtasks];
+        updatedSubtasks[index][field] = value;
+        setSubtasks(updatedSubtasks);
+        
+        // Calculate total time
+        calculateTotalTime(updatedSubtasks);
+    };
+
+    const calculateTotalTime = (updatedSubtasks) => {
+        const totalTime = updatedSubtasks.reduce((sum, subtask) => {
+            return sum + (parseFloat(subtask.time) || 0);
+        }, 0);
+        
+        setFormData({
+            ...formData,
+            standard_time: totalTime.toFixed(1)
+        });
+    };
+
+    const addSubtask = () => {
+        setSubtasks([
+            ...subtasks,
+            { name: '', description: '', time: 0 }
+        ]);
+    };
+
+    const removeSubtask = (index) => {
+        const updatedSubtasks = [...subtasks];
+        updatedSubtasks.splice(index, 1);
+        setSubtasks(updatedSubtasks);
+        calculateTotalTime(updatedSubtasks);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await api.post('/add_activity', formData);
+            // Include subtasks in the form data
+            const dataToSend = {
+                ...formData,
+                sub_activities: subtasks
+            };
+            
+            const response = await api.post('/add_activity', dataToSend);
             
             if (response.data.activity) {
                 setActivities([response.data.activity, ...activities]);
@@ -211,6 +258,7 @@ const Activities = () => {
                 activity_type: "R",
                 status: "A"
             });
+            setSubtasks([]);
             
             // Clear success message after 3 seconds
             setTimeout(() => {
@@ -245,6 +293,23 @@ const Activities = () => {
             activity_type: activity.activity_type || 'R',
             status: activity.status || 'A'
         });
+        
+        // Load subtasks if available
+        if (activity.sub_activities) {
+            try {
+                const parsedSubtasks = typeof activity.sub_activities === 'string' 
+                    ? JSON.parse(activity.sub_activities) 
+                    : activity.sub_activities;
+                
+                setSubtasks(parsedSubtasks);
+            } catch (error) {
+                console.error('Error parsing subtasks:', error);
+                setSubtasks([]);
+            }
+        } else {
+            setSubtasks([]);
+        }
+        
         setShowForm(true);
     };
 
@@ -633,6 +698,39 @@ const fetchActivityReport = async (activityId) => {
         );
     };
 
+    // Add this function to handle viewing subtasks
+    const handleViewSubtasks = async (activity) => {
+        try {
+            // If the activity already has subtasks loaded
+            if (activity.sub_activities) {
+                let subtasks = [];
+                
+                // Parse the subtasks if they're stored as a string
+                if (typeof activity.sub_activities === 'string') {
+                    try {
+                        subtasks = JSON.parse(activity.sub_activities);
+                    } catch (error) {
+                        console.error('Error parsing subtasks:', error);
+                    }
+                } else if (Array.isArray(activity.sub_activities)) {
+                    subtasks = activity.sub_activities;
+                }
+                
+                setSubtaskFlow(subtasks);
+                setViewingSubtasks(activity);
+            } else {
+                // Fetch subtasks from backend if not already loaded
+                const response = await api.get(`/activity_subtasks/${activity.activity_id}`);
+                setSubtaskFlow(response.data || []);
+                setViewingSubtasks(activity);
+            }
+        } catch (error) {
+            console.error('Error fetching subtasks:', error);
+            setSubtaskFlow([]);
+            setViewingSubtasks(activity); // Still show the modal, even if empty
+        }
+    };
+
     return (
         <div className="activities-container">
             {successMessage && (
@@ -898,13 +996,12 @@ const fetchActivityReport = async (activityId) => {
                                     <i className="fas fa-clipboard-check"></i>
                                 </div>
                                 <button 
-                                    className="report-btn"
-                                    onClick={() => handleReportClick(activity)}
-                                    title="View Activity Performance Report"
+                                    className="eye-btn"
+                                    onClick={() => handleViewSubtasks(activity)}
+                                    title="View Subtasks Flow"
                                 >
-                                    <i className="fas fa-chart-pie"></i>
+                                    <i className="fas fa-eye"></i>
                                 </button>
-                                
                             </div>
                             
                             <div className="activity-card-body">
@@ -1016,8 +1113,77 @@ const fetchActivityReport = async (activityId) => {
                                     placeholder="Enter activity name"
                                 />
                             </div>
+                            <div className="subtasks-section">
+                                <div className="subtasks-header">
+                                    <h3>Sub Tasks</h3>
+                                    <button 
+                                        type="button" 
+                                        className="add-subtask-btn" 
+                                        onClick={addSubtask}
+                                    >
+                                        <i className="fas fa-plus"></i> Add Sub Task
+                                    </button>
+                                </div>
+                                
+                                {subtasks.length === 0 && (
+                                    <div className="no-subtasks">
+                                        {/* <p>No subtasks added. Click "Add Sub Task" to add one.</p> */}
+                                    </div>
+                                )}
+                                
+                                {subtasks.map((subtask, index) => (
+                                    <div key={index} className="subtask-item">
+                                        <div className="subtask-header">
+                                            <h4>Sub Task #{index + 1}</h4>
+                                            <button 
+                                                type="button" 
+                                                className="remove-subtask-btn"
+                                                onClick={() => removeSubtask(index)}
+                                            >
+                                                <i className="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                        <div className="subtask-fields">
+                                            <div className="form-group">
+                                                <label>Name:</label>
+                                                <input
+                                                    type="text"
+                                                    value={subtask.name || ''}
+                                                    onChange={(e) => handleSubtaskChange(index, 'name', e.target.value)}
+                                                    placeholder="Enter subtask name"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Description:</label>
+                                                <textarea
+                                                    value={subtask.description || ''}
+                                                    onChange={(e) => handleSubtaskChange(index, 'description', e.target.value)}
+                                                    placeholder="Enter subtask description"
+                                                    rows="2"
+                                                ></textarea>
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Time (hours):</label>
+                                                <input
+                                                    type="number"
+                                                    value={subtask.time || ''}
+                                                    onChange={(e) => handleSubtaskChange(index, 'time', e.target.value)}
+                                                    step="0.1"
+                                                    min="0"
+                                                    placeholder="Estimated time in hours"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                             <div className="form-group">
-                                <label htmlFor="standard_time">Estimated Time to complete (in hours):</label>
+                                <label htmlFor="standard_time">
+                                    Estimated Time to complete (in hours):
+                                    {subtasks.length > 0 && <span className="auto-calculated"> (auto-calculated)</span>}
+                                </label>
                                 <input
                                     type="number"
                                     id="standard_time"
@@ -1028,6 +1194,8 @@ const fetchActivityReport = async (activityId) => {
                                     placeholder="Enter estimated time"
                                     min="0"
                                     step="0.5"
+                                    readOnly={subtasks.length > 0}
+                                    className={subtasks.length > 0 ? 'readonly-input' : ''}
                                 />
                             </div>
                             <div className="form-group">
@@ -1142,6 +1310,7 @@ const fetchActivityReport = async (activityId) => {
                                     <option value="O">Obsolete</option>
                                 </select>
                             </div>
+                            
                             <div className="form-actions">
                                 <button type="submit" className="btn-save">
                                     <i className="fas fa-save"></i> Save
@@ -1369,6 +1538,87 @@ const fetchActivityReport = async (activityId) => {
                                     {isDeleting ? 'Deleting...' : 'Delete Activity'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add the subtask flow modal */}
+            {viewingSubtasks && (
+                <div className="modal-overlay">
+                    <div className="subtask-flow-modal">
+                        <div className="modal-header">
+                            <h2>
+                                <i className="fas fa-tasks"></i>
+                                Subtask Flow for {viewingSubtasks.activity_name}
+                            </h2>
+                            <button 
+                                className="close-btn" 
+                                onClick={() => setViewingSubtasks(null)}
+                            >
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        
+                        <div className="subtask-flow-content">
+                            {subtaskFlow.length > 0 ? (
+                                <div className="flow-diagram">
+                                    <div className="subtask-flow">
+                                        {/* Start Point */}
+                                        <div className="flow-endpoint start-point">
+                                            <div className="endpoint-circle">
+                                                <i className="fas fa-play"></i>
+                                            </div>
+                                            <div className="endpoint-label">Start</div>
+                                        </div>
+                                        
+                                        {/* First connector */}
+                                        <div className="flow-connector"></div>
+                                        
+                                        {/* Subtask Nodes */}
+                                        <div className="subtask-nodes">
+                                            {subtaskFlow.map((subtask, index) => (
+                                                <React.Fragment key={index}>
+                                                    {index > 0 && (
+                                                        <div className={`flow-connector ${(index % 4 === 0) ? 'turn-connector' : ''}`}></div>
+                                                    )}
+                                                    <div className="subtask-item">
+                                                        <div className="subtask-node">
+                                                            <div className="subtask-number">{index + 1}</div>
+                                                            <div className="subtask-content">
+                                                                <div className="subtask-title">{subtask.name}</div>
+                                                                <div className="subtask-description">
+                                                                    {subtask.description || "No description provided"}
+                                                                </div>
+                                                                <div className="subtask-time">
+                                                                    <i className="fas fa-clock"></i>
+                                                                    {subtask.time || 0} hours
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </React.Fragment>
+                                            ))}
+                                        </div>
+                                        
+                                        {/* Final connector */}
+                                        <div className="flow-connector"></div>
+                                        
+                                        {/* End Point */}
+                                        <div className="flow-endpoint end-point">
+                                            <div className="endpoint-circle">
+                                                <i className="fas fa-stop"></i>
+                                            </div>
+                                            <div className="endpoint-label">End</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="no-subtasks-message">
+                                    <i className="fas fa-info-circle"></i>
+                                    <p>No subtasks defined for this activity.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

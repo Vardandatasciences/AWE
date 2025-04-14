@@ -477,64 +477,64 @@ def create_task():
         traceback.print_exc()  # Add traceback for better debugging
         return jsonify({'error': f'Failed to create task: {str(e)}'}), 500
 
-@tasks_bp.route('/assign_activity', methods=['POST'])
-def assign_activity():
-    try:
-        data = request.form
-        # ... existing validation code ...
+# @tasks_bp.route('/assign_activity', methods=['POST'])
+# def assign_activity():
+#     try:
+#         data = request.form
+#         # ... existing validation code ...
         
-        # Create the task
-        new_task = Task(
-            task_id=task_id,
-            task_name=activity.activity_name,
-            criticality=criticality,
-            duration=duration,
-            status=status,
-            link=link,
-            customer_name=customer.customer_name,
-            duedate=due_date,
-            actor_id=assigned_actor_id,
-            assigned_to=assigned_to,
-            activity_id=activity_id,
-            initiator=initiator,
-            activity_type=activity_type,
-            stage_id=1,
-            assigned_timestamp=current_timestamp
-        )
-        db.session.add(new_task)
-        db.session.commit()
+#         # Create the task
+#         new_task = Task(
+#             task_id=task_id,
+#             task_name=activity.activity_name,
+#             criticality=criticality,
+#             duration=duration,
+#             status=status,
+#             link=link,
+#             customer_name=customer.customer_name,
+#             duedate=due_date,
+#             actor_id=assigned_actor_id,
+#             assigned_to=assigned_to,
+#             activity_id=activity_id,
+#             initiator=initiator,
+#             activity_type=activity_type,
+#             stage_id=1,
+#             assigned_timestamp=current_timestamp
+#         )
+#         db.session.add(new_task)
+#         db.session.commit()
         
-        # ... existing email and calendar code ...
+#         # ... existing email and calendar code ...
         
-        # Return the new task data along with success message
-        return jsonify({
-            'success': True,
-            'message': 'Activity assigned successfully and notification sent',
-            'email_sent': True,
-            'calendar_added': calendar_event_id is not None,
-            'reminders_scheduled': True,
-            'task': {
-                'id': str(new_task.task_id),
-                'task_name': new_task.task_name,
-                'link': new_task.link,
-                'status': new_task.status,
-                'criticality': new_task.criticality,
-                'assignee': new_task.assigned_to,
-                'actor_id': str(new_task.actor_id),
-                'due_date': new_task.duedate.isoformat() if new_task.duedate else None,
-                'initiator': new_task.initiator,
-                'time_taken': new_task.duration,
-                'customer_name': new_task.customer_name,
-                'title': new_task.task_name,
-                'remarks': new_task.remarks,
-                'assigned_timestamp': new_task.assigned_timestamp.isoformat()
-            }
-        })
+#         # Return the new task data along with success message
+#         return jsonify({
+#             'success': True,
+#             'message': 'Activity assigned successfully and notification sent',
+#             'email_sent': True,
+#             'calendar_added': calendar_event_id is not None,
+#             'reminders_scheduled': True,
+#             'task': {
+#                 'id': str(new_task.task_id),
+#                 'task_name': new_task.task_name,
+#                 'link': new_task.link,
+#                 'status': new_task.status,
+#                 'criticality': new_task.criticality,
+#                 'assignee': new_task.assigned_to,
+#                 'actor_id': str(new_task.actor_id),
+#                 'due_date': new_task.duedate.isoformat() if new_task.duedate else None,
+#                 'initiator': new_task.initiator,
+#                 'time_taken': new_task.duration,
+#                 'customer_name': new_task.customer_name,
+#                 'title': new_task.task_name,
+#                 'remarks': new_task.remarks,
+#                 'assigned_timestamp': new_task.assigned_timestamp.isoformat()
+#             }
+#         })
         
-    except Exception as e:
-        db.session.rollback()
-        print(f"🚨 Error Assigning Activity: {e}")
-        return jsonify({'success': False, 'message': f'Failed to assign activity: {str(e)}'}), 500
+#     except Exception as e:
+#         db.session.rollback()
+#         print(f"🚨 Error Assigning Activity: {e}")
+#         return jsonify({'success': False, 'message': f'Failed to assign activity: {str(e)}'}), 500
 
 @tasks_bp.route('/employees', methods=['GET'])
 def get_employees():
