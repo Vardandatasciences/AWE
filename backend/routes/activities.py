@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request,session
-from models import db, Activity, Customer, Actor, CustomerActivity, Task
+from models import db, Activity, Customer, Actor, CustomerActivity, Task, SubTask
 from datetime import datetime, timedelta, time
 from sqlalchemy import text
 from email.mime.text import MIMEText
@@ -13,6 +13,7 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
+import json
 
 
 
@@ -422,6 +423,12 @@ def assign_activity():
         link = data.get('link', '')
         frequency = data.get('frequency', '1')
         status = data.get('status', 'Yet to Start')
+        sub_tasks = data.get('sub_tasks', '[]')  # Get sub_tasks as JSON string
+        
+        try:
+            sub_tasks = json.loads(sub_tasks)  # Parse JSON string to list
+        except:
+            sub_tasks = []  # Default to empty list if parsing fails
 
         if not activity_id or not assigned_to or not customer_id:
             return jsonify({'success': False, 'message': '❌ Missing required fields'}), 400
@@ -501,9 +508,21 @@ def assign_activity():
                 initiator=initiator,
                 activity_type=activity_type,
                 stage_id=1,
-                assigned_timestamp=current_timestamp  # Add the timestamp here
+                assigned_timestamp=current_timestamp
             )
             db.session.add(new_task)
+            
+            # Add subtasks to sub_task table
+            if sub_tasks and isinstance(sub_tasks, list):
+                for subtask_item in sub_tasks:
+                    if isinstance(subtask_item, dict) and 'name' in subtask_item:
+                        new_subtask = SubTask(
+                            task_id=task_id,
+                            sub_task=subtask_item.get('name', ''),
+                            status='Pending'
+                        )
+                        db.session.add(new_subtask)
+            
             db.session.commit()
             
             # Add to Google Calendar

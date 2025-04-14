@@ -7,6 +7,7 @@ import AssignActivity from './AssignActivity';
 import { API_ENDPOINTS } from '../config/api';
 import AssignActivityForm from './AssignActivityForm';
 import api from '../services/api';
+import { toast } from 'react-hot-toast';
 
 const Activities = () => {
     const [activities, setActivities] = useState([]);
@@ -104,6 +105,13 @@ const Activities = () => {
     const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    // Add state for selectedEmployee
+    const [selectedEmployee, setSelectedEmployee] = useState('');
+    const [assignmentRemarks, setAssignmentRemarks] = useState('');
+    const [assignmentLink, setAssignmentLink] = useState('');
+    const [frequency, setFrequency] = useState('1');
+    const [currentUser, setCurrentUser] = useState(null);
 
     useEffect(() => {
         fetchActivities();
@@ -267,15 +275,44 @@ const Activities = () => {
     };
 
     const handleAssign = (activity) => {
-        setAssignActivity(activity);
+        setSelectedActivity(activity);
+        setShowActivityMapping(true);
+        fetchActivityMappings(activity.activity_id);
+        setAssigningActivityId(activity.activity_id);
     };
     
     const handleAssignEmployee = (customerId, customerName) => {
-        setAssigningCustomer({
-            id: customerId,
-            name: customerName
-        });
-        setShowAssignForm(true);
+        // Before creating FormData, check if employee is selected
+        if (!selectedEmployee) {
+            toast.error("Please select an employee first");
+            return;
+        }
+        
+        // Create form data with all necessary information
+        const formData = new FormData();
+        formData.append('task_name', selectedActivity.activity_id);
+        formData.append('assigned_to', selectedEmployee);
+        formData.append('customer_id', customerId);
+        formData.append('customer_name', customerName);
+        formData.append('actor_id', currentUser?.id || sessionStorage.getItem('userId'));
+        formData.append('remarks', assignmentRemarks || '');
+        formData.append('link', assignmentLink || '');
+        formData.append('frequency', frequency || '1');
+        
+        // Add subtasks information
+        if (selectedActivity.sub_activities) {
+            formData.append('sub_tasks', JSON.stringify(selectedActivity.sub_activities));
+        }
+        
+        // Send API request
+        axios.post('/api/assign_activity', formData)
+            .then(response => {
+                handleAssignSuccess(response.data);
+            })
+            .catch(error => {
+                console.error('Error assigning activity:', error);
+                toast.error('Failed to assign activity');
+            });
     };
 
     const handleAssignSuccess = (response) => {
@@ -632,6 +669,20 @@ const fetchActivityReport = async (activityId) => {
             </div>
         );
     };
+
+    // Make sure you have this effect to get the current user
+    useEffect(() => {
+        // Get current user from session storage
+        const userId = sessionStorage.getItem('userId');
+        const userName = sessionStorage.getItem('userName');
+        
+        if (userId) {
+            setCurrentUser({
+                id: userId,
+                name: userName
+            });
+        }
+    }, []);
 
     return (
         <div className="activities-container">
@@ -1166,6 +1217,88 @@ const fetchActivityReport = async (activityId) => {
                 />
             )}
             
+            {/* Activity Mapping Modal */}
+            {showActivityMapping && (
+                <div className="modal-overlay">
+                    <div className="activity-mapping-modal">
+                        <div className="modal-header">
+                            <h2>
+                                <i className="fas fa-project-diagram"></i>
+                                Activity Assignment
+                                {selectedActivity && <span> - {selectedActivity.activity_name}</span>}
+                            </h2>
+                            <button className="close-btn" onClick={closeActivityMapping}>
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        
+                        {assignSuccess && (
+                            <div className={`notification-message ${assignSuccess.type}`}>
+                                <i className={`fas ${assignSuccess.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
+                                <span>{assignSuccess.message}</span>
+                            </div>
+                        )}
+                        
+                        <div className="mapping-content">
+                            {mappingLoading ? (
+                                <div className="loading-container">
+                                    <div className="spinner"></div>
+                                    <p>Loading assignments...</p>
+                                </div>
+                            ) : (
+                                <table className="mapping-table">
+                                    <thead>
+                                        <tr>
+                                            <th>CLIENT NAME</th>
+                                            <th>ASSIGNED AUDITOR</th>
+                                            <th>ACTION</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Array.isArray(activityMappings) && activityMappings.length > 0 ? (
+                                            activityMappings.map(mapping => (
+                                                <tr key={mapping.id}>
+                                                    <td>{mapping.customer_name}</td>
+                                                    <td>
+                                                        {mapping.assigned_employee ? 
+                                                            getEmployeeName(mapping.assigned_employee) : 
+                                                            'Not Assigned'}
+                                                    </td>
+                                                    <td>
+                                                        {!mapping.assigned_employee ? (
+                                                            <button 
+                                                                className="btn btn-primary" 
+                                                                onClick={() => handleAssignEmployee(mapping.customer_id, mapping.customer_name)}
+                                                            >
+                                                                Assign
+                                                            </button>
+                                                        ) : (
+                                                            <span className="assigned-label">Assigned</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan="3" className="no-data">
+                                                    No assignments found for this activity
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                        
+                        <div className="modal-footer">
+                            <button className="btn-cancel" onClick={closeActivityMapping}>
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showAssignForm && (
                 <AssignActivityForm
                     customerId={selectedClient}
