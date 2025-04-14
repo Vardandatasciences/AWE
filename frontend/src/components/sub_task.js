@@ -6,7 +6,7 @@ import './Activities.css';
 import AssignActivity from './AssignActivity';
 import { API_ENDPOINTS } from '../config/api';
 import AssignActivityForm from './AssignActivityForm';
-import api from '../services/api';
+import { toast } from 'react-hot-toast';
 
 const Activities = () => {
     const [activities, setActivities] = useState([]);
@@ -77,44 +77,27 @@ const Activities = () => {
     const [activitiesPerPage] = useState(12);
     const [totalPages, setTotalPages] = useState(1);
 
-    // Add these new state variables at the beginning of your Activities component
-    const [clients, setClients] = useState([]);
-    const [selectedClient, setSelectedClient] = useState('');
-    const [showActivities, setShowActivities] = useState(false);
-
-    // Add this new state variable at the beginning of your Activities component
-    const [assignedActivities, setAssignedActivities] = useState([]);
-
-    // Add this state variable near your other state declarations
-    const [assignmentFilter, setAssignmentFilter] = useState('all'); // 'all', 'assigned', 'unassigned'
-
-    // First, add a state to store the selected client name
-    const [selectedClientName, setSelectedClientName] = useState('');
-
-    // Add new state for notifications
-    const [notification, setNotification] = useState(null);
-
-    // Add this state for success popup
-    const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-
-    // Add this state for success message
-    const [successMessage, setSuccessMessage] = useState(null);
-
-    // Add state for delete confirmation modal
-    const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-
     // Add new state for subtasks
     const [subtasks, setSubtasks] = useState([]);
-    const [showSubtaskModal, setShowSubtaskModal] = useState(false);
-    const [viewingActivitySubtasks, setViewingActivitySubtasks] = useState(null);
+    const [subtaskCounter, setSubtaskCounter] = useState(1);
+
+    // Add a new state for the subtask workflow popup
+    const [showSubtaskWorkflow, setShowSubtaskWorkflow] = useState(false);
+    const [selectedSubtasks, setSelectedSubtasks] = useState([]);
+
+    // Add state for selectedEmployee
+    const [selectedEmployee, setSelectedEmployee] = useState('');
+    const [assignmentRemarks, setAssignmentRemarks] = useState('');
+    const [assignmentLink, setAssignmentLink] = useState('');
+    const [frequency, setFrequency] = useState('1');
+    const [currentUser, setCurrentUser] = useState(null);
 
     useEffect(() => {
+        // Ensure activityMappings is always an array
+        setActivityMappings([]);
         fetchActivities();
         // fetchGroups();
         fetchEmployees();
-        fetchClients();
     }, []);
 
     useEffect(() => {
@@ -126,7 +109,7 @@ const Activities = () => {
     const fetchActivities = async () => {
         setLoading(true);
         try {
-            const response = await api.get(API_ENDPOINTS.ACTIVITIES);
+            const response = await axios.get(API_ENDPOINTS.ACTIVITIES);
             setActivities(response.data);
 
             // Calculate stats
@@ -163,18 +146,30 @@ const Activities = () => {
     
     const fetchEmployees = async () => {
         try {
-            const response = await axios.get('/actors');
+            // Use the full URL with protocol and host
+            const response = await axios.get('http://127.0.0.1:5000/actors');
             setEmployees(response.data);
         } catch (error) {
             console.error('Error fetching employees:', error);
+            setEmployees([]);
         }
     };
     
     const fetchActivityMappings = async (activityId) => {
         setMappingLoading(true);
         try {
-            const response = await axios.get(`/activity_mappings/${activityId}`);
-            setActivityMappings(response.data);
+            // Make sure the URL is correct and includes proper protocol/host
+            const response = await axios.get(`http://127.0.0.1:5000/activity_mappings/${activityId}`);
+            
+            console.log("Activity mappings response:", response);
+            
+            // Ensure response.data is an array
+            if (Array.isArray(response.data)) {
+                setActivityMappings(response.data);
+            } else {
+                console.error('Expected array but received:', response.data);
+                setActivityMappings([]); // Set empty array as fallback
+            }
         } catch (error) {
             console.error('Error fetching activity mappings:', error);
             setActivityMappings([]);
@@ -187,40 +182,82 @@ const Activities = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    // Add function to handle subtask input change
+    const handleSubtaskChange = (index, field, value) => {
+        const updatedSubtasks = [...subtasks];
+        updatedSubtasks[index][field] = value;
+        setSubtasks(updatedSubtasks);
+        
+        // Calculate total time
+        calculateTotalTime(updatedSubtasks);
+    };
+
+    // Function to calculate total standard time from subtasks
+    const calculateTotalTime = (updatedSubtasks) => {
+        const totalTime = updatedSubtasks.reduce((sum, subtask) => {
+            return sum + (parseFloat(subtask.time) || 0);
+        }, 0);
+        
+        // Update the form data with calculated total time
+        setFormData(prev => ({
+            ...prev,
+            standard_time: totalTime.toString()
+        }));
+    };
+
+    // Add function to add new subtask
+    const addSubtask = () => {
+        setSubtasks([...subtasks, { 
+            id: subtaskCounter,
+            name: '', 
+            description: '', 
+            time: '0' 
+        }]);
+        setSubtaskCounter(prev => prev + 1);
+    };
+
+    // Add function to remove subtask
+    const removeSubtask = (index) => {
+        const updatedSubtasks = subtasks.filter((_, i) => i !== index);
+        setSubtasks(updatedSubtasks);
+        calculateTotalTime(updatedSubtasks);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await api.post('/add_activity', formData);
+            // Include subtasks in the data sent to the server, but use "sub_activities" as the key
+            const dataToSubmit = {
+                ...formData,
+                sub_activities: subtasks.length > 0 ? subtasks : null
+            };
             
-            if (response.data.activity) {
-                setActivities([response.data.activity, ...activities]);
+            let response;
+            if (editingActivity) {
+                // Make sure to use full URL to backend
+                response = await axios.put(`${API_ENDPOINTS.BASE_URL}/update_activity`, dataToSubmit);
+                if (response.data.activity) {
+                    // Update the activity in the local state
+                    setActivities(activities.map(activity => 
+                        activity.activity_id === response.data.activity.activity_id 
+                            ? response.data.activity 
+                            : activity
+                    ));
+                }
             } else {
+                // Make sure to use full URL to backend
+                response = await axios.post(`${API_ENDPOINTS.BASE_URL}/add_activity`, dataToSubmit);
+                // Refresh activities list after adding
                 fetchActivities();
             }
             
             // Show success message
-            setSuccessMessage("Activity added successfully");
+            alert(response.data.message);
             
             // Reset form and close modal
             setShowForm(false);
             setEditingActivity(null);
-            setFormData({
-                activity_name: "",
-                standard_time: "",
-                act_des: "",
-                criticality: "Low",
-                duration: "",
-                role_id: "",
-                frequency: "0",
-                due_by: "",
-                activity_type: "R",
-                status: "A"
-            });
-            
-            // Clear success message after 3 seconds
-            setTimeout(() => {
-                setSuccessMessage(null);
-            }, 3000);
+            resetFormData();
             
             // If we're in the workflow process, mark this step as completed
             if (isInWorkflow) {
@@ -235,7 +272,26 @@ const Activities = () => {
         }
     };
 
-    const handleEdit = async (activity) => {
+    // Add function to reset form data including subtasks
+    const resetFormData = () => {
+        setFormData({
+            activity_name: "",
+            standard_time: "",
+            act_des: "",
+            criticality: "Low",
+            duration: "",
+            role_id: "",
+            frequency: "0",
+            due_by: "",
+            activity_type: "R",
+            status: "A"
+        });
+        setSubtasks([]);
+        setSubtaskCounter(1);
+    };
+
+    // Modify the edit function to handle subtasks
+    const handleEdit = (activity) => {
         setEditingActivity(activity);
         setFormData({
             activity_id: activity.activity_id,
@@ -250,48 +306,124 @@ const Activities = () => {
             activity_type: activity.activity_type || 'R',
             status: activity.status || 'A'
         });
+        
+        // If activity has subtasks, load them - use sub_activities as the field name
+        if (activity.sub_activities && Array.isArray(activity.sub_activities)) {
+            setSubtasks(activity.sub_activities);
+            setSubtaskCounter(activity.sub_activities.length + 1);
+        } else {
+            setSubtasks([]);
+            setSubtaskCounter(1);
+        }
+        
         setShowForm(true);
     };
 
-    const handleDelete = (activity) => {
-        setItemToDelete({
-            id: activity.activity_id,
-            name: activity.activity_name
-        });
-        setShowDeleteConfirmModal(true);
+    const handleDelete = async (activityId) => {
+        if (!window.confirm('Are you sure you want to delete this activity?')) {
+            return;
+        }
+        
+        try {
+            const response = await axios.delete(`/delete_activity/${activityId}`);
+            
+            if (response.data.status === 'success') {
+                // Remove the activity from the local state
+                setActivities(activities.filter(activity => activity.activity_id !== activityId));
+                // Show success message
+                alert('Activity deleted successfully');
+            }
+        } catch (error) {
+            if (error.response && error.response.data) {
+                // Show the specific error message from the backend
+                alert(error.response.data.message || 'Failed to delete activity');
+            } else {
+                alert('An error occurred while deleting the activity');
+            }
+            console.error('Error deleting activity:', error);
+        }
     };
 
     const handleAssign = (activity) => {
-        setAssignActivity(activity);
+        setSelectedActivity(activity);
+        setShowActivityMapping(true);
+        fetchActivityMappings(activity.activity_id);
+        setAssigningActivityId(activity.activity_id);
     };
     
     const handleAssignEmployee = (customerId, customerName) => {
-        setAssigningCustomer({
-            id: customerId,
-            name: customerName
-        });
-        setShowAssignForm(true);
+        // Before creating FormData, check if employee is selected
+        if (!selectedEmployee) {
+            toast.error("Please select an employee first");
+            return;
+        }
+        
+        // Create form data with all necessary information
+        const formData = new FormData();
+        formData.append('task_name', selectedActivity.activity_id);
+        formData.append('assigned_to', selectedEmployee);
+        formData.append('customer_id', customerId);
+        formData.append('customer_name', customerName);
+        formData.append('actor_id', currentUser?.id || sessionStorage.getItem('userId'));
+        formData.append('remarks', assignmentRemarks || '');
+        formData.append('link', assignmentLink || '');
+        formData.append('frequency', frequency || '1');
+        
+        // Add subtasks information
+        if (selectedActivity.sub_activities) {
+            formData.append('sub_tasks', JSON.stringify(selectedActivity.sub_activities));
+        }
+        
+        // Send API request
+        axios.post('/api/assign_activity', formData)
+            .then(response => {
+                handleAssignSuccess(response.data);
+            })
+            .catch(error => {
+                console.error('Error assigning activity:', error);
+                toast.error('Failed to assign activity');
+            });
     };
 
     const handleAssignSuccess = (response) => {
+        // Show success message with email notification status
+        const emailStatus = response.email_sent 
+            ? 'Email notification sent!' 
+            : 'Assignment successful, but email notification failed.';
+        
+        const calendarStatus = response.calendar_added
+            ? 'Added to Google Calendar.' 
+            : '';
+            
+        const reminderStatus = response.reminders_scheduled
+            ? 'Reminders scheduled.' 
+            : '';
+            
+        setAssignSuccess({
+            type: 'success',
+            message: `Activity assigned successfully! ${emailStatus} ${calendarStatus} ${reminderStatus}`
+        });
+        
+        // Refresh the mappings
+        fetchActivityMappings(assigningActivityId);
+        
+        // Close the form
         setShowAssignForm(false);
         
-        // Show success notification
-        setNotification({
-            type: 'success',
-            message: 'Task assigned successfully!'
-        });
+        // If we're in the employee assignment step of the workflow, mark it as completed
+        if (isInEmployeeAssignmentStep) {
+            completeStep(3);
+            
+            // Show the workflow guide again to show completion
+            setTimeout(() => {
+                showWorkflowGuide();
+            }, 1000);
+        }
         
-        // Update assigned activities
-        const newClientId = response.customer_id || selectedClient;
-        fetchAssignedActivities(newClientId);
-    };
-
-    const handleAssignError = (error) => {
-        setNotification({
-            type: 'error',
-            message: error.response?.data?.message || 'Error assigning task. Please try again.'
-        });
+        // Clear the success message after 5 seconds
+        setTimeout(() => {
+            setAssignSuccess(null);
+        }, 5000);
     };
 
     const closeAssignModal = () => {
@@ -306,66 +438,13 @@ const Activities = () => {
         setSelectedActivity(null);
     };
 
-    const fetchClients = async () => {
-        try {
-            const response = await api.get('/customers'); // Use the API service here
-            setClients(response.data);
-        } catch (error) {
-            console.error('Error fetching clients:', error);
-        }
-    };
-
-    const fetchAssignedActivities = async (clientId) => {
-        try {
-            const response = await api.get(`/tasks/client/${clientId}`);
-            console.log("Tasks response:", response.data);
-            
-            // Ensure we're working with an array
-            const assignedIds = Array.isArray(response.data) 
-                ? response.data.map(id => String(id))
-                : [];
-                
-            console.log("Assigned activity IDs:", assignedIds);
-            setAssignedActivities(assignedIds);
-        } catch (error) {
-            console.error('Error fetching assigned activities:', error);
-            setAssignedActivities([]);
-        }
-    };
-
-    // Update the filteredActivities function to handle "all" client option
     const filteredActivities = activities.filter(activity => {
-        // If no client is selected, return empty array
-        if (!selectedClient) return false;
-        
-        // If "all" is selected, show all activities based on search term and assignment filter
-        const showAllClients = selectedClient === 'all';
-
-        // First check the search term
-        const matchesSearch = !searchTerm || 
+        return !searchTerm || 
             (activity.activity_name && activity.activity_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (activity.act_des && activity.act_des.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (activity.criticality && activity.criticality.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (activity.duration && activity.duration.toString().includes(searchTerm)) ||
             (activity.due_by && activity.due_by.includes(searchTerm));
-
-        // For "all" clients option, only filter by search term
-        if (showAllClients) {
-            return matchesSearch; 
-        }
-
-        // For specific client, check assignment status
-        const activityIdStr = String(activity.activity_id);
-        const isAssigned = assignedActivities.some(id => String(id) === activityIdStr);
-        
-        switch (assignmentFilter) {
-            case 'assigned':
-                return matchesSearch && isAssigned;
-            case 'unassigned':
-                return matchesSearch && !isAssigned;
-            default: // 'all'
-                return matchesSearch;
-        }
     });
 
     // const getGroupName = (groupId) => {
@@ -379,15 +458,11 @@ const Activities = () => {
     };
 
     // Handle status button click - directly open the mapping screen
-    const handleStatusClick = (activity) => {
-        if (!activity || !activity.activity_id) {
-            handleAssignError({ message: 'Invalid activity data' });
-            return;
-        }
-        
+    const handleStatusClick = (event, activity) => {
         setSelectedActivity(activity);
         setAssigningActivityId(activity.activity_id);
-        setShowAssignForm(true);
+        fetchActivityMappings(activity.activity_id);
+        setShowActivityMapping(true);
     };
 
 
@@ -610,146 +685,32 @@ const fetchActivityReport = async (activityId) => {
         );
     };
 
-    // Add this new component inside Activities component
-    const Notification = ({ type, message }) => {
-        useEffect(() => {
-            const timer = setTimeout(() => {
-                setNotification(null);
-            }, 3000);
-
-            return () => clearTimeout(timer);
-        }, []);
-
-        return (
-            <div className={`notification ${type}`}>
-                <i className={`fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
-                {message}
-            </div>
-        );
-    };
-
-    const handleSubtaskChange = (index, field, value) => {
-        const updatedSubtasks = [...subtasks];
-        updatedSubtasks[index][field] = value;
-        
-        if (field === 'sub_start_date' || field === 'sub_end_date') {
-            calculateTotalTime(updatedSubtasks);
-        } else {
-            setSubtasks(updatedSubtasks);
-        }
-    };
-    
-    const calculateTotalTime = (updatedSubtasks) => {
-        // Calculate total time based on start and end dates
-        const newSubtasks = updatedSubtasks.map(subtask => {
-            if (subtask.sub_start_date && subtask.sub_end_date) {
-                const startDate = new Date(subtask.sub_start_date);
-                const endDate = new Date(subtask.sub_end_date);
-                const timeDiff = endDate - startDate;
-                const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
-                subtask.sub_time = daysDiff > 0 ? daysDiff.toFixed(1) : 0;
-            }
-            return subtask;
-        });
-        
-        setSubtasks(newSubtasks);
-    };
-    
-    const addSubtask = () => {
-        const newSubtask = {
-            sub_activity_name: '',
-            sub_activity_desc: '',
-            sub_start_date: '',
-            sub_end_date: '',
-            sub_time: '0'
-        };
-        setSubtasks([...subtasks, newSubtask]);
-    };
-    
-    const removeSubtask = (index) => {
-        const updatedSubtasks = [...subtasks];
-        updatedSubtasks.splice(index, 1);
-        setSubtasks(updatedSubtasks);
-    };
-    
+    // Add function to view subtasks workflow
     const handleViewSubtasks = (activity) => {
-        setViewingActivitySubtasks(activity);
-        // Fetch subtasks for this activity
-        fetchSubtasks(activity.activity_id);
-        setShowSubtaskModal(true);
-    };
-    
-    const fetchSubtasks = async (activityId) => {
-        try {
-            const response = await api.get(`/subtasks/${activityId}`);
-            setSubtasks(response.data || []);
-        } catch (error) {
-            console.error('Error fetching subtasks:', error);
-            setSubtasks([]);
-        }
-    };
-    
-    const handleSubtaskSubmit = async (e) => {
-        e.preventDefault();
-        
-        try {
-            const activityId = viewingActivitySubtasks.activity_id;
-            await api.post(`/subtasks/${activityId}`, { subtasks });
-            
-            setSuccessMessage("Subtasks updated successfully");
-            setTimeout(() => {
-                setSuccessMessage(null);
-            }, 3000);
-            
-            setShowSubtaskModal(false);
-        } catch (error) {
-            console.error('Error saving subtasks:', error);
-            alert(error.response?.data?.error || 'Error saving subtasks');
+        if (activity.sub_activities && Array.isArray(activity.sub_activities) && activity.sub_activities.length > 0) {
+            setSelectedSubtasks(activity.sub_activities);
+            setShowSubtaskWorkflow(true);
+        } else {
+            alert("This activity doesn't have any subtasks.");
         }
     };
 
-    // Add this function to handle confirmation of delete action
-    const confirmDelete = async () => {
-        if (!itemToDelete) return;
+    // Make sure you have this effect to get the current user
+    useEffect(() => {
+        // Get current user from session storage
+        const userId = sessionStorage.getItem('userId');
+        const userName = sessionStorage.getItem('userName');
         
-        setIsDeleting(true);
-        try {
-            const response = await api.delete(`/delete_activity/${itemToDelete.id}`);
-            
-            if (response.status === 200) {
-                // Remove from local state
-                setActivities(activities.filter(a => a.activity_id !== itemToDelete.id));
-                
-                // Show success message
-                setSuccessMessage("Activity deleted successfully");
-                setTimeout(() => {
-                    setSuccessMessage(null);
-                }, 3000);
-                
-                // Close modal
-                setShowDeleteConfirmModal(false);
-                setItemToDelete(null);
-            }
-        } catch (error) {
-            console.error('Error deleting activity:', error);
-            setNotification({
-                type: 'error',
-                message: error.response?.data?.message || 'Error deleting activity'
+        if (userId) {
+            setCurrentUser({
+                id: userId,
+                name: userName
             });
-        } finally {
-            setIsDeleting(false);
         }
-    };
+    }, []);
 
     return (
         <div className="activities-container">
-            {successMessage && (
-                <div className="success-message">
-                    <i className="fas fa-check-circle"></i>
-                    <span>{successMessage}</span>
-                </div>
-            )}
-
             {/* <div className="page-header">
                 <h1><i className="fas fa-clipboard-list"></i> Activity Management</h1>
                 <p>Create, update, and assign activities to your team members</p>
@@ -885,66 +846,6 @@ const fetchActivityReport = async (activityId) => {
                         />
                     </div>
                     
-                    <div className="client-dropdown">
-                        <select
-                            value={selectedClient}
-                            onChange={(e) => {
-                                const clientId = e.target.value;
-                                setSelectedClient(clientId);
-                                
-                                if (clientId === 'all') {
-                                    // Handle "ALL" option - show all activities
-                                    setSelectedClientName('All Clients');
-                                    setAssignedActivities([]); // Reset assigned activities
-                                } else if (clientId) {
-                                    // Handle specific client selection
-                                    const selectedClient = clients.find(c => c.customer_id === parseInt(clientId));
-                                    setSelectedClientName(selectedClient ? selectedClient.customer_name : '');
-                                    console.log("Selected client ID:", clientId);
-                                    console.log("Selected client name:", selectedClient?.customer_name);
-                                    fetchAssignedActivities(clientId);
-                                } else {
-                                    // Handle empty selection
-                                    setAssignedActivities([]);
-                                    setSelectedClientName('');
-                                }
-                            }}
-                        >
-                            <option value="">Select Client</option>
-                            <option value="all">ALL CLIENTS</option>
-                            {clients.map(client => (
-                                <option key={client.customer_id} value={client.customer_id}>
-                                    {client.customer_name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Update the filter buttons */}
-                    <div className="assignment-filter">
-                        <button 
-                            className={`filter-btn ${assignmentFilter === 'all' ? 'active' : ''}`}
-                            onClick={() => setAssignmentFilter('all')}
-                            data-filter="all"
-                        >
-                            <i className="fas fa-list"></i> All
-                        </button>
-                        <button 
-                            className={`filter-btn ${assignmentFilter === 'assigned' ? 'active' : ''}`}
-                            onClick={() => setAssignmentFilter('assigned')}
-                            data-filter="assigned"
-                        >
-                            <i className="fas fa-check-circle"></i> Assigned
-                        </button>
-                        <button 
-                            className={`filter-btn ${assignmentFilter === 'unassigned' ? 'active' : ''}`}
-                            onClick={() => setAssignmentFilter('unassigned')}
-                            data-filter="unassigned"
-                        >
-                            <i className="fas fa-clock"></i> Unassigned
-                        </button>
-                    </div>
-                    
                     <div className="view-toggle">
                         <button 
                             className={viewMode === 'grid' ? 'active' : ''} 
@@ -987,12 +888,6 @@ const fetchActivityReport = async (activityId) => {
                     <div className="spinner"></div>
                     <p>Loading activities...</p>
                 </div>
-            ) : !selectedClient ? (
-                <div className="empty-state">
-                    <i className="fas fa-users"></i>
-                    <h3>Select a Client</h3>
-                    <p>Please select a client to view their activities</p>
-                </div>
             ) : filteredActivities.length > 0 ? (
                 <div className={viewMode === 'grid' ? 'activity-grid' : 'activity-list'}>
                     {getCurrentPageActivities().map(activity => (
@@ -1005,14 +900,22 @@ const fetchActivityReport = async (activityId) => {
                                 <div className="activity-icon">
                                     <i className="fas fa-clipboard-check"></i>
                                 </div>
-                                <button 
-                                    className="report-btn"
-                                    onClick={() => handleReportClick(activity)}
-                                    title="View Activity Performance Report"
-                                >
-                                    <i className="fas fa-chart-pie"></i>
-                                </button>
-                                
+                                <div className="card-actions">
+                                    <button 
+                                        className="view-subtasks-btn"
+                                        onClick={() => handleViewSubtasks(activity)}
+                                        title="View Subtasks Workflow"
+                                    >
+                                        <i className="fas fa-eye"></i>
+                                    </button>
+                                    <button 
+                                        className="report-btn"
+                                        onClick={() => handleReportClick(activity)}
+                                        title="View Activity Performance Report"
+                                    >
+                                        <i className="fas fa-chart-pie"></i>
+                                    </button>
+                                </div>
                             </div>
                             
                             <div className="activity-card-body">
@@ -1048,33 +951,12 @@ const fetchActivityReport = async (activityId) => {
                                 >
                                     <i className="fas fa-edit"></i>
                                 </button>
-                                
                                 <button 
-                                    className="subtask-btn"
-                                    onClick={() => handleViewSubtasks(activity)}
-                                    title="View Subtasks"
+                                    className="status-btn" 
+                                    onClick={(event) => handleStatusClick(event, activity)}
                                 >
-                                    <i className="fas fa-tasks"></i>
+                                    <i className="fas fa-users"></i> Assign
                                 </button>
-                                
-                                {assignedActivities.includes(String(activity.activity_id)) ? (
-                                    <button 
-                                        className="status-btn assigned"
-                                        disabled
-                                        title="Already Assigned"
-                                    >
-                                        <i className="fas fa-check"></i> Assigned
-                                    </button>
-                                ) : (
-                                    <button 
-                                        className="status-btn"
-                                        onClick={() => handleStatusClick(activity)}
-                                        title="Assign Activity"
-                                    >
-                                        <i className="fas fa-users"></i> Assign
-                                    </button>
-                                )}
-                                
                                 <button 
                                     className="download-btn"
                                     onClick={() => handleDownloadReport(activity.activity_id)}
@@ -1084,7 +966,7 @@ const fetchActivityReport = async (activityId) => {
                                 </button>
                                 <button 
                                     className="delete-btn"
-                                    onClick={() => handleDelete(activity)}
+                                    onClick={() => handleDelete(activity.activity_id)}
                                     title="Delete Activity"
                                 >
                                     <i className="fas fa-trash-alt"></i>
@@ -1097,11 +979,28 @@ const fetchActivityReport = async (activityId) => {
                 <div className="empty-state">
                     <i className="fas fa-clipboard"></i>
                     <h3>No activities found</h3>
-                    <p>
-                        {selectedClient === 'all' 
-                            ? 'No activities match your search criteria' 
-                            : 'No activities available for the selected client'}
-                    </p>
+                    <p>Create your first activity to get started</p>
+                    <button 
+                        className="add-button" 
+                        onClick={() => {
+                            setFormData({
+                                activity_name: "",
+                                standard_time: "",
+                                act_des: "",
+                                criticality: "Low",
+                                duration: "",
+                                role_id: "",
+                                frequency: "0",
+                                due_by: "",
+                                activity_type: "R",
+                                // group_id: "",
+                                status: "A"
+                            });
+                            setShowForm(true);
+                        }}
+                    >
+                        <i className="fas fa-plus"></i> Create Activity
+                    </button>
                 </div>
             )}
 
@@ -1115,100 +1014,160 @@ const fetchActivityReport = async (activityId) => {
                                 <i className="fas fa-clipboard-check"></i>
                                 {editingActivity ? 'Edit Activity' : 'Add New Activity'}
                             </h2>
-                            <button className="close-btn" onClick={() => setShowForm(false)}>
+                            <button className="close-btn" onClick={() => {
+                                setShowForm(false);
+                                resetFormData();
+                            }}>
                                 <i className="fas fa-times"></i>
                             </button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">
-                                <label htmlFor="activity_name">Activity Name:</label>
+                                <label>Activity Name:</label>
                                 <input
                                     type="text"
-                                    id="activity_name"
                                     name="activity_name"
                                     value={formData.activity_name}
                                     onChange={handleInputChange}
                                     required
-                                    placeholder="Enter activity name"
                                 />
                             </div>
+                            
+                            {/* Add Subtask Button */}
+                            <div className="subtask-control">
+                                <button 
+                                    type="button" 
+                                    className="add-subtask-btn"
+                                    onClick={addSubtask}
+                                >
+                                    <i className="fas fa-plus-circle"></i> Add Subtask
+                                </button>
+                            </div>
+                            
+                            {/* Subtasks Area */}
+                            {subtasks.length > 0 && (
+                                <div className="subtasks-container">
+                                    <h3>Subtasks</h3>
+                                    
+                                    {subtasks.map((subtask, index) => (
+                                        <div key={subtask.id} className="subtask-item">
+                                            <div className="subtask-header">
+                                                <h4>Subtask {index + 1}</h4>
+                                                <button 
+                                                    type="button" 
+                                                    className="remove-subtask-btn"
+                                                    onClick={() => removeSubtask(index)}
+                                                >
+                                                    <i className="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                            
+                                            <div className="subtask-form-group">
+                                                <label>Name:</label>
+                                                <input
+                                                    type="text"
+                                                    value={subtask.name}
+                                                    onChange={(e) => handleSubtaskChange(index, 'name', e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                            
+                                            <div className="subtask-form-group">
+                                                <label>Description:</label>
+                                                <textarea
+                                                    value={subtask.description}
+                                                    onChange={(e) => handleSubtaskChange(index, 'description', e.target.value)}
+                                                    rows="2"
+                                                ></textarea>
+                                            </div>
+                                            
+                                            <div className="subtask-form-group">
+                                                <label>Time (hours):</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    min="0"
+                                                    value={subtask.time}
+                                                    onChange={(e) => handleSubtaskChange(index, 'time', e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
                             <div className="form-group">
-                                <label htmlFor="standard_time">Estimated Time to complete (in hours):</label>
+                                <label>Estimated Time to complete (in hours):</label>
                                 <input
                                     type="number"
-                                    id="standard_time"
                                     name="standard_time"
                                     value={formData.standard_time}
                                     onChange={handleInputChange}
                                     required
-                                    placeholder="Enter estimated time"
-                                    min="0"
-                                    step="0.5"
+                                    readOnly={subtasks.length > 0}
+                                    className={subtasks.length > 0 ? 'calculated-field' : ''}
                                 />
+                                {subtasks.length > 0 && (
+                                    <div className="field-note">
+                                        <i className="fas fa-info-circle"></i> 
+                                        Automatically calculated from subtasks
+                                    </div>
+                                )}
                             </div>
                             <div className="form-group">
-                                <label htmlFor="act_des">Activity Description:</label>
+                                <label>Activity Description:</label>
                                 <textarea
-                                    id="act_des"
                                     name="act_des"
                                     value={formData.act_des}
                                     onChange={handleInputChange}
                                     rows="4"
-                                    placeholder="Enter activity description"
                                 ></textarea>
                             </div>
                             <div className="form-group">
-                                <label htmlFor="criticality">Criticality:</label>
+                                <label>Criticality:</label>
                                 <select
-                                    id="criticality"
                                     name="criticality"
                                     value={formData.criticality}
                                     onChange={handleInputChange}
                                     required
                                 >
-                                    <option value="">Select criticality</option>
                                     <option value="Low">Low</option>
                                     <option value="Medium">Medium</option>
                                     <option value="High">High</option>
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label htmlFor="duration">Early Warning (in days):</label>
+                                <label>Early Warning (in days):</label>
                                 <input
                                     type="number"
-                                    id="duration"
                                     name="duration"
                                     value={formData.duration}
                                     onChange={handleInputChange}
                                     required
-                                    placeholder="Enter early warning days"
-                                    min="0"
                                 />
                             </div>
                             <div className="form-group">
-                                <label htmlFor="role_id">Role:</label>
+                                <label>Role ID:</label>
                                 <select
-                                    id="role_id"
                                     name="role_id"
                                     value={formData.role_id}
                                     onChange={handleInputChange}
                                     required
                                 >
-                                    <option value="">Select role</option>
+                                    <option value="">Select Role</option>
                                     <option value="11">Admin</option>
                                     <option value="22">User</option>
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label htmlFor="frequency">Frequency:</label>
+                                <label>Frequency:</label>
                                 <select
-                                    id="frequency"
                                     name="frequency"
                                     value={formData.frequency}
                                     onChange={handleInputChange}
                                     required
                                 >
-                                    <option value="">Select frequency</option>
                                     <option value="0">Onetime</option>
                                     <option value="1">Yearly</option>
                                     <option value="12">Monthly</option>
@@ -1219,10 +1178,9 @@ const fetchActivityReport = async (activityId) => {
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label htmlFor="due_by">Due By:</label>
+                                <label>Due By:</label>
                                 <input
                                     type="date"
-                                    id="due_by"
                                     name="due_by"
                                     value={formData.due_by}
                                     onChange={handleInputChange}
@@ -1230,30 +1188,25 @@ const fetchActivityReport = async (activityId) => {
                                 />
                             </div>
                             <div className="form-group">
-                                <label htmlFor="activity_type">Activity Type:</label>
+                                <label>Activity Type:</label>
                                 <select
-                                    id="activity_type"
                                     name="activity_type"
                                     value={formData.activity_type}
                                     onChange={handleInputChange}
                                     required
                                 >
-                                    <option value="">Select type</option>
                                     <option value="R">Regulatory</option>
                                     <option value="I">Internal</option>
                                     <option value="C">Customer</option>
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label htmlFor="status">Status:</label>
+                                <label>Status:</label>
                                 <select
-                                    id="status"
                                     name="status"
                                     value={formData.status}
                                     onChange={handleInputChange}
-                                    required
                                 >
-                                    <option value="">Select status</option>
                                     <option value="A">Active</option>
                                     <option value="O">Obsolete</option>
                                 </select>
@@ -1265,7 +1218,10 @@ const fetchActivityReport = async (activityId) => {
                                 <button 
                                     type="button" 
                                     className="btn-cancel" 
-                                    onClick={() => setShowForm(false)}
+                                    onClick={() => {
+                                        setShowForm(false);
+                                        resetFormData();
+                                    }}
                                 >
                                     <i className="fas fa-times"></i> Cancel
                                 </button>
@@ -1282,15 +1238,96 @@ const fetchActivityReport = async (activityId) => {
                 />
             )}
             
+            {/* Activity Mapping Modal */}
+            {showActivityMapping && (
+                <div className="modal-overlay">
+                    <div className="activity-mapping-modal">
+                        <div className="modal-header">
+                            <h2>
+                                <i className="fas fa-project-diagram"></i>
+                                Activity Assignment
+                                {selectedActivity && <span> - {selectedActivity.activity_name}</span>}
+                            </h2>
+                            <button className="close-btn" onClick={closeActivityMapping}>
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        
+                        {assignSuccess && (
+                            <div className={`notification-message ${assignSuccess.type}`}>
+                                <i className={`fas ${assignSuccess.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
+                                <span>{assignSuccess.message}</span>
+                            </div>
+                        )}
+                        
+                        <div className="mapping-content">
+                            {mappingLoading ? (
+                                <div className="loading-container">
+                                    <div className="spinner"></div>
+                                    <p>Loading assignments...</p>
+                                </div>
+                            ) : (
+                                <table className="mapping-table">
+                                    <thead>
+                                        <tr>
+                                            <th>CLIENT NAME</th>
+                                            <th>ASSIGNED AUDITOR</th>
+                                            <th>ACTION</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Array.isArray(activityMappings) && activityMappings.length > 0 ? (
+                                            activityMappings.map(mapping => (
+                                                <tr key={mapping.id}>
+                                                    <td>{mapping.customer_name}</td>
+                                                    <td>
+                                                        {mapping.assigned_employee ? 
+                                                            getEmployeeName(mapping.assigned_employee) : 
+                                                            'Not Assigned'}
+                                                    </td>
+                                                    <td>
+                                                        {!mapping.assigned_employee ? (
+                                                            <button 
+                                                                className="btn btn-primary" 
+                                                                onClick={() => handleAssignEmployee(mapping.customer_id, mapping.customer_name)}
+                                                            >
+                                                                Assign
+                                                            </button>
+                                                        ) : (
+                                                            <span className="assigned-label">Assigned</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan="3" className="no-data">
+                                                    No assignments found for this activity
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                        
+                        <div className="modal-footer">
+                            <button className="btn-cancel" onClick={closeActivityMapping}>
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showAssignForm && (
                 <AssignActivityForm
-                    customerId={selectedClient}
-                    customerName={selectedClientName}
+                    customerId={assigningCustomer.id}
+                    customerName={assigningCustomer.name}
                     activityId={assigningActivityId}
                     activityName={selectedActivity?.activity_name || ''}
                     onClose={() => setShowAssignForm(false)}
                     onSuccess={handleAssignSuccess}
-                    onError={handleAssignError}
                 />
             )}
             {/* Add Report Modal */}
@@ -1322,9 +1359,8 @@ const fetchActivityReport = async (activityId) => {
                                     <thead>
                                         <tr>
                                             <th>Auditor ID</th>
-                                            <th>Auditor Name</th>
-                                            <th>Client Name</th>
-                                            <th>Task Name</th>
+                                            <th>Name</th>
+                                            <th>Task ID</th>
                                             <th>Time Taken</th>
                                             <th>Date of Completion</th>
                                             <th>Status</th>
@@ -1338,13 +1374,12 @@ const fetchActivityReport = async (activityId) => {
                                             
                                             return (
                                                 <tr 
-                                                    key={`${task.employee_id}-${task.customer_name}`}
+                                                    key={task.task_id}
                                                     className={selectedStatus === status ? 'highlighted' : ''}
                                                 >
                                                     <td>{task.employee_id}</td>
                                                     <td>{task.name}</td>
-                                                    <td>{task.customer_name}</td>
-                                                    <td>{selectedActivityReport?.activity_name}</td>
+                                                    <td>{task.task_id}</td>
                                                     <td>{task.time_taken}</td>
                                                     <td>{task.completion_date}</td>
                                                     <td className={`status-${status.toLowerCase()}`}>
@@ -1385,219 +1420,67 @@ const fetchActivityReport = async (activityId) => {
                 </div>
             )}
 
-            {/* Add notification component */}
-            {notification && (
-                <Notification 
-                    type={notification.type} 
-                    message={notification.message} 
-                />
-            )}
-
-            {showSuccessPopup && (
-                <div className="modal-overlay" style={{ 
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    zIndex: 1000,
-                    backdropFilter: 'blur(3px)'
-                }}>
-                    <div style={{
-                        backgroundColor: '#1e1e1e',
-                        padding: '20px',
-                        borderRadius: '8px',
-                        color: 'white',
-                        textAlign: 'center',
-                        minWidth: '300px',
-                        animation: 'slideUp 0.3s ease-out'
-                    }}>
-                        <h3 style={{ marginBottom: '20px' }}>Activity added successfully</h3>
-                        <button 
-                            onClick={() => setShowSuccessPopup(false)}
-                            style={{
-                                padding: '8px 24px',
-                                borderRadius: '20px',
-                                border: 'none',
-                                backgroundColor: '#deb887',
-                                color: 'black',
-                                cursor: 'pointer',
-                                fontSize: '14px'
-                            }}
-                        >
-                            OK
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Delete Confirmation Modal */}
-            {showDeleteConfirmModal && (
+            {showSubtaskWorkflow && (
                 <div className="modal-overlay">
-                    <div className="modal-content delete-confirm-modal">
+                    <div className="subtask-workflow-modal">
                         <div className="modal-header">
                             <h2>
-                                <i className="fas fa-exclamation-triangle"></i>
-                                Confirm Deletion
-                            </h2>
-                            <button 
-                                className="close-btn"
-                                onClick={() => {
-                                    setShowDeleteConfirmModal(false);
-                                    setItemToDelete(null);
-                                }}
-                            >
-                                <i className="fas fa-times"></i>
-                            </button>
-                        </div>
-                        <div className="confirmation-message">
-                            <p>
-                                <span className="message-line">
-                                    <i className="fas fa-exclamation-circle"></i>
-                                    Are you sure you want to delete activity <strong>{itemToDelete?.name}</strong>?
-                                </span>
-                                <span className="message-line">
-                                    <i className="fas fa-info-circle"></i>
-                                    This action cannot be undone.
-                                </span>
-                            </p>
-                            <div className="modal-actions">
-                                <button
-                                    className="btn-cancel"
-                                    onClick={() => {
-                                        setShowDeleteConfirmModal(false);
-                                        setItemToDelete(null);
-                                    }}
-                                >
-                                    <i className="fas fa-times"></i>
-                                    Cancel
-                                </button>
-                                <button
-                                    className="btn-delete"
-                                    onClick={confirmDelete}
-                                    disabled={isDeleting}
-                                >
-                                    <i className="fas fa-trash-alt"></i>
-                                    {isDeleting ? 'Deleting...' : 'Delete Activity'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Subtask Modal */}
-            {showSubtaskModal && viewingActivitySubtasks && (
-                <div className="modal-overlay">
-                    <div className="subtask-modal">
-                        <div className="modal-header">
-                            <h2>
-                                <i className="fas fa-tasks"></i>
-                                Subtasks for {viewingActivitySubtasks.activity_name}
+                                <i className="fas fa-project-diagram"></i>
+                                Subtask Workflow
                             </h2>
                             <button 
                                 className="close-btn" 
-                                onClick={() => setShowSubtaskModal(false)}
+                                onClick={() => setShowSubtaskWorkflow(false)}
                             >
                                 <i className="fas fa-times"></i>
                             </button>
                         </div>
                         
-                        <form onSubmit={handleSubtaskSubmit}>
-                            <div className="subtasks-container">
-                                {subtasks.length === 0 ? (
-                                    <div className="no-subtasks">
-                                        <p>No subtasks defined for this activity.</p>
-                                    </div>
-                                ) : (
-                                    subtasks.map((subtask, index) => (
-                                        <div key={index} className="subtask-item">
-                                            <div className="subtask-header">
-                                                <h3>Subtask #{index + 1}</h3>
-                                                <button 
-                                                    type="button" 
-                                                    className="remove-subtask-btn"
-                                                    onClick={() => removeSubtask(index)}
-                                                >
-                                                    <i className="fas fa-trash"></i>
-                                                </button>
-                                            </div>
-                                            
-                                            <div className="form-group">
-                                                <label>Name:</label>
-                                                <input
-                                                    type="text"
-                                                    value={subtask.sub_activity_name}
-                                                    onChange={(e) => handleSubtaskChange(index, 'sub_activity_name', e.target.value)}
-                                                    required
-                                                />
-                                            </div>
-                                            
-                                            <div className="form-group">
-                                                <label>Description:</label>
-                                                <textarea
-                                                    value={subtask.sub_activity_desc}
-                                                    onChange={(e) => handleSubtaskChange(index, 'sub_activity_desc', e.target.value)}
-                                                    rows="2"
-                                                ></textarea>
-                                            </div>
-                                            
-                                            <div className="form-row">
-                                                <div className="form-group">
-                                                    <label>Start Date:</label>
-                                                    <input
-                                                        type="date"
-                                                        value={subtask.sub_start_date}
-                                                        onChange={(e) => handleSubtaskChange(index, 'sub_start_date', e.target.value)}
-                                                    />
-                                                </div>
-                                                
-                                                <div className="form-group">
-                                                    <label>End Date:</label>
-                                                    <input
-                                                        type="date"
-                                                        value={subtask.sub_end_date}
-                                                        onChange={(e) => handleSubtaskChange(index, 'sub_end_date', e.target.value)}
-                                                    />
-                                                </div>
-                                                
-                                                <div className="form-group">
-                                                    <label>Est. Days:</label>
-                                                    <input
-                                                        type="text"
-                                                        value={subtask.sub_time}
-                                                        readOnly
-                                                    />
-                                                </div>
-                                            </div>
+                        <div className="workflow-content">
+                            {selectedSubtasks.length > 0 ? (
+                                <div className="horizontal-workflow">
+                                    <div className="workflow-step start-step">
+                                        <div className="workflow-node start">
+                                            <i className="fas fa-play"></i>
+                                            <span>Start</span>
                                         </div>
-                                    ))
-                                )}
-                            </div>
-                            
-                            <div className="subtask-actions">
-                                <button type="button" className="add-subtask-btn" onClick={addSubtask}>
-                                    <i className="fas fa-plus"></i> Add Subtask
-                                </button>
-                                
-                                <div className="form-actions">
-                                    <button type="submit" className="btn-save">
-                                        <i className="fas fa-save"></i> Save Subtasks
-                                    </button>
-                                    <button 
-                                        type="button" 
-                                        className="btn-cancel" 
-                                        onClick={() => setShowSubtaskModal(false)}
-                                    >
-                                        <i className="fas fa-times"></i> Cancel
-                                    </button>
+                                    </div>
+                                    
+                                    <div className="workflow-line"></div>
+                                    
+                                    {selectedSubtasks.map((subtask, index) => (
+                                        <React.Fragment key={subtask.id || index}>
+                                            <div className="workflow-step task-step">
+                                                <div className="task-card">
+                                                    <div className="task-header">
+                                                        <div className="task-number">{index + 1}</div>
+                                                        <h3 className="task-name">{subtask.name}</h3>
+                                                    </div>
+                                                    <p className="task-description">{subtask.description || 'No description'}</p>
+                                                    <div className="task-time">
+                                                        <i className="far fa-clock"></i> {subtask.time} hours
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="workflow-line"></div>
+                                        </React.Fragment>
+                                    ))}
+                                    
+                                    <div className="workflow-step end-step">
+                                        <div className="workflow-node end">
+                                            <i className="fas fa-flag-checkered"></i>
+                                            <span>Complete</span>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </form>
+                            ) : (
+                                <div className="no-subtasks">
+                                    <i className="fas fa-exclamation-circle"></i>
+                                    <p>No subtasks found for this activity.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
