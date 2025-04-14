@@ -105,11 +105,6 @@ const Activities = () => {
     const [itemToDelete, setItemToDelete] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    // Add new state for subtasks
-    const [subtasks, setSubtasks] = useState([]);
-    const [showSubtaskModal, setShowSubtaskModal] = useState(false);
-    const [viewingActivitySubtasks, setViewingActivitySubtasks] = useState(null);
-
     useEffect(() => {
         fetchActivities();
         // fetchGroups();
@@ -253,12 +248,22 @@ const Activities = () => {
         setShowForm(true);
     };
 
-    const handleDelete = (activity) => {
-        setItemToDelete({
-            id: activity.activity_id,
-            name: activity.activity_name
-        });
-        setShowDeleteConfirmModal(true);
+    const handleDelete = async (activity) => {
+        try {
+            // Get the activity
+            const response = await api.delete(`/delete_activity/${activity.activity_id}`);
+            
+            if (response.status === 200) {
+                fetchActivities();
+                setSuccessMessage("Activity deleted successfully");
+                setTimeout(() => {
+                    setSuccessMessage(null);
+                }, 3000);
+            }
+        } catch (error) {
+            console.error('Error deleting activity:', error);
+            alert(error.response?.data?.message || 'Error deleting activity');
+        }
     };
 
     const handleAssign = (activity) => {
@@ -628,119 +633,6 @@ const fetchActivityReport = async (activityId) => {
         );
     };
 
-    const handleSubtaskChange = (index, field, value) => {
-        const updatedSubtasks = [...subtasks];
-        updatedSubtasks[index][field] = value;
-        
-        if (field === 'sub_start_date' || field === 'sub_end_date') {
-            calculateTotalTime(updatedSubtasks);
-        } else {
-            setSubtasks(updatedSubtasks);
-        }
-    };
-    
-    const calculateTotalTime = (updatedSubtasks) => {
-        // Calculate total time based on start and end dates
-        const newSubtasks = updatedSubtasks.map(subtask => {
-            if (subtask.sub_start_date && subtask.sub_end_date) {
-                const startDate = new Date(subtask.sub_start_date);
-                const endDate = new Date(subtask.sub_end_date);
-                const timeDiff = endDate - startDate;
-                const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
-                subtask.sub_time = daysDiff > 0 ? daysDiff.toFixed(1) : 0;
-            }
-            return subtask;
-        });
-        
-        setSubtasks(newSubtasks);
-    };
-    
-    const addSubtask = () => {
-        const newSubtask = {
-            sub_activity_name: '',
-            sub_activity_desc: '',
-            sub_start_date: '',
-            sub_end_date: '',
-            sub_time: '0'
-        };
-        setSubtasks([...subtasks, newSubtask]);
-    };
-    
-    const removeSubtask = (index) => {
-        const updatedSubtasks = [...subtasks];
-        updatedSubtasks.splice(index, 1);
-        setSubtasks(updatedSubtasks);
-    };
-    
-    const handleViewSubtasks = (activity) => {
-        setViewingActivitySubtasks(activity);
-        // Fetch subtasks for this activity
-        fetchSubtasks(activity.activity_id);
-        setShowSubtaskModal(true);
-    };
-    
-    const fetchSubtasks = async (activityId) => {
-        try {
-            const response = await api.get(`/subtasks/${activityId}`);
-            setSubtasks(response.data || []);
-        } catch (error) {
-            console.error('Error fetching subtasks:', error);
-            setSubtasks([]);
-        }
-    };
-    
-    const handleSubtaskSubmit = async (e) => {
-        e.preventDefault();
-        
-        try {
-            const activityId = viewingActivitySubtasks.activity_id;
-            await api.post(`/subtasks/${activityId}`, { subtasks });
-            
-            setSuccessMessage("Subtasks updated successfully");
-            setTimeout(() => {
-                setSuccessMessage(null);
-            }, 3000);
-            
-            setShowSubtaskModal(false);
-        } catch (error) {
-            console.error('Error saving subtasks:', error);
-            alert(error.response?.data?.error || 'Error saving subtasks');
-        }
-    };
-
-    // Add this function to handle confirmation of delete action
-    const confirmDelete = async () => {
-        if (!itemToDelete) return;
-        
-        setIsDeleting(true);
-        try {
-            const response = await api.delete(`/delete_activity/${itemToDelete.id}`);
-            
-            if (response.status === 200) {
-                // Remove from local state
-                setActivities(activities.filter(a => a.activity_id !== itemToDelete.id));
-                
-                // Show success message
-                setSuccessMessage("Activity deleted successfully");
-                setTimeout(() => {
-                    setSuccessMessage(null);
-                }, 3000);
-                
-                // Close modal
-                setShowDeleteConfirmModal(false);
-                setItemToDelete(null);
-            }
-        } catch (error) {
-            console.error('Error deleting activity:', error);
-            setNotification({
-                type: 'error',
-                message: error.response?.data?.message || 'Error deleting activity'
-            });
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-
     return (
         <div className="activities-container">
             {successMessage && (
@@ -1047,14 +939,6 @@ const fetchActivityReport = async (activityId) => {
                                     title="Edit Activity"
                                 >
                                     <i className="fas fa-edit"></i>
-                                </button>
-                                
-                                <button 
-                                    className="subtask-btn"
-                                    onClick={() => handleViewSubtasks(activity)}
-                                    title="View Subtasks"
-                                >
-                                    <i className="fas fa-tasks"></i>
                                 </button>
                                 
                                 {assignedActivities.includes(String(activity.activity_id)) ? (
@@ -1486,118 +1370,6 @@ const fetchActivityReport = async (activityId) => {
                                 </button>
                             </div>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Subtask Modal */}
-            {showSubtaskModal && viewingActivitySubtasks && (
-                <div className="modal-overlay">
-                    <div className="subtask-modal">
-                        <div className="modal-header">
-                            <h2>
-                                <i className="fas fa-tasks"></i>
-                                Subtasks for {viewingActivitySubtasks.activity_name}
-                            </h2>
-                            <button 
-                                className="close-btn" 
-                                onClick={() => setShowSubtaskModal(false)}
-                            >
-                                <i className="fas fa-times"></i>
-                            </button>
-                        </div>
-                        
-                        <form onSubmit={handleSubtaskSubmit}>
-                            <div className="subtasks-container">
-                                {subtasks.length === 0 ? (
-                                    <div className="no-subtasks">
-                                        <p>No subtasks defined for this activity.</p>
-                                    </div>
-                                ) : (
-                                    subtasks.map((subtask, index) => (
-                                        <div key={index} className="subtask-item">
-                                            <div className="subtask-header">
-                                                <h3>Subtask #{index + 1}</h3>
-                                                <button 
-                                                    type="button" 
-                                                    className="remove-subtask-btn"
-                                                    onClick={() => removeSubtask(index)}
-                                                >
-                                                    <i className="fas fa-trash"></i>
-                                                </button>
-                                            </div>
-                                            
-                                            <div className="form-group">
-                                                <label>Name:</label>
-                                                <input
-                                                    type="text"
-                                                    value={subtask.sub_activity_name}
-                                                    onChange={(e) => handleSubtaskChange(index, 'sub_activity_name', e.target.value)}
-                                                    required
-                                                />
-                                            </div>
-                                            
-                                            <div className="form-group">
-                                                <label>Description:</label>
-                                                <textarea
-                                                    value={subtask.sub_activity_desc}
-                                                    onChange={(e) => handleSubtaskChange(index, 'sub_activity_desc', e.target.value)}
-                                                    rows="2"
-                                                ></textarea>
-                                            </div>
-                                            
-                                            <div className="form-row">
-                                                <div className="form-group">
-                                                    <label>Start Date:</label>
-                                                    <input
-                                                        type="date"
-                                                        value={subtask.sub_start_date}
-                                                        onChange={(e) => handleSubtaskChange(index, 'sub_start_date', e.target.value)}
-                                                    />
-                                                </div>
-                                                
-                                                <div className="form-group">
-                                                    <label>End Date:</label>
-                                                    <input
-                                                        type="date"
-                                                        value={subtask.sub_end_date}
-                                                        onChange={(e) => handleSubtaskChange(index, 'sub_end_date', e.target.value)}
-                                                    />
-                                                </div>
-                                                
-                                                <div className="form-group">
-                                                    <label>Est. Days:</label>
-                                                    <input
-                                                        type="text"
-                                                        value={subtask.sub_time}
-                                                        readOnly
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                            
-                            <div className="subtask-actions">
-                                <button type="button" className="add-subtask-btn" onClick={addSubtask}>
-                                    <i className="fas fa-plus"></i> Add Subtask
-                                </button>
-                                
-                                <div className="form-actions">
-                                    <button type="submit" className="btn-save">
-                                        <i className="fas fa-save"></i> Save Subtasks
-                                    </button>
-                                    <button 
-                                        type="button" 
-                                        className="btn-cancel" 
-                                        onClick={() => setShowSubtaskModal(false)}
-                                    >
-                                        <i className="fas fa-times"></i> Cancel
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
                     </div>
                 </div>
             )}
