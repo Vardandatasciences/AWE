@@ -731,6 +731,28 @@ const fetchActivityReport = async (activityId) => {
         }
     };
 
+    // Add this function near your other handler functions
+    const handleViewUserLogin = (userId) => {
+        // This function will be called when the eye icon is clicked for a user login
+        try {
+            // You could fetch user login details here
+            console.log("Viewing user login for ID:", userId);
+            
+            // For now, we'll just show a similar flow diagram with sample login data
+            const loginFlow = [
+                { name: "Login", description: "User authentication", time: 0.1 },
+                { name: "Session Start", description: "Session initialization", time: 0.2 },
+                { name: "Access Control", description: "Permission verification", time: 0.1 },
+                { name: "Dashboard Load", description: "Load user dashboard", time: 0.5 }
+            ];
+            
+            setSubtaskFlow(loginFlow);
+            setViewingSubtasks({activity_name: "User Login Flow"});
+        } catch (error) {
+            console.error('Error viewing user login:', error);
+        }
+    };
+
     return (
         <div className="activities-container">
             {successMessage && (

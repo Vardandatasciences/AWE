@@ -2683,3 +2683,48 @@
   }
 }
 
+/* Eye button styling */
+.eye-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #f5f5f5;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #555;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+}
+
+.eye-btn:hover {
+  background: #deb887;
+  color: white;
+  transform: scale(1.05);
+  box-shadow: 0 3px 8px rgba(222, 184, 135, 0.3);
+}
+
+.eye-btn i {
+  font-size: 14px;
+}
+
+/* User login specific styling */
+.user-login-card .eye-btn {
+  top: 8px;
+  right: 8px;
+}
+
+.user-login-flow .subtask-node {
+  border-left: 3px solid #3498db;
+}
+
+.user-login-flow .subtask-number {
+  background: #3498db;
+}
+

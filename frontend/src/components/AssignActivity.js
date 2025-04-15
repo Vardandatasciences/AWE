@@ -23,7 +23,7 @@ const AssignActivity = ({ activityId, onClose }) => {
     } else {
         console.log("✅ Retrieved from Local Storage: ", { actorId, actorName });
     }
-}, []);
+  }, []);
 
 
   useEffect(() => {
@@ -69,7 +69,7 @@ const AssignActivity = ({ activityId, onClose }) => {
 
   useEffect(() => {
     if (activityId) {
-      axios.get(`http://localhost:3000/get_frequency/${activityId}`)
+      axios.get(`http://127.0.0.1:5000/get_frequency/${activityId}`)
         .then(response => {
           if (response.data && response.data.frequency) {
             setFrequency(response.data.frequency);
@@ -103,7 +103,8 @@ const AssignActivity = ({ activityId, onClose }) => {
       activity_id: activityId,
       assignee_id: selectedAssignee,
       customer_id: selectedCustomer,
-      // Not sending actor_id/name to backend as per your request
+      actor_id: actor_id,
+      actor_name: actor_name
     };
   
     axios.post("http://127.0.0.1:5000/assign_activity", assignmentData)
@@ -127,35 +128,31 @@ const AssignActivity = ({ activityId, onClose }) => {
           <div className="form-group">
             <label>Assign To:</label>
             <div className="custom-select">
-            <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)}>
-  <option value="">Select Assignee</option>
-  {assignees.map((actor) => {
-     console.log("Rendering in dropdown:", actor);
-     return (
-      <option key={actor.actor_id} value={actor.actor_id}>
-      {actor.actor_name}
-    </option>
-     );
-    })}
-</select>
-
-
-
+              <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)}>
+                <option value="">Select Assignee</option>
+                {assignees.map((actor) => {
+                  console.log("Rendering in dropdown:", actor);
+                  return (
+                    <option key={actor.actor_id} value={actor.actor_id}>
+                      {actor.actor_name}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
           </div>
 
           <div className="form-group">
             <label>Select Customer:</label>
             <div className="custom-select">
-            <select value={selectedCustomer} onChange={e => setSelectedCustomer(e.target.value)}>
-  <option value="">Select Customer</option>
-  {customers.map((customer) => (
-    <option key={customer.customer_id} value={customer.customer_id}>
-      {customer.customer_name}
-    </option>
-  ))}
-</select>
-
+              <select value={selectedCustomer} onChange={e => setSelectedCustomer(e.target.value)}>
+                <option value="">Select Customer</option>
+                {customers.map((customer) => (
+                  <option key={customer.customer_id} value={customer.customer_id}>
+                    {customer.customer_name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './AssignActivityForm.css';
-
+ 
 const AssignActivityForm = ({ customerId, activityId, activityName, customerName, onClose, onSuccess, onError }) => {
     const [formData, setFormData] = useState({
         assignTo: '',
@@ -19,18 +19,18 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
     const actor_name= localStorage.getItem('actor_name');
     console.log("User User ID:", actor_id);
     console.log("User User Name:", actor_name)
-
+ 
     useEffect(() => {
         const loadData = async () => {
             try {
                 // Load clients
                 const clientsResponse = await axios.get('/customers');
                 setClients(clientsResponse.data);
-                
+               
                 // Load employees first
                 const employeesResponse = await axios.get('/actors_assign');
                 setEmployees(employeesResponse.data);
-                
+               
                 // Set default assignee if employees exist
                 if (employeesResponse.data.length > 0) {
                     setFormData(prev => ({
@@ -38,12 +38,12 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                         assignTo: employeesResponse.data[0].actor_name
                     }));
                 }
-                
+               
                 // Try to fetch frequency, but don't fail if it doesn't work
                 try {
                     console.log(`Trying to fetch frequency for activity ID: ${activityId}`);
                     const frequencyResponse = await axios.get(`/get_frequency/${activityId}`);
-                    
+                   
                     if (frequencyResponse.data && frequencyResponse.data.frequency) {
                         setFormData(prev => ({
                             ...prev,
@@ -55,7 +55,7 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                     // Try to get frequency from another source if needed
                     // For now we'll just use the default value of 1 (Yearly)
                 }
-                
+               
                 setLoading(false);
             } catch (err) {
                 console.error('Error loading data:', err);
@@ -63,10 +63,10 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                 setLoading(false);
             }
         };
-        
+       
         loadData();
     }, [activityId]);
-
+ 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({
@@ -74,7 +74,7 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             [name]: value
         }));
     };
-
+ 
     const getFrequencyLabel = (value) => {
         const frequencyMap = {
             "0": "Onetime",
@@ -87,12 +87,12 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             "3": "Every 4 Months",
             "6": "Every 2 Months"
         };
-        return frequencyMap[value] || "Unknown"; 
+        return frequencyMap[value] || "Unknown";
     };
-    
+   
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+       
         try {
             const formDataToSend = new FormData();
             formDataToSend.append('task_name', activityId);
@@ -104,9 +104,9 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             formDataToSend.append('status', formData.status);
             formDataToSend.append('actor_id', actor_id);
             formDataToSend.append('actor_name', actor_name);
-            
-            const response = await axios.post('/assign_activity', formDataToSend);
-            
+           
+            const response = await axios.post('http://127.0.0.1:5000/assign_activity', formDataToSend);
+           
             if (response.data.success) {
                 onSuccess(response.data);
             } else {
@@ -117,7 +117,7 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             onError(error);
         }
     };
-
+ 
     if (loading) {
         return (
             <div className="assign-form-modal">
@@ -128,28 +128,28 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             </div>
         );
     }
-
+ 
     return (
         <div className="assign-form-modal">
             <div className="assign-form-container">
                 <h2>Assign Activity</h2>
-                
+               
                 <div className="client-info">
                     <span className="label">Client:</span>
                     <span className="value">{customerName}</span>
                 </div>
-                
+               
                 {error && (
                     <div className="error-message">
                         <i className="fas fa-exclamation-circle"></i>
                         <span>{error}</span>
                     </div>
                 )}
-                
+               
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
                         <label>Client:</label>
-                        <select 
+                        <select
                             name="selectedClient"
                             value={formData.selectedClient}
                             onChange={handleInputChange}
@@ -158,8 +158,8 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                         >
                             <option value="">Select Client</option>
                             {clients.map(client => (
-                                <option 
-                                    key={client.customer_id} 
+                                <option
+                                    key={client.customer_id}
                                     value={client.customer_id}
                                     selected={client.customer_id === customerId}
                                 >
@@ -168,12 +168,12 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                             ))}
                         </select>
                     </div>
-                    
+                   
                     <div className="form-group">
                         <label>Assign To:</label>
-                        <select 
-                            name="assignTo" 
-                            value={formData.assignTo} 
+                        <select
+                            name="assignTo"
+                            value={formData.assignTo}
                             onChange={handleInputChange}
                             required
                         >
@@ -185,47 +185,47 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                             ))}
                         </select>
                     </div>
-                    
+                   
                     <div className="form-group">
                         <label>Status:</label>
                         <div className="status-field">
                             Yet to Start
                         </div>
                     </div>
-                    
+                   
                     <div className="form-group">
                         <label>Link (Optional):</label>
-                        <input 
-                            type="text" 
-                            name="link" 
-                            value={formData.link} 
+                        <input
+                            type="text"
+                            name="link"
+                            value={formData.link}
                             onChange={handleInputChange}
                             placeholder="Enter link"
                         />
                     </div>
-                    
+                   
                     <div className="form-group">
                         <label>Remarks (Optional):</label>
-                        <textarea 
-                            name="remarks" 
-                            value={formData.remarks} 
+                        <textarea
+                            name="remarks"
+                            value={formData.remarks}
                             onChange={handleInputChange}
                             placeholder="Enter remarks"
                             rows="3"
                         ></textarea>
                     </div>
-                    
+                   
                     <div className="form-group">
                         <label>Frequency:</label>
-                        <input 
+                        <input
                             type="text"
                             name="frequency"
-                            value={getFrequencyLabel(formData.frequency)} 
-                            readOnly 
+                            value={getFrequencyLabel(formData.frequency)}
+                            readOnly
                             className="read-only-input"
                         />
                     </div>
-                    
+                   
                     <div className="form-actions">
                         <button type="button" className="btn-cancel" onClick={onClose}>
                             Cancel
@@ -239,5 +239,5 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
         </div>
     );
 };
-
+ 
 export default AssignActivityForm;

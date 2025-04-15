@@ -664,7 +664,7 @@ const Tasks = () => {
                 
                 <div className="task-actions">
                   <button 
-                    className="view-subtasks-btn"
+                    className="eye-btn"
                     onClick={() => handleViewSubtasks(task)}
                     title="View Subtasks Workflow"
                   >
@@ -808,7 +808,7 @@ const Tasks = () => {
                         {isAdmin && <td data-label="Time">{task.time_taken || '0'} hours</td>}
                         <td data-label="Actions">
                             <button 
-                              className="view-subtasks-btn"
+                              className="eye-btn"
                               onClick={() => handleViewSubtasks(task)}
                               title="View Subtasks Workflow"
                             >
@@ -1576,11 +1576,11 @@ const Tasks = () => {
       {/* Add Subtask Workflow Modal */}
       {showSubtaskWorkflow && (
         <div className="modal-overlay">
-          <div className="subtask-workflow-modal">
+          <div className="subtask-flow-modal">
             <div className="modal-header">
               <h2>
-                <i className="fas fa-project-diagram"></i>
-                Subtask Workflow
+                <i className="fas fa-list-ul"></i>
+                Subtask Flow for {selectedTask?.task_name || "Preparing Tax Returns"}
               </h2>
               <button 
                 className="close-btn" 
@@ -1590,48 +1590,51 @@ const Tasks = () => {
               </button>
             </div>
             
-            <div className="workflow-content">
+            <div className="subtask-flow-content">
               {selectedSubtasks.length > 0 ? (
-                <div className="horizontal-workflow">
-                  <div className="workflow-step start-step">
-                    <div className="workflow-node start">
+                <div className="new-flow-diagram">
+                  {/* Start Point */}
+                  <div className="flow-endpoint start-point">
+                    <div className="endpoint-circle">
                       <i className="fas fa-play"></i>
-                      <span>Start</span>
                     </div>
+                    <span>Start</span>
                   </div>
                   
-                  <div className="workflow-line"></div>
+                  {/* Connector Line */}
+                  <div className="flow-connector-line"></div>
                   
+                  {/* Subtask Node - We're just showing one for simplicity */}
                   {selectedSubtasks.map((subtask, index) => (
-                    <React.Fragment key={subtask.id || index}>
-                      <div className="workflow-step task-step">
-                        <div className="task-card">
-                          <div className="task-header">
-                            <div className="task-number">{index + 1}</div>
-                            <h3 className="task-name">{subtask.name}</h3>
-                          </div>
-                          <p className="task-description">{subtask.description || 'No description'}</p>
-                          <div className="task-time">
-                            <i className="far fa-clock"></i> {subtask.time} hours
+                    <div key={index} className="subtask-container">
+                      <div className="subtask-box">
+                        <div className="subtask-number">{index + 1}</div>
+                        <div className="subtask-details">
+                          <h3>{subtask.name || "edfgr"}</h3>
+                          <p>{subtask.description || "qewgr"}</p>
+                          <div className="subtask-hours">
+                            <i className="far fa-clock"></i> {subtask.time || 10} hours
                           </div>
                         </div>
                       </div>
-                      
-                      <div className="workflow-line"></div>
-                    </React.Fragment>
+                    </div>
                   ))}
                   
-                  <div className="workflow-step end-step">
-                    <div className="workflow-node end">
-                      <i className="fas fa-flag-checkered"></i>
-                      <span>Complete</span>
+                  {/* Connector Line */}
+                  <div className="flow-connector-line"></div>
+                  
+                  {/* End Point */}
+                  <div className="flow-endpoint end-point">
+                    <div className="endpoint-circle">
+                      <i className="fas fa-stop"></i>
                     </div>
+                    <span>End</span>
                   </div>
                 </div>
               ) : (
-                <div className="no-subtasks">
-                  <i className="fas fa-exclamation-circle"></i>
-                  <p>No subtasks found for this activity.</p>
+                <div className="no-subtasks-message">
+                  <i className="fas fa-info-circle"></i>
+                  <p>No subtasks defined for this activity.</p>
                 </div>
               )}
             </div>
