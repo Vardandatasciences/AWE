@@ -5,6 +5,7 @@ import './AssignActivityForm.css';
 const AssignActivityForm = ({ customerId, activityId, activityName, customerName, onClose, onSuccess, onError }) => {
     const [formData, setFormData] = useState({
         assignTo: '',
+        reviewer: '',
         status: 'Yet to Start',
         link: '',
         remarks: '',
@@ -12,6 +13,7 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
         selectedClient: customerId // Add this new field
     });
     const [employees, setEmployees] = useState([]);
+    const [reviewers, setReviewers] = useState([]);
     const [clients, setClients] = useState([]); // Add state for clients
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -31,11 +33,23 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                 const employeesResponse = await axios.get('/actors_assign');
                 setEmployees(employeesResponse.data);
                 
+                // Load reviewers
+                const reviewersResponse = await axios.get('/reviewers');
+                setReviewers(reviewersResponse.data);
+                
                 // Set default assignee if employees exist
                 if (employeesResponse.data.length > 0) {
                     setFormData(prev => ({
                         ...prev,
                         assignTo: employeesResponse.data[0].actor_name
+                    }));
+                }
+                
+                // Set default reviewer if reviewers exist
+                if (reviewersResponse.data.length > 0) {
+                    setFormData(prev => ({
+                        ...prev,
+                        reviewer: reviewersResponse.data[0].actor_name
                     }));
                 }
                 
@@ -97,6 +111,7 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             const formDataToSend = new FormData();
             formDataToSend.append('task_name', activityId);
             formDataToSend.append('assigned_to', formData.assignTo);
+            formDataToSend.append('reviewer', formData.reviewer);
             formDataToSend.append('customer_id', formData.selectedClient); // Use selected client
             formDataToSend.append('remarks', formData.remarks);
             formDataToSend.append('link', formData.link);
@@ -181,6 +196,23 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                             {employees.map(emp => (
                                 <option key={emp.actor_id} value={emp.actor_name}>
                                     {emp.actor_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Reviewer:</label>
+                        <select 
+                            name="reviewer" 
+                            value={formData.reviewer} 
+                            onChange={handleInputChange}
+                            required
+                        >
+                            <option value="">Select Reviewer</option>
+                            {reviewers.map(reviewer => (
+                                <option key={reviewer.actor_id} value={reviewer.actor_name}>
+                                    {reviewer.actor_name}
                                 </option>
                             ))}
                         </select>

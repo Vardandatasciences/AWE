@@ -2,6 +2,7 @@
 const API_BASE_URL = 'http://localhost:5000';
 
 export const API_ENDPOINTS = {
+  baseURL: 'http://localhost:5000', // Your backend API base URL
   // Activities
   ACTIVITIES: `${API_BASE_URL}/activities`,
   ADD_ACTIVITY: `${API_BASE_URL}/add_activity`,

@@ -134,7 +134,9 @@ class Task(db.Model):
     duedate = db.Column(db.Date)
     actor_id = db.Column(db.Integer, db.ForeignKey('actors.actor_id'))
     assigned_to = db.Column(db.String(255))
+    reviewer = db.Column(db.String(255))
     status = db.Column(db.String(50))
+    reviewer_status = db.Column(db.String(50))
     link = db.Column(db.String(255))
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.activity_id'))
     time_taken = db.Column(db.Float)
@@ -144,7 +146,7 @@ class Task(db.Model):
     stage_id = db.Column(db.Integer, default=1)
     activity_type = db.Column(db.String(10))
     remarks = db.Column(db.Text)
-    assigned_timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # NEW COLUMN
+    assigned_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
         return {
@@ -155,7 +157,9 @@ class Task(db.Model):
             'duedate': self.duedate.strftime('%Y-%m-%d') if self.duedate else None,
             'actor_id': self.actor_id,
             'assigned_to': self.assigned_to,
+            'reviewer': self.reviewer,
             'status': self.status,
+            'reviewer_status': self.reviewer_status,
             'link': self.link,
             'activity_id': self.activity_id,
             'time_taken': self.time_taken,

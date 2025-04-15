@@ -22,33 +22,45 @@ def get_tasks():
         # Get user information from request
         user_id = request.args.get('user_id')
         role_id = request.args.get('role_id')
+        review_mode = request.args.get('review_mode', 'false').lower() == 'true'
         
         # Get filters if provided
         auditor_id = request.args.get('auditor_id')
         client_id = request.args.get('client_id')
         
         print(f"Fetching tasks with filters - User ID: {user_id}, Role ID: {role_id}, "
-              f"Auditor ID: {auditor_id}, Client ID: {client_id}")
+              f"Auditor ID: {auditor_id}, Client ID: {client_id}, Review Mode: {review_mode}")
         
+        # Get the user's name for reviewer matching
+        current_user = Actor.query.get(user_id)
+        if not current_user:
+            return jsonify({"error": "User not found"}), 404
+            
         # Base query with ordering by assigned_timestamp in descending order
         query = Task.query.order_by(Task.assigned_timestamp.desc())
         
         # Apply filters based on role and parameters
-        if auditor_id:
-            print(f"Filtering tasks for auditor_id: {auditor_id}")
-            query = query.filter(Task.actor_id == auditor_id)
-        elif client_id:
-            print(f"Filtering tasks for client_id: {client_id}")
-            customer = Customer.query.filter_by(customer_id=client_id).first()
-            if customer:
-                query = query.filter(Task.customer_name == customer.customer_name)
-            else:
-                return jsonify([])
-        elif role_id != "11":  # Not admin
-            if user_id:
-                query = query.filter(Task.actor_id == user_id)
-            else:
-                return jsonify([])
+        if review_mode:
+            # In review mode, get tasks where the current user's name matches the reviewer field
+            query = query.filter(Task.reviewer == current_user.actor_name)
+            print(f"Filtering review tasks for reviewer: {current_user.actor_name}")
+        else:
+            # Normal mode - get tasks assigned to the user
+            if auditor_id:
+                print(f"Filtering tasks for auditor_id: {auditor_id}")
+                query = query.filter(Task.actor_id == auditor_id)
+            elif client_id:
+                print(f"Filtering tasks for client_id: {client_id}")
+                customer = Customer.query.filter_by(customer_id=client_id).first()
+                if customer:
+                    query = query.filter(Task.customer_name == customer.customer_name)
+                else:
+                    return jsonify([])
+            elif role_id != "11":  # Not admin
+                if user_id:
+                    query = query.filter(Task.actor_id == user_id)
+                else:
+                    return jsonify([])
         
         # Execute query and get all tasks
         tasks = query.all()
@@ -69,6 +81,8 @@ def get_tasks():
             'customer_name': task.customer_name,
             'title': task.task_name,
             'remarks': task.remarks,
+            'reviewer': task.reviewer,  # Add reviewer field to response
+            'reviewer_status': task.reviewer_status,  # Add reviewer_status field to response
             'assigned_timestamp': task.assigned_timestamp.isoformat() if task.assigned_timestamp else None
         } for task in tasks]
         
@@ -77,7 +91,8 @@ def get_tasks():
     except Exception as e:
         print("Error fetching tasks:", e)
         return jsonify({'error': 'Failed to fetch tasks'}), 500
-    
+
+
 
 def map_status(status):
     """Map the status from the database to a user-friendly format."""
@@ -165,7 +180,7 @@ def calculate_reminder_date(due_date, duration):
 def send_styled_email(subject, recipient, task, email_type='reassignment'):
     """
     Send a professionally styled HTML email for task operations
-    email_type can be: 'assignment', 'reassignment', 'status_update', 'reminder', or 'due_today'
+    email_type can be: 'assignment', 'reassignment', 'status_update', 'reminder', 'due_today', or 'rejection'
     """
     try:
         # Email configuration
@@ -661,6 +676,106 @@ Best regards,
 ProSync Team
             '''
         
+        elif email_type == 'rejection':
+            html_body = f'''
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1); }
+                    .header { background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 20px; text-align: center; }
+                    .header h1 { margin: 0; font-size: 24px; }
+                    .logo { font-weight: bold; font-size: 28px; margin-bottom: 10px; }
+                    .content { padding: 20px 30px; }
+                    .task-details { background-color: #f1f5f9; border-radius: 6px; padding: 15px; margin: 15px 0; }
+                    .detail-row { margin-bottom: 8px; display: flex; }
+                    .detail-label { font-weight: bold; width: 120px; color: #555; }
+                    .footer { text-align: center; padding: 15px; background-color: #f1f5f9; color: #666; font-size: 12px; }
+                    .button { display: inline-block; background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin-top: 15px; font-weight: bold; }
+                    .critical-high { color: #e74c3c; }
+                    .critical-medium { color: #f39c12; }
+                    .critical-low { color: #27ae60; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="logo">ProSync</div>
+                        <h1>Task Rejection Notification</h1>
+                    </div>
+                    <div class="content">
+                        <p>Hello {task.assigned_to},</p>
+                        <p>Your task "{task.task_name}" for customer "{task.customer_name}" has been <strong>rejected</strong> by {task.reviewer}.</p>
+                        
+                        <div class="task-details">
+                            <div class="detail-row">
+                                <div class="detail-label">Task Name:</div>
+                                <div>{task.task_name}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Task ID:</div>
+                                <div>{task.task_id}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Customer:</div>
+                                <div>{task.customer_name}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Criticality:</div>
+                                <div class="{'critical-high' if task.criticality and task.criticality.lower() == 'high' else 'critical-medium' if task.criticality and task.criticality.lower() == 'medium' else 'critical-low'}">{task.criticality}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Due Date:</div>
+                                <div>{task.duedate.strftime('%d %b, %Y') if task.duedate else 'Not specified'}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Rejection Remarks:</div>
+                                <div>{task.remarks}</div>
+                            </div>
+                        </div>
+                        
+                        <div style="background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                            <h3 style="margin-top: 0; color: #721c24;">Rejection Feedback:</h3>
+                            <p style="margin-bottom: 0;">{task.remarks.replace("REJECTED: ", "") if task.remarks and task.remarks.startswith("REJECTED: ") else task.remarks}</p>
+                        </div>
+                        
+                        <p>Please address the reviewer's feedback and resubmit the task for review when completed.</p>
+                        
+                        <a href="http://localhost:3000/tasks" class="button">View Task</a>
+                    </div>
+                    <div class="footer">
+                        <p>This is an automated message from ProSync. Please do not reply to this email.</p>
+                        <p>&copy; {datetime.now().year} ProSync. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            '''
+            
+            # Plain text version as fallback
+            text_body = f'''
+Dear {task.assigned_to},
+
+Your task "{task.task_name}" for customer "{task.customer_name}" has been rejected.
+
+TASK DETAILS:
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Criticality: {task.criticality}
+- Due Date: {task.duedate.strftime('%d %b, %Y') if task.duedate else 'Not specified'}
+
+REJECTION REMARKS:
+{task.remarks}
+
+ACTION REQUIRED:
+This task has been rejected. Please address the reviewer's feedback and resubmit the task for review when completed.
+
+You can view and update the task at: http://localhost:3000/tasks
+
+Best regards,
+AWE Team
+            '''
+        
         # Attach plain text and HTML parts
         text_part = MIMEText(text_body, 'plain')
         html_part = MIMEText(html_body, 'html')
@@ -1084,4 +1199,104 @@ def get_customers():
     
     except Exception as e:
         print(f"Error fetching customers: {e}")
-        return jsonify({'error': 'Failed to fetch customers'}), 500 
+        return jsonify({'error': 'Failed to fetch customers'}), 500
+
+@tasks_bp.route('/tasks/<task_id>/review-status', methods=['PATCH'])
+@cross_origin()
+def update_review_status(task_id):
+    try:
+        data = request.json
+        reviewer_status = data.get('reviewer_status')
+        rejection_remarks = data.get('remarks')  # Get rejection remarks from the request
+        
+        # Validate input
+        if not reviewer_status:
+            return jsonify({
+                "success": False, 
+                "error": "Reviewer status is required"
+            }), 400
+            
+        # Get the task
+        task = Task.query.filter_by(task_id=task_id).first()
+        if not task:
+            return jsonify({"success": False, "error": "Task not found"}), 404
+            
+        # Update the reviewer status
+        task.reviewer_status = reviewer_status
+        
+        # If reviewer rejected the task, change task status to WIP and notify assignee
+        if reviewer_status == 'rejected':
+            # Update task status to WIP
+            task.status = 'WIP'
+            
+            # Store rejection remarks in the task
+            if rejection_remarks:
+                # Prefix the remarks with a rejection note
+                task.remarks = f"REJECTED: {rejection_remarks}"
+                print(f"Stored rejection remarks for task {task_id}: {task.remarks}")
+            else:
+                task.remarks = "Task was rejected by reviewer."
+            
+            # Commit the changes so the task has updated remarks when used in email templates
+            db.session.commit()
+            
+            # Attempt to send notification about the task being reassigned
+            try:
+                assigned_actor = Actor.query.filter_by(actor_id=task.actor_id).first()
+                if assigned_actor and assigned_actor.email_id:
+                    # Send a detailed rejection email to the assignee
+                    subject = f"Task Rejected: {task.task_name}"
+                    
+                    # Create email content with detailed rejection feedback
+                    rejection_email_content = f"""Dear {assigned_actor.actor_name},
+
+Your task '{task.task_name}' for customer '{task.customer_name}' has been REJECTED by {task.reviewer}.
+
+TASK DETAILS:
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Criticality: {task.criticality}
+- Due Date: {task.duedate.strftime('%Y-%m-%d') if task.duedate else 'Not specified'}
+- Reviewer: {task.reviewer}
+
+REVIEWER FEEDBACK:
+{rejection_remarks if rejection_remarks else "No specific feedback provided by the reviewer."}
+
+ACTION REQUIRED:
+This task has been reassigned to you and the status has been changed to 'Work In Progress'. 
+Please address the reviewer's feedback and resubmit the task for review when completed.
+
+You can view and update the task at: http://localhost:3000/tasks
+
+Best regards,
+AWE Team"""
+
+                    # Send simple email notification
+                    send_email(subject, assigned_actor.email_id, rejection_email_content)
+                    
+                    # Also send through the styled email system as a backup
+                    send_styled_email(subject, assigned_actor.email_id, task, 'rejection')
+                    
+                    print(f"Rejection notification sent to {assigned_actor.actor_name} with feedback")
+            except Exception as e:
+                print(f"Warning: Failed to send reassignment notification: {e}")
+        
+        db.session.commit()
+        
+        print(f"✅ Successfully updated task {task_id} reviewer status to {reviewer_status}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Reviewer status updated successfully",
+            "status": task.status,  # Return the updated status
+            "remarks": task.remarks  # Return the remarks for UI updates
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating reviewer status: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500 
+
+
+
+

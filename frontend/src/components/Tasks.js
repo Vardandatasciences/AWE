@@ -14,6 +14,7 @@ import progressGif from '../assets/wip.gif';
 import pendingGif from '../assets/pending.gif';
 import doneGif from '../assets/done.gif';
 import { useWorkflow } from '../context/WorkflowContext';
+import { toast } from 'react-hot-toast';
  
 const Tasks = () => {
   const [tasks, setTasks] = useState([]);
@@ -61,6 +62,13 @@ const Tasks = () => {
   const [clients, setClients] = useState([]);
   const [isLoadingEntities, setIsLoadingEntities] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isReviewMode, setIsReviewMode] = useState(false);
+  const [reviewerStatus, setReviewerStatus] = useState('');
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [rejectionRemarks, setRejectionRemarks] = useState('');
+  const [taskIdForRejection, setTaskIdForRejection] = useState(null);
+  const [showStatusUpdateModal, setShowStatusUpdateModal] = useState(false);
+  const [statusUpdateMessage, setStatusUpdateMessage] = useState('');
  
   // Check if GIFs are loading correctly
   useEffect(() => {
@@ -98,93 +106,23 @@ const Tasks = () => {
     return 'todo'; // Default fallback
   };
  
-  useEffect(() => {
-    // For non-admin users, fetch tasks immediately
-    if (!isAdmin) {
-      fetchTasks();
-    }
-    // For admin users, wait for entity selection
-    else if (selectedEntity) {
-      fetchTasks();
-    }
-  }, [selectedEntity, isAdmin]);
-
-  // Add a debounced search effect
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      // Only fetch from backend if search term is at least 2 characters
-      // or if it's empty (to reset the search)
-      if (searchTerm.length >= 2 || searchTerm === '') {
-        fetchTasks();
-      }
-    }, 500); // 500ms delay for debouncing
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, searchField]);
- 
-  useEffect(() => {
-    const monthFiltered = getFilteredTasks();
-    const searchFiltered = monthFiltered.filter(task =>
-      task.task_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      task.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    const sortedTasks = getSortedTasks(searchFiltered);
-    setFilteredTasks(sortedTasks);
-    setTotalPages(Math.ceil(searchFiltered.length / tasksPerPage));
-    setCurrentPage(1);
-  }, [tasks, searchTerm, filterMonth, filterStatus, filterCriticality, sortBy, tasksPerPage]);
- 
-  useEffect(() => {
-    if (tasks) {
-      setTotalPages(Math.ceil(tasks.length / tasksPerPage));
-    }
-  }, [tasks, tasksPerPage]);
- 
-  const changeTaskStatus = (taskId, newStatus) => {
-    console.log(`Direct status change requested for task ${taskId} to ${newStatus}`);
+  // Add this new function to handle view switching
+  const switchView = (mode) => {
+    setIsReviewMode(mode === 'review');
+    setFilterMonth('all');
+    setSearchTerm('');
     
-    // Find the task
-    const task = tasks.find(t => t.id === taskId);
-    
-    // Prevent non-admin users from changing completed tasks
-    if (!isAdmin && task && task.status === 'completed') {
-      console.log('Non-admin user attempted to change a completed task. Operation blocked.');
-      return;
-    }
-
-    // If status is being changed to Pending, show remarks modal
-    if (newStatus === 'Pending') {
-      setTaskForRemarks({ id: taskId, newStatus });
-      setShowRemarksModal(true);
-      return;
+    // For admin users, automatically set selectedEntity to 'all' when switching to review mode
+    if (isAdmin && mode === 'review' && (!selectedEntity || selectedEntity === '')) {
+      setSelectedEntity('all');
+      setViewType('tasks');
     }
     
-    // Map the UI-friendly status to the backend status values - ensure exact match
-    let backendStatus = newStatus; // Already in the correct format for backend
-    
-    // Update the task in the UI immediately for better user experience
-    const updatedTasks = tasks.map(task => {
-      if (task.id === taskId) {
-        // Map backend status to frontend column
-        const frontendStatus =
-          newStatus === 'Yet to Start' ? 'todo' :
-          newStatus === 'WIP' ? 'in-progress' :
-          newStatus === 'Pending' ? 'pending' :
-          'completed';
-        
-        console.log(`Updating task ${taskId} in UI from ${task.status} to ${frontendStatus}`);
-        return { ...task, status: frontendStatus };
-      }
-      return task;
-    });
-    
-    setTasks(updatedTasks);
-    
-    // Call the API to update the status in the backend
-    handleStatusChange(taskId, backendStatus);
+    fetchTasks(mode === 'review');
   };
  
-  const fetchTasks = async () => {
+  // Modify fetchTasks to properly handle reviewer_status from backend
+  const fetchTasks = async (isReview = false) => {
     setLoading(true);
     try {
         const userData = JSON.parse(localStorage.getItem('user')) || {};
@@ -193,13 +131,16 @@ const Tasks = () => {
         
         let queryParams = `user_id=${userId}&role_id=${roleId}`;
         
+        // Add review mode parameter
+        if (isReview) {
+            queryParams += '&review_mode=true';
+        }
+        
         // Add entity filtering only for admin users
         if (isAdmin && selectedEntity && selectedEntity !== 'all') {
             if (entityType === 'auditor') {
-                console.log(`Fetching tasks for auditor: ${selectedEntity}`);
                 queryParams += `&auditor_id=${selectedEntity}`;
             } else if (entityType === 'client') {
-                console.log(`Fetching tasks for client: ${selectedEntity}`);
                 queryParams += `&client_id=${selectedEntity}`;
             }
         }
@@ -209,19 +150,44 @@ const Tasks = () => {
         }
         
         const response = await axios.get(`http://localhost:5000/tasks?${queryParams}`);
-        console.log("Fetched tasks:", response.data);
+        console.log("Fetched tasks raw data:", response.data);
         
-        // Map the tasks and ensure proper status mapping
+        // Check if reviewer_status exists in the response
+        const hasReviewerStatus = response.data.some(task => task.reviewer_status);
+        console.log("Response contains reviewer_status:", hasReviewerStatus);
+        
+        if (!hasReviewerStatus) {
+            console.warn("Warning: reviewer_status not found in API response!");
+            // Log one task as example
+            if (response.data.length > 0) {
+                console.log("Example task from API:", response.data[0]);
+            }
+        }
+        
         const tasksWithIds = response.data.map(task => {
             const mappedStatus = getColumnForStatus(task.status);
-            console.log(`Task ${task.id} for actor ${task.actor_id}: ${task.status} → ${mappedStatus}`);
+            
+            // Check if the field exists in the response
+            if (isReview && !task.reviewer_status) {
+                console.warn(`Task ${task.id} missing reviewer_status field!`);
+            }
             
             return {
                 ...task,
                 id: task.id.toString(),
-                status: mappedStatus
+                status: mappedStatus,
+                // Check what's actually in the key we're trying to access
+                reviewer_status: task.reviewer_status || task.reviewer_status === "" ? task.reviewer_status : (task.reviewerStatus || '')
             };
         });
+        
+        console.log("Processed tasks with reviewer status:", 
+            tasksWithIds.map(t => ({ 
+                id: t.id, 
+                reviewer_status: t.reviewer_status, 
+                status: t.status 
+            }))
+        );
         
         setTasks(tasksWithIds);
         
@@ -546,9 +512,13 @@ const Tasks = () => {
   const renderTaskCard = (task, index) => {
     const isDelayed = isTaskDelayed(task.due_date);
     const isNew = isRecentlyAssigned(task.assigned_timestamp);
+    const wasRejected = task.reviewer_status === 'rejected' || (task.remarks && task.remarks.startsWith('REJECTED:'));
+    
+    // Log the task object to verify the ID
+    console.log('Task object in renderTaskCard:', task);
     
     return (
-        <div className={`task-card ${task.criticality?.toLowerCase()} ${isDelayed && task.status !== 'completed' ? 'delayed' : ''}`}>
+        <div className={`task-card ${task.criticality?.toLowerCase()} ${isDelayed && task.status !== 'completed' ? 'delayed' : ''} ${wasRejected ? 'rejected-task' : ''}`}>
             {/* Header with priority */}
             <div className="task-card-header">
                 <span className="priority-indicator">{task.criticality}</span>
@@ -559,7 +529,6 @@ const Tasks = () => {
                     </span>
                 )}
                 
-                {/* NEW badge with styling consistent with delayed-badge */}
                 {isNew && (
                     <span className="new-badge">
                         <i className="fas fa-bell"></i>
@@ -567,16 +536,23 @@ const Tasks = () => {
                     </span>
                 )}
                 
+                {wasRejected && (
+                    <span className="rejected-badge">
+                        <i className="fas fa-exclamation-circle"></i>
+                        REJECTED
+                    </span>
+                )}
+                
                 <div className="task-actions">
-                  {isAdmin && (
-                    <button
-                      className="reassign-button"
-                      onClick={() => openReassignModal(task)}
-                    >
-                      <i className="fas fa-user-plus"></i>
-                      Reassign
-                    </button>
-                  )}
+                    {isAdmin && !isReviewMode && (
+                        <button
+                            className="reassign-button"
+                            onClick={() => openReassignModal(task)}
+                        >
+                            <i className="fas fa-user-plus"></i>
+                            Reassign
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -599,6 +575,65 @@ const Tasks = () => {
                     <span>{task.assignee || 'Unassigned'}</span>
                 </div>
 
+                {/* Show reviewer info in review mode */}
+                {isReviewMode && (
+                    <div className="reviewer-info">
+                        <i className="fas fa-eye"></i>
+                        <span>Review requested by: {task.reviewer}</span>
+                    </div>
+                )}
+
+                {/* Add debugging to see what's actually coming from the database */}
+                {console.log('Task reviewer status from DB:', task.reviewer_status)}
+
+                {isReviewMode && task.status === 'completed' && (
+                    <div className="reviewer-status-section">
+                        <label>Review Status:</label>
+                        <select
+                            value={task.reviewer_status || ''}
+                            onChange={(e) => {
+                                console.log('Selected new status:', e.target.value, 'for task:', task.id || task.task_id);
+                                handleReviewerStatusChange(task.id || task.task_id, e.target.value);
+                            }}
+                            className="reviewer-status-select"
+                        >
+                            <option value="">Select Status</option>
+                            <option value="under_review">Under Review</option>
+                            <option value="rejected">Rejected Review</option>
+                            <option value="accepted">Successfully Accepted</option>
+                        </select>
+                    </div>
+                )}
+
+                {/* Show reviewer status if it exists */}
+                {task.reviewer_status && (
+                    <div className={`reviewer-status-badge ${task.reviewer_status.replace('_', '-')}`}>
+                        <i className={
+                            task.reviewer_status === 'under_review' ? 'fas fa-search' :
+                            task.reviewer_status === 'rejected' ? 'fas fa-times' :
+                            task.reviewer_status === 'accepted' ? 'fas fa-check' : 'fas fa-info-circle'
+                        }></i>
+                        {task.reviewer_status === 'under_review' ? 'Under Review' :
+                         task.reviewer_status === 'rejected' ? 'Rejected' :
+                         task.reviewer_status === 'accepted' ? 'Accepted' : task.reviewer_status}
+                    </div>
+                )}
+
+                {/* Show rejection remarks if task was rejected */}
+                {wasRejected && task.remarks && (
+                    <div className="rejection-remarks">
+                        <div className="rejection-header">
+                            <i className="fas fa-comment-alt"></i>
+                            <span>Reviewer Feedback:</span>
+                        </div>
+                        <div className="rejection-content">
+                            {task.remarks.startsWith('REJECTED:') 
+                                ? task.remarks.substring(9).trim() 
+                                : task.remarks}
+                        </div>
+                    </div>
+                )}
+
                 {/* Status Section */}
                 <div className="status-section">
                     {!isAdmin ? (
@@ -609,7 +644,7 @@ const Tasks = () => {
                                    'Completed'}
                             onChange={(e) => changeTaskStatus(task.id, e.target.value)}
                             className="status-select"
-                            disabled={task.status === 'completed'}
+                            disabled={task.status === 'completed' || (isReviewMode && task.status !== 'completed')}
                         >
                             <option value="Yet to Start">Yet to Start</option>
                             <option value="WIP">In Progress</option>
@@ -638,14 +673,14 @@ const Tasks = () => {
                 </div>
             </div>
             
-            {/* Show remarks if status is Pending */}
-            {task.status === 'pending' && (
-              <div className="task-remarks">
-                <div className="detail-item remarks-item">
-                  <i className="fas fa-comment"></i>
-                  <span className="remarks-text">Remarks: {task.remarks || 'None'}</span>
+            {/* Show remarks if status is Pending and not a rejection */}
+            {task.status === 'pending' && !wasRejected && task.remarks && (
+                <div className="task-remarks">
+                    <div className="detail-item remarks-item">
+                        <i className="fas fa-comment"></i>
+                        <span className="remarks-text">Remarks: {task.remarks}</span>
+                    </div>
                 </div>
-              </div>
             )}
         </div>
     );
@@ -662,60 +697,87 @@ const Tasks = () => {
                     <th>Due Date</th>
                     {isAdmin && <th>Assignee</th>}
                     {isAdmin && <th>Time</th>}
+                    <th>Remarks</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {getCurrentPageTasks().map(task => (
-                    <tr key={task.id} className={`task-row ${task.criticality?.toLowerCase()}`}>
-                        <td data-label="Task Name">
-                            <div className="task-name-with-icon">
-                                <i className="fas fa-chart-pie report-icon"></i>
-                                {task.task_name}
-                            </div>
-                        </td>
-                        <td data-label="Client">{task.customer_name}</td>
-                        <td data-label="Status">
-                            {!isAdmin ? (
-                                <select
-                                    value={task.status === 'todo' ? 'Yet to Start' :
-                                           task.status === 'pending' ? 'Pending' :
-                                           task.status === 'in-progress' ? 'WIP' :
-                                           'Completed'}
-                                    onChange={(e) => changeTaskStatus(task.id, e.target.value)}
-                                    className="status-select"
-                                    disabled={task.status === 'completed'}
-                                >
-                                    <option value="Yet to Start">Yet to Start</option>
-                                    <option value="Pending">Pending</option>
-                                    <option value="WIP">In Progress</option>
-                                    <option value="Completed">Completed</option>
-                                </select>
-                            ) : (
-                                <span className={`status-badge ${task.status}`}>
-                                    {task.status === 'todo' ? 'Yet to Start' :
-                                     task.status === 'pending' ? 'Pending' :
-                                     task.status === 'in-progress' ? 'In Progress' :
-                                     'Completed'}
-                                </span>
-                            )}
-                        </td>
-                        <td data-label="Due Date">{task.due_date || 'N/A'}</td>
-                        {isAdmin && <td data-label="Assignee">{task.assignee || 'Unassigned'}</td>}
-                        {isAdmin && <td data-label="Time">{task.time_taken || '0'} hours</td>}
-                        <td data-label="Actions">
-                            {isAdmin && (
-                                <button
-                                    className="reassign-button"
-                                    onClick={() => openReassignModal(task)}
-                                >
-                                    <i className="fas fa-user-plus"></i>
-                                    Reassign
-                                </button>
-                            )}
-                        </td>
-                    </tr>
-                ))}
+                {getCurrentPageTasks().map(task => {
+                    const wasRejected = task.reviewer_status === 'rejected' || (task.remarks && task.remarks.startsWith('REJECTED:'));
+                    
+                    return (
+                        <tr key={task.id} className={`task-row ${task.criticality?.toLowerCase()} ${wasRejected ? 'rejected-row' : ''}`}>
+                            <td data-label="Task Name">
+                                <div className="task-name-with-icon">
+                                    <i className="fas fa-chart-pie report-icon"></i>
+                                    {task.task_name}
+                                    {wasRejected && (
+                                        <span className="rejected-badge-small">Rejected</span>
+                                    )}
+                                </div>
+                            </td>
+                            <td data-label="Client">{task.customer_name}</td>
+                            <td data-label="Status">
+                                {!isAdmin ? (
+                                    <select
+                                        value={task.status === 'todo' ? 'Yet to Start' :
+                                               task.status === 'pending' ? 'Pending' :
+                                               task.status === 'in-progress' ? 'WIP' :
+                                               'Completed'}
+                                        onChange={(e) => changeTaskStatus(task.id, e.target.value)}
+                                        className="status-select"
+                                        disabled={task.status === 'completed'}
+                                    >
+                                        <option value="Yet to Start">Yet to Start</option>
+                                        <option value="Pending">Pending</option>
+                                        <option value="WIP">In Progress</option>
+                                        <option value="Completed">Completed</option>
+                                    </select>
+                                ) : (
+                                    <span className={`status-badge ${task.status}`}>
+                                        {task.status === 'todo' ? 'Yet to Start' :
+                                         task.status === 'pending' ? 'Pending' :
+                                         task.status === 'in-progress' ? 'In Progress' :
+                                         'Completed'}
+                                    </span>
+                                )}
+                            </td>
+                            <td data-label="Due Date">{task.due_date || 'N/A'}</td>
+                            {isAdmin && <td data-label="Assignee">{task.assignee || 'Unassigned'}</td>}
+                            {isAdmin && <td data-label="Time">{task.time_taken || '0'} hours</td>}
+                            <td data-label="Remarks">
+                                {wasRejected && task.remarks ? (
+                                    <div className="list-rejection-remarks">
+                                        <i className="fas fa-exclamation-circle"></i>
+                                        <span>
+                                            {task.remarks.startsWith('REJECTED:') 
+                                                ? task.remarks.substring(9).trim() 
+                                                : task.remarks}
+                                        </span>
+                                    </div>
+                                ) : task.remarks ? (
+                                    <div className="list-remarks">
+                                        <i className="fas fa-comment"></i>
+                                        <span>{task.remarks}</span>
+                                    </div>
+                                ) : (
+                                    <span className="no-remarks">-</span>
+                                )}
+                            </td>
+                            <td data-label="Actions">
+                                {isAdmin && (
+                                    <button
+                                        className="reassign-button"
+                                        onClick={() => openReassignModal(task)}
+                                    >
+                                        <i className="fas fa-user-plus"></i>
+                                        Reassign
+                                    </button>
+                                )}
+                            </td>
+                        </tr>
+                    );
+                })}
             </tbody>
         </table>
     </div>
@@ -1002,6 +1064,277 @@ const Tasks = () => {
     }
   };
  
+  // Add a debounced search effect
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      // Only fetch from backend if search term is at least 2 characters
+      // or if it's empty (to reset the search)
+      if (searchTerm.length >= 2 || searchTerm === '') {
+        fetchTasks(isReviewMode);
+      }
+    }, 500); // 500ms delay for debouncing
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, searchField]);
+
+  // Update useEffect for filtering and sorting
+  useEffect(() => {
+    const monthFiltered = getFilteredTasks();
+    const searchFiltered = monthFiltered.filter(task => {
+      if (searchField === 'task') {
+        return task.task_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      } else if (searchField === 'customer') {
+        return task.customer_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      } else if (searchField === 'assignee') {
+        return task.assignee?.toLowerCase().includes(searchTerm.toLowerCase());
+      } else {
+        // Default to searching all fields
+        return task.task_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               task.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               task.assignee?.toLowerCase().includes(searchTerm.toLowerCase());
+      }
+    });
+    const sortedTasks = getSortedTasks(searchFiltered);
+    setFilteredTasks(sortedTasks);
+    setTotalPages(Math.ceil(searchFiltered.length / tasksPerPage));
+    setCurrentPage(1);
+  }, [tasks, searchTerm, filterMonth, filterStatus, filterCriticality, sortBy, tasksPerPage]);
+
+  // Update useEffect for pagination
+  useEffect(() => {
+    if (tasks) {
+      setTotalPages(Math.ceil(tasks.length / tasksPerPage));
+    }
+  }, [tasks, tasksPerPage]);
+
+  // Update useEffect for initial load and entity changes
+  useEffect(() => {
+    // For non-admin users, fetch tasks immediately
+    if (!isAdmin) {
+      fetchTasks(isReviewMode);
+    }
+    // For admin users, wait for entity selection
+    else if (selectedEntity) {
+      fetchTasks(isReviewMode);
+    }
+  }, [selectedEntity, isAdmin, isReviewMode]);
+
+  // Add back the changeTaskStatus function
+  const changeTaskStatus = (taskId, newStatus) => {
+    console.log(`Direct status change requested for task ${taskId} to ${newStatus}`);
+    
+    // Find the task
+    const task = tasks.find(t => t.id === taskId);
+    
+    // Prevent non-admin users from changing completed tasks
+    if (!isAdmin && task && task.status === 'completed') {
+      console.log('Non-admin user attempted to change a completed task. Operation blocked.');
+      return;
+    }
+
+    // If status is being changed to Pending, show remarks modal
+    if (newStatus === 'Pending') {
+      setTaskForRemarks({ id: taskId, newStatus });
+      setShowRemarksModal(true);
+      return;
+    }
+    
+    // Map the UI-friendly status to the backend status values - ensure exact match
+    let backendStatus = newStatus; // Already in the correct format for backend
+    
+    // Update the task in the UI immediately for better user experience
+    const updatedTasks = tasks.map(task => {
+      if (task.id === taskId) {
+        // Map backend status to frontend column
+        const frontendStatus =
+          newStatus === 'Yet to Start' ? 'todo' :
+          newStatus === 'WIP' ? 'in-progress' :
+          newStatus === 'Pending' ? 'pending' :
+          'completed';
+        
+        console.log(`Updating task ${taskId} in UI from ${task.status} to ${frontendStatus}`);
+        return { ...task, status: frontendStatus };
+      }
+      return task;
+    });
+    
+    setTasks(updatedTasks);
+    
+    // Call the API to update the status in the backend
+    handleStatusChange(taskId, backendStatus);
+  };
+  
+  // Add this function to handle reviewer status change
+  const handleReviewerStatusChange = async (taskId, newStatus) => {
+    try {
+      setIsLoading(true);
+      
+      // Make sure taskId is defined
+      if (!taskId) {
+        console.error('Task ID is undefined');
+        setStatusUpdateMessage('Task ID is missing');
+        setShowStatusUpdateModal(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log(`Changing reviewer status for task ${taskId} to ${newStatus}`);
+      
+      // For rejected tasks, show custom rejection modal instead of browser prompt
+      if (newStatus === 'rejected') {
+        setTaskIdForRejection(taskId);
+        setRejectionRemarks(''); // Reset remarks
+        setShowRejectionModal(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Use hardcoded URL to ensure correct formatting
+      const url = `http://localhost:5000/tasks/${taskId}/review-status?user_id=${user.user_id}&role_id=${user.role_id}`;
+      console.log('Making request to:', url);
+      
+      const requestBody = { 
+        reviewer_status: newStatus 
+      };
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      console.log('Response from server:', data);
+      
+      if (data.success) {
+        // Map backend status to frontend status format
+        let frontendStatus = data.status;
+        if (data.status === 'WIP') {
+          frontendStatus = 'in-progress';
+        } else if (data.status === 'Yet to Start') {
+          frontendStatus = 'todo';
+        } else if (data.status === 'Completed') {
+          frontendStatus = 'completed';
+        } else if (data.status === 'Pending') {
+          frontendStatus = 'pending';
+        }
+        
+        console.log(`Mapped backend status ${data.status} to frontend status ${frontendStatus}`);
+        
+        // Update the tasks in state with the correct frontend status format
+        setTasks(prevTasks => prevTasks.map(task => {
+          if (task.id === taskId) {
+            console.log(`Updating task ${taskId} status from ${task.status} to ${frontendStatus}`);
+            return {
+              ...task, 
+              reviewer_status: newStatus,
+              status: frontendStatus,
+              remarks: data.remarks || task.remarks // Update remarks from response
+            };
+          }
+          return task;
+        }));
+        
+        // Show appropriate message in custom modal
+        if (newStatus === 'accepted') {
+          setStatusUpdateMessage('Review status updated to accepted');
+        } else if (newStatus === 'under_review') {
+          setStatusUpdateMessage('Task marked as under review');
+        } else {
+          setStatusUpdateMessage(`Review status updated to ${newStatus}`);
+        }
+        setShowStatusUpdateModal(true);
+        
+        // Force a complete refresh of the tasks
+        fetchTasks(isReviewMode);
+      } else {
+        console.error('Failed to update review status:', data.error);
+        setStatusUpdateMessage(`Failed to update review status: ${data.error}`);
+        setShowStatusUpdateModal(true);
+      }
+    } catch (error) {
+      console.error('Error updating review status:', error);
+      setStatusUpdateMessage('Failed to update review status. Please try again.');
+      setShowStatusUpdateModal(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Add a new function to handle rejection submission
+  const handleRejectionSubmit = async () => {
+    if (!rejectionRemarks.trim()) {
+      setStatusUpdateMessage('Please provide rejection remarks');
+      setShowStatusUpdateModal(true);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      const url = `http://localhost:5000/tasks/${taskIdForRejection}/review-status?user_id=${user.user_id}&role_id=${user.role_id}`;
+      
+      const requestBody = { 
+        reviewer_status: 'rejected',
+        remarks: rejectionRemarks
+      };
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update the tasks in state
+        setTasks(prevTasks => prevTasks.map(task => {
+          if (task.id === taskIdForRejection) {
+            return {
+              ...task, 
+              reviewer_status: 'rejected',
+              status: 'in-progress', // WIP in frontend format
+              remarks: data.remarks || rejectionRemarks
+            };
+          }
+          return task;
+        }));
+        
+        // Close rejection modal and show success message
+        setShowRejectionModal(false);
+        setStatusUpdateMessage('Task has been rejected and reassigned to the assignee with your remarks');
+        setShowStatusUpdateModal(true);
+        
+        // Refresh tasks
+        fetchTasks(isReviewMode);
+      } else {
+        console.error('Failed to reject task:', data.error);
+        setStatusUpdateMessage(`Failed to reject task: ${data.error}`);
+        setShowStatusUpdateModal(true);
+      }
+    } catch (error) {
+      console.error('Error rejecting task:', error);
+      setStatusUpdateMessage('Failed to reject task. Please try again.');
+      setShowStatusUpdateModal(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+ 
   return (
     <div className="tasks-container">
       {success && (
@@ -1078,52 +1411,70 @@ const Tasks = () => {
         </div>
       )}
  
-      {/* Quick Stats Section - Always visible */}
-      <div className="quick-stats-section">
-        <StatCard 
-          type="todo"
-          count={stats.todo}
-          total={stats.total}
-          title="To Do"
-          subtitle="Yet to Start"
-          onClick={handleFilterByTodo}
-          isActive={filterStatus === 'todo'}
-          gifSrc={todoGif}
-        />
-        
-        <StatCard 
-          type="progress"
-          count={stats.inProgress}
-          total={stats.total}
-          title="Work In Progress"
-          subtitle="In Progress"
-          onClick={handleFilterByInProgress}
-          isActive={filterStatus === 'in-progress'}
-          gifSrc={progressGif}
-        />
-        
-        <StatCard 
-          type="pending"
-          count={stats.pending}
-          total={stats.total}
-          title="Pending"
-          subtitle="Awaiting Action"
-          onClick={handleFilterByPending}
-          isActive={filterStatus === 'pending'}
-          gifSrc={pendingGif}
-        />
-        
-        <StatCard 
-          type="completed"
-          count={stats.completed}
-          total={stats.total}
-          title="Done"
-          subtitle="Completed"
-          onClick={handleFilterByCompleted}
-          isActive={filterStatus === 'completed'}
-          gifSrc={doneGif}
-        />
+      {/* View Mode Toggle */}
+      <div className="view-mode-toggle">
+        <button
+          className={`toggle-btn ${!isReviewMode ? 'active' : ''}`}
+          onClick={() => switchView('my')}
+        >
+          <i className="fas fa-tasks"></i> My Tasks
+        </button>
+        <button
+          className={`toggle-btn ${isReviewMode ? 'active' : ''}`}
+          onClick={() => switchView('review')}
+        >
+          <i className="fas fa-eye"></i> Review Tasks
+        </button>
       </div>
+ 
+      {/* Quick Stats Section - Only show in My Tasks view */}
+      {!isReviewMode && (
+        <div className="quick-stats-section">
+          <StatCard 
+            type="todo"
+            count={stats.todo}
+            total={stats.total}
+            title="To Do"
+            subtitle="Yet to Start"
+            onClick={handleFilterByTodo}
+            isActive={filterStatus === 'todo'}
+            gifSrc={todoGif}
+          />
+          
+          <StatCard 
+            type="progress"
+            count={stats.inProgress}
+            total={stats.total}
+            title="Work In Progress"
+            subtitle="In Progress"
+            onClick={handleFilterByInProgress}
+            isActive={filterStatus === 'in-progress'}
+            gifSrc={progressGif}
+          />
+          
+          <StatCard 
+            type="pending"
+            count={stats.pending}
+            total={stats.total}
+            title="Pending"
+            subtitle="Awaiting Action"
+            onClick={handleFilterByPending}
+            isActive={filterStatus === 'pending'}
+            gifSrc={pendingGif}
+          />
+          
+          <StatCard 
+            type="completed"
+            count={stats.completed}
+            total={stats.total}
+            title="Done"
+            subtitle="Completed"
+            onClick={handleFilterByCompleted}
+            isActive={filterStatus === 'completed'}
+            gifSrc={doneGif}
+          />
+        </div>
+      )}
  
       {/* Only show tasks view when entity is selected */}
       {viewType === 'tasks' && selectedEntity && (
@@ -1407,6 +1758,86 @@ const Tasks = () => {
               >
                 Submit
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRejectionModal && (
+        <div className="modal-overlay">
+          <div className="reassign-modal">
+            <div className="modal-header">
+              <h3>
+                <i className="fas fa-times-circle"></i>
+                Reject Task
+              </h3>
+              <button 
+                className="close-btn" 
+                onClick={() => setShowRejectionModal(false)}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="modal-content">
+              <div className="task-details">
+                <p>Please provide rejection remarks to help the assignee understand why the task was rejected:</p>
+              </div>
+              <div className="form-group">
+                <textarea
+                  value={rejectionRemarks}
+                  onChange={(e) => setRejectionRemarks(e.target.value)}
+                  className="rejection-textarea"
+                  placeholder="Enter detailed feedback for the assignee..."
+                  rows="4"
+                ></textarea>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="cancel-btn"
+                onClick={() => setShowRejectionModal(false)}
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+              <button
+                className="save-btn reject-btn"
+                onClick={handleRejectionSubmit}
+                disabled={!rejectionRemarks.trim() || isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <div className="btn-spinner"></div>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-times-circle"></i>
+                    Reject Task
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status update confirmation modal */}
+      {showStatusUpdateModal && (
+        <div className="modal-overlay">
+          <div className="status-modal">
+            <div className="modal-content status-update-content">
+              <div className="status-update-message">
+                <p>{statusUpdateMessage}</p>
+              </div>
+              <div className="modal-actions status-update-actions">
+                <button
+                  className="save-btn ok-btn"
+                  onClick={() => setShowStatusUpdateModal(false)}
+                >
+                  OK
+                </button>
+              </div>
             </div>
           </div>
         </div>

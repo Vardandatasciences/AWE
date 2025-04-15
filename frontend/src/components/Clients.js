@@ -280,14 +280,14 @@ const Clients = () => {
                         placeholder="City"
                         className="form-input"
                       />
-                      <select
+                      {/* <select
                         value={editedData.status || 'A'}
                         onChange={(e) => setEditedData({...editedData, status: e.target.value})}
                         className="form-select"
                       >
                         <option value="A">Active</option>
                         <option value="O">Inactive</option>
-                      </select>
+                      </select> */}
                       <div className="form-actions">
                         <button 
                           className="btn-save" 

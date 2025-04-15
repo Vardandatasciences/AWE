@@ -1,9 +1,9 @@
-from flask import Flask, session
+from flask import Flask, session, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
 from config import Config
-from models import db, Actor
+from models import db, Actor, Task
 from routes.activities import activities_bp
 from routes.actors import actors_bp
 from routes.customers import customers_bp
@@ -71,6 +71,50 @@ def make_session_permanent():
 @app.route('/')
 def index():
     return "AAWE API Server is running"
+
+@app.route('/tasks/<task_id>/review-status', methods=['PATCH'])
+def update_review_status(task_id):
+    try:
+        data = request.json
+        reviewer_status = data.get('reviewer_status')
+        user_id = data.get('user_id')
+        role_id = data.get('role_id')
+
+        if not all([reviewer_status, user_id, role_id]):
+            return jsonify({
+                'success': False,
+                'message': 'Missing required fields'
+            }), 400
+
+        # Log the incoming request
+        print(f"Updating review status for task {task_id} to {reviewer_status}")
+        print(f"Request data: {data}")
+
+        # Get the task
+        task = Task.query.get(task_id)
+        if not task:
+            return jsonify({
+                'success': False,
+                'message': f'Task {task_id} not found'
+            }), 404
+
+        # Update the review status
+        task.reviewer_status = reviewer_status
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Review status updated successfully',
+            'task': task.to_dict()
+        })
+
+    except Exception as e:
+        print(f"Error updating review status: {str(e)}")
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'Error updating review status: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

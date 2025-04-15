@@ -50,6 +50,27 @@
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.form-group select:hover,
+.form-group input:hover,
+.form-group textarea:hover {
+    border-color: var(--primary-color, #3498db);
+}
+
+.form-group select:focus,
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color, #3498db);
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* Style for the selected option in dropdowns */
+.form-group select option:checked {
+    background-color: var(--primary-color, #3498db);
+    color: white;
 }
 
 .form-group textarea {
