@@ -27,7 +27,7 @@ const Tasks = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState([]); 
   const [filteredTasks, setFilteredTasks] = useState([]);
   const [newDueDate, setNewDueDate] = useState('');
   const [filterMonth, setFilterMonth] = useState('all'); // 'all', 'current', 'previous', 'next', 'last3'
@@ -73,6 +73,13 @@ const Tasks = () => {
   const [statusUpdating, setStatusUpdating] = useState(null);
   const [completionPercentage, setCompletionPercentage] = useState(0);
   const [subtasksLoading, setSubtasksLoading] = useState(false);
+  const [isReviewMode, setIsReviewMode] = useState(false);
+  const [reviewerStatus, setReviewerStatus] = useState('');
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [rejectionRemarks, setRejectionRemarks] = useState('');
+  const [taskIdForRejection, setTaskIdForRejection] = useState(null);
+  const [showStatusUpdateModal, setShowStatusUpdateModal] = useState(false);
+  const [statusUpdateMessage, setStatusUpdateMessage] = useState('');
  
   // Check if GIFs are loading correctly
   useEffect(() => {
@@ -197,7 +204,7 @@ const Tasks = () => {
     handleStatusChange(taskId, newStatus);
   };
  
-  const fetchTasks = async () => {
+  const fetchTasks = async (isReview = false) => {
     setLoading(true);
     try {
       const userData = JSON.parse(localStorage.getItem('user')) || {};
@@ -206,12 +213,17 @@ const Tasks = () => {
       
       let queryParams = `user_id=${userId}&role_id=${roleId}`;
       
+      // Add review mode parameter
+      if (isReview) {
+        queryParams += '&review_mode=true';
+      }
+      
       // Add entity filtering only for admin users
-      if (isAdmin && selectedEntity) {
-        if (entityType === 'auditor' && selectedEntity !== 'all') {
+      if (isAdmin && selectedEntity && selectedEntity !== 'all') {
+        if (entityType === 'auditor') {
           console.log(`Fetching tasks for auditor: ${selectedEntity}`);
           queryParams += `&auditor_id=${selectedEntity}`;
-        } else if (entityType === 'client' && selectedEntity !== 'all') {
+        } else if (entityType === 'client') {
           console.log(`Fetching tasks for client: ${selectedEntity}`);
           queryParams += `&client_id=${selectedEntity}`;
         }
@@ -228,15 +240,50 @@ const Tasks = () => {
       console.log("Fetched tasks:", response.data);
       
       if (Array.isArray(response.data)) {
+        // Check if reviewer_status exists in the response
+        const hasReviewerStatus = response.data.some(task => task.reviewer_status);
+        console.log("Response contains reviewer_status:", hasReviewerStatus);
+        
+        if (!hasReviewerStatus && isReview) {
+          console.warn("Warning: reviewer_status not found in API response!");
+          // Log one task as example
+          if (response.data.length > 0) {
+            console.log("Example task from API:", response.data[0]);
+          }
+        }
+        
         // Map the tasks and ensure proper status mapping
         const tasksWithIds = response.data.map(task => {
           const mappedStatus = getColumnForStatus(task.status);
+          
+          // Check if the field exists in the response
+          if (isReview && !task.reviewer_status) {
+            console.warn(`Task ${task.id} missing reviewer_status field!`);
+          }
+          
+          // Determine if the task has been rejected
+          const isRejected = task.reviewer_status === 'rejected' || 
+                            (task.remarks && task.remarks.startsWith('REJECTED:'));
+          
+          // If task is rejected, always set status to in-progress regardless of what backend says
+          const finalStatus = isRejected ? 'in-progress' : mappedStatus;
+          
           return {
             ...task,
             id: task.id.toString(),
-            status: mappedStatus
+            status: finalStatus,
+            // Check what's actually in the key we're trying to access
+            reviewer_status: task.reviewer_status || task.reviewer_status === "" ? task.reviewer_status : (task.reviewerStatus || '')
           };
         });
+        
+        console.log("Processed tasks with reviewer status:", 
+          tasksWithIds.map(t => ({ 
+            id: t.id, 
+            reviewer_status: t.reviewer_status, 
+            status: t.status 
+          }))
+        );
         
         setTasks(tasksWithIds);
         
@@ -795,9 +842,13 @@ const Tasks = () => {
   const renderTaskCard = (task, index) => {
     const isDelayed = isTaskDelayed(task.due_date);
     const isNew = isRecentlyAssigned(task.assigned_timestamp);
+    const wasRejected = task.reviewer_status === 'rejected' || (task.remarks && task.remarks.startsWith('REJECTED:'));
+    
+    // If task was rejected, force its display status to be in-progress regardless of backend status
+    const displayStatus = wasRejected ? 'in-progress' : task.status;
     
     return (
-        <div key={task.id || index} className={`task-card ${task.criticality?.toLowerCase()} ${isDelayed && task.status !== 'completed' ? 'delayed' : ''}`}>
+        <div className={`task-card ${task.criticality?.toLowerCase()} ${isDelayed && task.status !== 'completed' ? 'delayed' : ''} ${wasRejected ? 'rejected-task' : ''}`}>
             {/* Header with priority */}
             <div className="task-card-header">
                 <span className="priority-indicator">{task.criticality}</span>
@@ -808,11 +859,17 @@ const Tasks = () => {
                     </span>
                 )}
                 
-                {/* NEW badge with styling consistent with delayed-badge */}
                 {isNew && (
                     <span className="new-badge">
                         <i className="fas fa-bell"></i>
                         NEW
+                    </span>
+                )}
+                
+                {wasRejected && (
+                    <span className="rejected-badge">
+                        <i className="fas fa-exclamation-circle"></i>
+                        REJECTED
                     </span>
                 )}
                 
@@ -825,7 +882,7 @@ const Tasks = () => {
                     <i className="fas fa-eye"></i>
                   </button>
                   
-                  {isAdmin && (
+                  {isAdmin && !isReviewMode && (
                     <button
                       className="reassign-button"
                       onClick={() => openReassignModal(task)}
@@ -856,28 +913,87 @@ const Tasks = () => {
                     <span>{task.assignee || 'Unassigned'}</span>
                 </div>
 
+                {/* Show reviewer info in review mode */}
+                {isReviewMode && (
+                    <div className="reviewer-info">
+                        <i className="fas fa-eye"></i>
+                        <span>Review requested by: {task.reviewer}</span>
+                    </div>
+                )}
+
+                {/* Add debugging to see what's actually coming from the database */}
+                {console.log('Task reviewer status from DB:', task.reviewer_status)}
+
+                {isReviewMode && displayStatus === 'completed' && (
+                    <div className="reviewer-status-section">
+                        <label>Review Status:</label>
+                        <select
+                            value={task.reviewer_status || ''}
+                            onChange={(e) => {
+                                console.log('Selected new status:', e.target.value, 'for task:', task.id || task.task_id);
+                                handleReviewerStatusChange(task.id || task.task_id, e.target.value);
+                            }}
+                            className="reviewer-status-select"
+                        >
+                            <option value="">Select Status</option>
+                            <option value="under_review">Under Review</option>
+                            <option value="rejected">Rejected Review</option>
+                            <option value="accepted">Successfully Accepted</option>
+                        </select>
+                    </div>
+                )}
+
+                {/* Show reviewer status if it exists */}
+                {task.reviewer_status && (
+                    <div className={`reviewer-status-badge ${task.reviewer_status.replace('_', '-')}`}>
+                        <i className={
+                            task.reviewer_status === 'under_review' ? 'fas fa-search' :
+                            task.reviewer_status === 'rejected' ? 'fas fa-times' :
+                            task.reviewer_status === 'accepted' ? 'fas fa-check' : 'fas fa-info-circle'
+                        }></i>
+                        {task.reviewer_status === 'under_review' ? 'Under Review' :
+                         task.reviewer_status === 'rejected' ? 'Rejected' :
+                         task.reviewer_status === 'accepted' ? 'Accepted' : task.reviewer_status}
+                    </div>
+                )}
+
+                {/* Show rejection remarks if task was rejected */}
+                {wasRejected && task.remarks && (
+                    <div className="rejection-remarks">
+                        <div className="rejection-header">
+                            <i className="fas fa-comment-alt"></i>
+                            <span>Reviewer Feedback:</span>
+                        </div>
+                        <div className="rejection-content">
+                            {task.remarks.startsWith('REJECTED:') 
+                                ? task.remarks.substring(9).trim() 
+                                : task.remarks}
+                        </div>
+                    </div>
+                )}
+
                 {/* Status Section */}
                 <div className="status-section">
                     {!isAdmin ? (
                         <select
-                            value={task.status === 'todo' ? 'Yet to Start' :
-                                   task.status === 'pending' ? 'Pending' :
-                                   task.status === 'in-progress' ? 'WIP' :
+                            value={displayStatus === 'todo' ? 'Yet to Start' :
+                                   displayStatus === 'pending' ? 'Pending' :
+                                   displayStatus === 'in-progress' ? 'WIP' :
                                    'Completed'}
                             onChange={(e) => changeTaskStatus(task.id, e.target.value)}
                             className="status-select"
-                            disabled={task.status === 'completed'}
+                            disabled={displayStatus === 'completed' || (isReviewMode && displayStatus !== 'completed')}
                         >
-                            <option value="Yet to Start" disabled={task.status !== 'Yet to Start'}>Yet to Start</option>
+                            <option value="Yet to Start">Yet to Start</option>
                             <option value="WIP">In Progress</option>
                             <option value="Pending">Pending</option>
                             <option value="Completed">Completed</option>
                         </select>
                     ) : (
-                        <span className={`status-badge ${task.status}`}>
-                            {task.status === 'todo' ? 'Yet to Start' :
-                             task.status === 'in-progress' ? 'In Progress' :
-                             task.status === 'completed' ? 'Completed' :
+                        <span className={`status-badge ${displayStatus}`}>
+                            {displayStatus === 'todo' ? 'Yet to Start' :
+                             displayStatus === 'in-progress' ? 'In Progress' :
+                             displayStatus === 'completed' ? 'Completed' :
                              'Pending'}
                         </span>
                     )}
@@ -895,12 +1011,12 @@ const Tasks = () => {
                 </div>
             </div>
             
-            {/* Show remarks if status is Pending */}
-            {task.status === 'pending' && (
+            {/* Show remarks if status is Pending and not a rejection */}
+            {displayStatus === 'pending' && !wasRejected && task.remarks && (
               <div className="task-remarks">
                 <div className="detail-item remarks-item">
                   <i className="fas fa-comment"></i>
-                  <span className="remarks-text">Remarks: {task.remarks || 'None'}</span>
+                  <span className="remarks-text">Remarks: {task.remarks}</span>
                 </div>
               </div>
             )}
@@ -923,7 +1039,11 @@ const Tasks = () => {
                 </tr>
             </thead>
             <tbody>
-                {getCurrentPageTasks().map((task, index) => (
+                {getCurrentPageTasks().map((task, index) => {
+                    const wasRejected = task.reviewer_status === 'rejected' || (task.remarks && task.remarks.startsWith('REJECTED:'));
+                    const displayStatus = wasRejected ? 'in-progress' : task.status;
+                    
+                    return (
                     <tr key={task.id || `task-${index}`} className={`task-row ${task.criticality?.toLowerCase()}`}>
                         <td data-label="Task Name">
                             <div className="task-name-with-icon">
@@ -935,24 +1055,24 @@ const Tasks = () => {
                         <td data-label="Status">
                             {!isAdmin ? (
                                 <select
-                                    value={task.status === 'todo' ? 'Yet to Start' :
-                                           task.status === 'pending' ? 'Pending' :
-                                           task.status === 'in-progress' ? 'WIP' :
+                                    value={displayStatus === 'todo' ? 'Yet to Start' :
+                                           displayStatus === 'pending' ? 'Pending' :
+                                           displayStatus === 'in-progress' ? 'WIP' :
                                            'Completed'}
                                     onChange={(e) => changeTaskStatus(task.id, e.target.value)}
                                     className="status-select"
-                                    disabled={task.status === 'completed'}
+                                    disabled={displayStatus === 'completed' || (isReviewMode && displayStatus !== 'completed')}
                                 >
-                                    <option value="Yet to Start" disabled={task.status !== 'Yet to Start'}>Yet to Start</option>
-                                    <option value="Pending">Pending</option>
+                                    <option value="Yet to Start">Yet to Start</option>
                                     <option value="WIP">In Progress</option>
+                                    <option value="Pending">Pending</option>
                                     <option value="Completed">Completed</option>
                                 </select>
                             ) : (
-                                <span className={`status-badge ${task.status}`}>
-                                    {task.status === 'todo' ? 'Yet to Start' :
-                                     task.status === 'pending' ? 'Pending' :
-                                     task.status === 'in-progress' ? 'In Progress' :
+                                <span className={`status-badge ${displayStatus}`}>
+                                    {displayStatus === 'todo' ? 'Yet to Start' :
+                                     displayStatus === 'pending' ? 'Pending' :
+                                     displayStatus === 'in-progress' ? 'In Progress' :
                                      'Completed'}
                                 </span>
                             )}
@@ -980,7 +1100,8 @@ const Tasks = () => {
                             )}
                         </td>
                     </tr>
-                ))}
+                    );
+                })}
             </tbody>
         </table>
     </div>
@@ -1391,6 +1512,339 @@ const Tasks = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [openDropdown]);
+  // Add the switchView function after getColumnForStatus
+  const switchView = (mode) => {
+    setIsReviewMode(mode === 'review');
+    setFilterMonth('all');
+    setSearchTerm('');
+    
+    // For admin users, automatically set selectedEntity to 'all' when switching to review mode
+    if (isAdmin && mode === 'review' && (!selectedEntity || selectedEntity === '')) {
+      setSelectedEntity('all');
+      setViewType('tasks');
+    }
+    
+    fetchTasks(mode === 'review');
+  };
+
+  // Add the handleReviewerStatusChange function
+    
+      // Add the handleReviewerStatusChange function
+  const handleReviewerStatusChange = async (taskId, newStatus) => {
+    try {
+      setIsLoading(true);
+      
+      // Make sure taskId is defined
+      if (!taskId) {
+        console.error('Task ID is undefined');
+        setStatusUpdateMessage('Task ID is missing');
+        setShowStatusUpdateModal(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log(`Changing reviewer status for task ${taskId} to ${newStatus}`);
+      
+      // For rejected tasks, show custom rejection modal instead of browser prompt
+      if (newStatus === 'rejected') {
+        setTaskIdForRejection(taskId);
+        setRejectionRemarks(''); // Reset remarks
+        setShowRejectionModal(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Get user info from localStorage
+      const userData = JSON.parse(localStorage.getItem('user')) || {};
+      const userId = userData.user_id;
+      const roleId = userData.role_id || (userData.role === 'admin' ? '11' : '22');
+      
+      // Update UI first for better user experience
+      updateUIWithReviewerStatus(taskId, newStatus);
+      
+      // Use the specific reviewer status endpoint
+      const reviewStatusUrl = `/tasks/${taskId}/review-status?user_id=${userId}&role_id=${roleId}`;
+      
+      // Simple request body with just the reviewer_status
+      const requestBody = { 
+        reviewer_status: newStatus,
+        // Include status: 'WIP' if newStatus is 'rejected'
+        ...(newStatus === 'rejected' && { status: 'WIP' })
+      };
+      
+      console.log(`Making update to: ${reviewStatusUrl} with data:`, requestBody);
+      
+      try {
+        const response = await api.patch(reviewStatusUrl, requestBody);
+        
+        console.log("Update response:", response.data);
+        
+        if (response.data && response.data.success) {
+          // Show success message
+          setStatusUpdateMessage(`Review status updated to ${newStatus}`);
+          setShowStatusUpdateModal(true);
+          
+          // Handle potential toast issue
+          if (toast && typeof toast.success === 'function') {
+            toast.success(`Review status updated to ${newStatus}`);
+          } else {
+            console.log("Success:", `Review status updated to ${newStatus}`);
+          }
+          
+          // Refresh tasks after a delay to ensure DB is updated
+          setTimeout(() => fetchTasks(isReviewMode), 1000);
+          return;
+        }
+      } catch (apiError) {
+        console.error("Error with reviewer status update:", apiError);
+        
+        // Try fallback to direct task update if specific endpoint fails
+        try {
+          const fallbackUrl = `/tasks/${taskId}?user_id=${userId}&role_id=${roleId}`;
+          console.log(`Trying fallback URL: ${fallbackUrl}`);
+          
+          // Make sure we use the same enhanced requestBody with status: 'WIP' for the fallback call
+          const fallbackResponse = await api.patch(fallbackUrl, requestBody);
+          
+          console.log("Fallback response:", fallbackResponse.data);
+          
+          if (fallbackResponse.data && fallbackResponse.data.success) {
+            setStatusUpdateMessage(`Review status updated to ${newStatus}`);
+            setShowStatusUpdateModal(true);
+            
+            // Handle potential toast issue
+            if (toast && typeof toast.success === 'function') {
+              toast.success(`Review status updated to ${newStatus}`);
+            } else {
+              console.log("Success:", `Review status updated to ${newStatus}`);
+            }
+            
+            setTimeout(() => fetchTasks(isReviewMode), 1000);
+            return;
+          }
+        } catch (fallbackError) {
+          console.error("Error with fallback update:", fallbackError);
+        }
+      }
+      
+      // If all API attempts fail, update UI and show warning
+      console.warn("All API attempts failed, updating UI only");
+      setStatusUpdateMessage('Status updated in UI, database update may be pending');
+      setShowStatusUpdateModal(true);
+      
+      // Handle potential toast issue
+      if (toast && typeof toast.warning === 'function') {
+        toast.warning('Status updated in UI, database update may be pending');
+      } else {
+        console.warn("Warning:", 'Status updated in UI, database update may be pending');
+      }
+      
+      // Refresh anyway after delay
+      setTimeout(() => fetchTasks(isReviewMode), 1500);
+    } catch (error) {
+      console.error('Error updating review status:', error);
+      
+      // Update UI anyway to avoid user confusion
+      setStatusUpdateMessage('Status updated in UI, but database update failed');
+      setShowStatusUpdateModal(true);
+      
+      // Handle potential toast issue
+      if (toast && typeof toast.warning === 'function') {
+        toast.warning('Status updated in UI, but database update failed');
+      } else {
+        console.warn("Warning:", 'Status updated in UI, but database update failed');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Function to update UI with rejection status
+  const updateUIWithRejection = (taskId, remarks) => {
+    console.log(`Updating UI for task ${taskId} with rejection status and remarks: ${remarks}`);
+    
+    setTasks(prevTasks => prevTasks.map(task => {
+      if (task.task_id === taskId) {
+        return {
+          ...task,
+          reviewer_status: 'rejected',
+          remarks: remarks,
+          status: 'in-progress' // Change status to in-progress when rejected
+        };
+      }
+      return task;
+    }));
+  };
+
+  // Function to update UI with reviewer status
+  const updateUIWithReviewerStatus = (taskId, newStatus) => {
+    console.log(`Updating UI for task ${taskId} with reviewer status: ${newStatus}`);
+    
+    setTasks(prevTasks => prevTasks.map(task => {
+      if (task.id === taskId || task.task_id === taskId) {
+        return {
+          ...task,
+          reviewer_status: newStatus
+        };
+      }
+      return task;
+    }));
+  };
+
+  // Add the handleRejectionSubmit function
+  const handleRejectionSubmit = async () => {
+    if (!rejectionRemarks.trim()) {
+      setStatusUpdateMessage('Please provide rejection remarks');
+      setShowStatusUpdateModal(true);
+      
+      // Handle potential toast issue
+      if (toast && typeof toast.error === 'function') {
+        toast.error('Please provide rejection remarks');
+      } else {
+        console.error("Error:", 'Please provide rejection remarks');
+      }
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      console.log(`Task ${taskIdForRejection} is being rejected and set to WIP status`);
+      
+      // Update UI first for better user experience
+      updateUIWithRejection(taskIdForRejection, rejectionRemarks);
+      
+      const userData = JSON.parse(localStorage.getItem('user')) || {};
+      const userId = userData.user_id;
+      const roleId = userData.role_id || (userData.role === 'admin' ? '11' : '22');
+      
+      // Use the specific reviewer status endpoint
+      const reviewStatusUrl = `/tasks/${taskIdForRejection}/review-status?user_id=${userId}&role_id=${roleId}`;
+      
+      // Update request body to include status change to WIP along with rejection status
+      const requestBody = { 
+        reviewer_status: 'rejected',
+        remarks: rejectionRemarks,
+        status: 'WIP' // Set status to WIP when rejecting
+      };
+      
+      console.log(`Making rejection request to: ${reviewStatusUrl}`, requestBody);
+      
+      try {
+        const response = await api.patch(reviewStatusUrl, requestBody);
+        
+        console.log("Rejection response:", response.data);
+        
+        if (response.data && response.data.success) {
+          // Close rejection modal and show success message
+          setShowRejectionModal(false);
+          setStatusUpdateMessage('Task has been rejected and reassigned to the assignee with your remarks');
+          setShowStatusUpdateModal(true);
+          
+          // Handle potential toast issue
+          if (toast && typeof toast.success === 'function') {
+            toast.success('Task has been rejected and reassigned to the assignee');
+          } else {
+            console.log("Success:", 'Task has been rejected and reassigned to the assignee');
+          }
+          
+          // Force the task to be in WIP status
+          updateTaskStatusInState(taskIdForRejection, 'in-progress');
+          
+          // Refresh tasks after a delay
+          setTimeout(() => fetchTasks(isReviewMode), 1000);
+          
+          return;
+        }
+      } catch (apiError) {
+        console.error("Error with rejection update:", apiError);
+        
+        // Try fallback to direct task update if specific endpoint fails
+        try {
+          const fallbackUrl = `/tasks/${taskIdForRejection}?user_id=${userId}&role_id=${roleId}`;
+          console.log(`Trying fallback URL for rejection: ${fallbackUrl}`);
+          
+          const fallbackResponse = await api.patch(fallbackUrl, requestBody);
+          
+          console.log("Fallback rejection response:", fallbackResponse.data);
+          
+          if (fallbackResponse.data && fallbackResponse.data.success) {
+            setShowRejectionModal(false);
+            setStatusUpdateMessage('Task has been rejected and reassigned to the assignee with your remarks');
+            setShowStatusUpdateModal(true);
+            
+            // Handle potential toast issue
+            if (toast && typeof toast.success === 'function') {
+              toast.success('Task has been rejected and reassigned to the assignee');
+            } else {
+              console.log("Success:", 'Task has been rejected and reassigned to the assignee');
+            }
+            
+            // Force the task to be in WIP status
+            updateTaskStatusInState(taskIdForRejection, 'in-progress');
+            
+            setTimeout(() => fetchTasks(isReviewMode), 1000);
+            return;
+          }
+        } catch (fallbackError) {
+          console.error("Error with fallback rejection update:", fallbackError);
+        }
+      }
+      
+      // If all API attempts fail, update UI and show warning
+      console.warn("All rejection API attempts failed, updating UI only");
+      
+      // Ensure task status is updated even if API fails
+      updateTaskStatusInState(taskIdForRejection, 'in-progress');
+      
+      setShowRejectionModal(false);
+      setStatusUpdateMessage('Task has been rejected in UI, database update may be pending');
+      setShowStatusUpdateModal(true);
+      
+      // Handle potential toast issue
+      if (toast && typeof toast.warning === 'function') {
+        toast.warning('Task has been rejected in UI, database update may be pending');
+      } else {
+        console.warn("Warning:", 'Task has been rejected in UI, database update may be pending');
+      }
+      
+      // Refresh anyway after delay
+      setTimeout(() => fetchTasks(isReviewMode), 1500);
+    } catch (error) {
+      console.error('Error rejecting task:', error);
+      
+      // Ensure task status is updated even if there's an error
+      updateTaskStatusInState(taskIdForRejection, 'in-progress');
+      
+      // Update UI anyway to avoid user confusion
+      setShowRejectionModal(false);
+      setStatusUpdateMessage('Task has been rejected in UI, but database update failed');
+      setShowStatusUpdateModal(true);
+      
+      // Handle potential toast issue
+      if (toast && typeof toast.warning === 'function') {
+        toast.warning('Task has been rejected in UI, but database update failed');
+      } else {
+        console.warn("Warning:", 'Task has been rejected in UI, but database update failed');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Helper function to update task status in state
+  const updateTaskStatusInState = (taskId, newStatus) => {
+    console.log(`Directly updating task ${taskId} status to ${newStatus} in state`);
+    setTasks(prevTasks => prevTasks.map(task => {
+      if (task.id === taskId || task.task_id === taskId) {
+        return {
+          ...task,
+          status: newStatus
+        };
+      }
+      return task;
+    }));
+  };
  
   return (
     <div className="tasks-container">
@@ -1467,6 +1921,22 @@ const Tasks = () => {
           )}
         </div>
       )}
+ 
+      {/* View Mode Toggle */}
+      <div className="view-mode-toggle">
+        <button
+          className={`toggle-btn ${!isReviewMode ? 'active' : ''}`}
+          onClick={() => switchView('my')}
+        >
+          <i className="fas fa-tasks"></i> My Tasks
+        </button>
+        <button
+          className={`toggle-btn ${isReviewMode ? 'active' : ''}`}
+          onClick={() => switchView('review')}
+        >
+          <i className="fas fa-eye"></i> Review Tasks
+        </button>
+      </div>
  
       {/* Quick Stats Section - Always visible */}
       <div className="quick-stats-section">
@@ -2010,6 +2480,87 @@ const Tasks = () => {
                   <p>No subtasks defined for this activity.</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection modal */}
+      {showRejectionModal && (
+        <div className="modal-overlay">
+          <div className="reassign-modal">
+            <div className="modal-header">
+              <h3>
+                <i className="fas fa-times-circle"></i>
+                Reject Task
+              </h3>
+              <button 
+                className="close-btn" 
+                onClick={() => setShowRejectionModal(false)}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="modal-content">
+              <div className="task-details">
+                <p>Please provide rejection remarks to help the assignee understand why the task was rejected:</p>
+              </div>
+              <div className="form-group">
+                <textarea
+                  value={rejectionRemarks}
+                  onChange={(e) => setRejectionRemarks(e.target.value)}
+                  className="rejection-textarea"
+                  placeholder="Enter detailed feedback for the assignee..."
+                  rows="4"
+                ></textarea>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="cancel-btn"
+                onClick={() => setShowRejectionModal(false)}
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+              <button
+                className="save-btn reject-btn"
+                onClick={handleRejectionSubmit}
+                disabled={!rejectionRemarks.trim() || isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <div className="btn-spinner"></div>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-times-circle"></i>
+                    Reject Task
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status update confirmation modal */}
+      {showStatusUpdateModal && (
+        <div className="modal-overlay">
+          <div className="status-modal">
+            <div className="modal-content status-update-content">
+              <div className="status-update-message">
+                <p>{statusUpdateMessage}</p>
+              </div>
+              <div className="modal-actions status-update-actions">
+                <button
+                  className="save-btn ok-btn"
+                  onClick={() => setShowStatusUpdateModal(false)}
+                >
+                  OK
+                </button>
+              </div>
             </div>
           </div>
         </div>

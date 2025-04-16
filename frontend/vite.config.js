@@ -7,6 +7,7 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    host: true,
     proxy: {
       // Proxy API requests to your backend server
       '/api': {
@@ -38,7 +39,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(__dirname, './src')
     },
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json']
   },
@@ -59,5 +60,9 @@ export default defineConfig({
         '.js': 'jsx',
       },
     },
+  },
+  define: {
+    'process.env': {},
+    global: 'globalThis'
   }
 }); 

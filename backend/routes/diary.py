@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Diary1, Task, Actor
+from models import db, Diary1, Task, Actor, Activity
 from sqlalchemy import func
 from flask_cors import CORS
 from datetime import datetime
@@ -14,12 +14,43 @@ CORS(diary_bp, supports_credentials=True, origins="http://localhost:3000")
 def get_entries():
     actor_id = request.args.get('actor_id')
     
-    if actor_id:
-        entries = Diary1.query.filter_by(actor_id=actor_id).all()
-    else:
-        entries = Diary1.query.all()
+    try:
+        if actor_id:
+            entries = Diary1.query.filter_by(actor_id=actor_id).all()
+        else:
+            entries = Diary1.query.all()
         
-    return jsonify([entry.to_dict() for entry in entries])
+        # Convert entries to dict format while handling potential missing columns
+        entries_data = []
+        for entry in entries:
+            entry_dict = {
+                "id": entry.id,
+                "actor_id": entry.actor_id,
+                "date": entry.date.strftime('%Y-%m-%d') if entry.date else None,
+                "start_time": entry.start_time.strftime('%H:%M') if entry.start_time else None,
+                "end_time": entry.end_time.strftime('%H:%M') if entry.end_time else None,
+                "task": entry.task,
+                "remarks": entry.remarks
+            }
+            
+            # Only include subtask if the attribute exists in the model
+            if hasattr(entry, 'subtask'):
+                entry_dict["subtask"] = entry.subtask
+            else:
+                entry_dict["subtask"] = ""  # Default empty value
+                
+            entries_data.append(entry_dict)
+        
+        # Create a response with CORS headers
+        response = make_response(jsonify(entries_data))
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:3000"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+    except Exception as e:
+        import traceback
+        print(f"Error fetching entries: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": str(e), "entries": []}), 500
 
 @diary_bp.route('/wip-tasks', methods=['GET'])
 def get_wip_tasks():
@@ -122,6 +153,14 @@ def save_entries():
             
         print(f"💾 Saving {len(entries)} entries for actor_id: {actor_id}")
         
+        # Check if subtask column exists in the table
+        has_subtask_column = False
+        try:
+            db.session.query(Diary1.subtask).limit(1).all()
+            has_subtask_column = True
+        except:
+            print("⚠️ subtask column doesn't exist in diary1 table")
+            
         for entry_data in entries:
             print(f"Processing entry: {entry_data}")
             entry_id = entry_data.get('id')
@@ -171,6 +210,10 @@ def save_entries():
                         entry.task = str(entry_data['task'])
                     if 'remarks' in entry_data:
                         entry.remarks = entry_data.get('remarks', '')
+                    
+                    # Only update subtask if column exists
+                    if has_subtask_column and hasattr(entry, 'subtask') and 'subtask' in entry_data:
+                        entry.subtask = entry_data.get('subtask', '')
                 else:
                     print(f"⚠️ Entry not found for update: {entry_id}, creating new entry")
                     new_entry = Diary1(
@@ -181,6 +224,11 @@ def save_entries():
                         task=str(entry_data.get('task', '')),
                         remarks=entry_data.get('remarks', '')
                     )
+                    
+                    # Only set subtask if column exists
+                    if has_subtask_column and 'subtask' in entry_data:
+                        new_entry.subtask = entry_data.get('subtask', '')
+                        
                     db.session.add(new_entry)
             # Create new entry
             else:
@@ -193,6 +241,11 @@ def save_entries():
                     task=str(entry_data.get('task', '')),
                     remarks=entry_data.get('remarks', '')
                 )
+                
+                # Only set subtask if column exists
+                if has_subtask_column and 'subtask' in entry_data:
+                    new_entry.subtask = entry_data.get('subtask', '')
+                    
                 db.session.add(new_entry)
         
         db.session.commit()
@@ -219,3 +272,41 @@ def delete_entry(entry_id):
     db.session.delete(entry)
     db.session.commit()
     return jsonify({'message': 'Entry deleted successfully'})
+
+@diary_bp.route('/activity-subtasks', methods=['GET'])
+def get_activity_subtasks():
+    try:
+        task_id = request.args.get('task_id')
+        if not task_id:
+            return jsonify({"error": "Task ID is required"}), 400
+
+        # Get the activity ID for the task
+        task = Task.query.get(task_id)
+        if not task:
+            return jsonify({"subtasks": []}), 200
+            
+        # Get the activity with subtasks
+        activity = Activity.query.get(task.activity_id)
+        if not activity or not activity.sub_activities:
+            return jsonify({"subtasks": []}), 200
+            
+        # Handle different possible formats of sub_activities
+        subtasks = []
+        if isinstance(activity.sub_activities, list):
+            subtasks = activity.sub_activities
+        elif isinstance(activity.sub_activities, dict):
+            # Extract a list from dictionary structure
+            if "tasks" in activity.sub_activities:
+                subtasks = activity.sub_activities["tasks"]
+            else:
+                # Convert dict keys to a list if it's a mapping
+                subtasks = list(activity.sub_activities.keys())
+        
+        print(f"Sending subtasks for task {task_id}: {subtasks}")
+        return jsonify({"subtasks": subtasks}), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error getting subtasks: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": str(e), "subtasks": []}), 500

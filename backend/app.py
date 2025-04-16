@@ -38,10 +38,9 @@ login_manager.login_view = 'auth.login'
 @login_manager.user_loader
 def load_user(user_id):
     return Actor.query.get(int(user_id))
-
 # Setup CORS properly - this is critical to fix the error
 CORS(app, supports_credentials=True, origins=["http://localhost:3000"], methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
-
+ 
 # Remove or comment out this section as it's redundant
 # CORS(app, resources={
 #     r"/customers/*": {"origins": "http://localhost:3000"},

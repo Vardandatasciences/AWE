@@ -136,7 +136,9 @@ class Task(db.Model):
     duedate = db.Column(db.Date)
     actor_id = db.Column(db.Integer, db.ForeignKey('actors.actor_id'))
     assigned_to = db.Column(db.String(255))
+    reviewer = db.Column(db.String(255))
     status = db.Column(db.String(50))
+    reviewer_status = db.Column(db.String(50))
     link = db.Column(db.String(255))
     activity_id = db.Column(db.Integer, db.ForeignKey('activities.activity_id'))
     time_taken = db.Column(db.Float)
@@ -146,7 +148,7 @@ class Task(db.Model):
     stage_id = db.Column(db.Integer, default=1)
     activity_type = db.Column(db.String(10))
     remarks = db.Column(db.Text)
-    assigned_timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # NEW COLUMN
+    assigned_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
         return {
@@ -157,7 +159,9 @@ class Task(db.Model):
             'duedate': self.duedate.strftime('%Y-%m-%d') if self.duedate else None,
             'actor_id': self.actor_id,
             'assigned_to': self.assigned_to,
+            'reviewer': self.reviewer,
             'status': self.status,
+            'reviewer_status': self.reviewer_status,
             'link': self.link,
             'activity_id': self.activity_id,
             'time_taken': self.time_taken,
@@ -169,27 +173,6 @@ class Task(db.Model):
             'remarks': self.remarks,
             'assigned_timestamp': self.assigned_timestamp.strftime('%Y-%m-%d %H:%M:%S') if self.assigned_timestamp else None
         }
-    
-
-class SubTask(db.Model):
-    __tablename__ = 'sub_task'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    task_id = db.Column(db.String(50), db.ForeignKey('tasks.task_id'), nullable=False)
-    sub_task = db.Column(db.JSON)
-    status = db.Column(db.String(50), default='Pending')
-    
-    # Relationship
-    task = db.relationship('Task', backref='subtasks')
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'task_id': self.task_id,
-            'sub_task': self.sub_task,
-            'status': self.status
-        }
-
 
 
 class ActivityAssignment(db.Model):
@@ -234,6 +217,25 @@ class Message(db.Model):
             'date': self.date.strftime('%Y-%m-%d') if self.date else None,
             'email_id': self.email_id,
             'time': self.time,
+            'status': self.status
+        }
+
+class SubTask(db.Model):
+    __tablename__ = 'sub_task'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.String(50), db.ForeignKey('tasks.task_id'), nullable=False)
+    sub_task = db.Column(db.JSON)
+    status = db.Column(db.String(50), default='Pending')
+    
+    # Relationship
+    task = db.relationship('Task', backref='subtasks')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'task_id': self.task_id,
+            'sub_task': self.sub_task,
             'status': self.status
         }
 
@@ -287,6 +289,7 @@ class Diary1(db.Model):
     start_time = db.Column(db.Time, nullable=True)
     end_time = db.Column(db.Time, nullable=True)
     task = db.Column(db.String(500), nullable=True)
+    subtask = db.Column(db.String(500), nullable=True)
     remarks = db.Column(db.String(255), nullable=True)
  
     def to_dict(self):
@@ -297,6 +300,7 @@ class Diary1(db.Model):
             "start_time": self.start_time.strftime('%H:%M') if self.start_time else None,
             "end_time": self.end_time.strftime('%H:%M') if self.end_time else None,
             "task": self.task,
+            "subtask": self.subtask,
             "remarks": self.remarks
         }
         
@@ -333,6 +337,9 @@ class Diary1(db.Model):
                 
         if 'task' in data:
             diary.task = data['task']
+            
+        if 'subtask' in data:
+            diary.subtask = data['subtask']
             
         if 'remarks' in data:
             diary.remarks = data['remarks']
