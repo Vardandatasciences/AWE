@@ -5,6 +5,7 @@ import './AssignActivityForm.css';
 const AssignActivityForm = ({ customerId, activityId, activityName, customerName, onClose, onSuccess, onError }) => {
     const [formData, setFormData] = useState({
         assignTo: '',
+        reviewer: '',
         status: 'Yet to Start',
         link: '',
         remarks: '',
@@ -12,6 +13,7 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
         selectedClient: customerId // Add this new field
     });
     const [employees, setEmployees] = useState([]);
+    const [reviewers, setReviewers] = useState([]); // Add state for reviewers
     const [clients, setClients] = useState([]); // Add state for clients
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -31,6 +33,11 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                 const employeesResponse = await axios.get('/actors_assign');
                 setEmployees(employeesResponse.data);
                
+                // Load reviewers
+                const reviewersResponse = await axios.get('http://127.0.0.1:5000/reviewers');
+                setReviewers(reviewersResponse.data);
+                console.log("Loaded reviewers:", reviewersResponse.data);
+               
                 // Set default assignee if employees exist
                 if (employeesResponse.data.length > 0) {
                     setFormData(prev => ({
@@ -42,18 +49,29 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                 // Try to fetch frequency, but don't fail if it doesn't work
                 try {
                     console.log(`Trying to fetch frequency for activity ID: ${activityId}`);
-                    const frequencyResponse = await axios.get(`/get_frequency/${activityId}`);
+                    const frequencyResponse = await axios.get(`http://127.0.0.1:5000/get_frequency/${activityId}`);
                    
-                    if (frequencyResponse.data && frequencyResponse.data.frequency) {
+                    if (frequencyResponse.data && frequencyResponse.data.frequency !== undefined) {
+                        const freqValue = String(frequencyResponse.data.frequency);
+                        console.log(`Received frequency value: ${freqValue}`);
                         setFormData(prev => ({
                             ...prev,
-                            frequency: String(frequencyResponse.data.frequency)
+                            frequency: freqValue
+                        }));
+                    } else {
+                        console.warn("Frequency data was missing or undefined, using default");
+                        setFormData(prev => ({
+                            ...prev,
+                            frequency: "1" // Default to yearly
                         }));
                     }
                 } catch (freqError) {
                     console.warn(`Could not fetch frequency from API: ${freqError}`);
-                    // Try to get frequency from another source if needed
-                    // For now we'll just use the default value of 1 (Yearly)
+                    // Set default value on error
+                    setFormData(prev => ({
+                        ...prev,
+                        frequency: "1" // Default to yearly
+                    }));
                 }
                
                 setLoading(false);
@@ -97,6 +115,7 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             const formDataToSend = new FormData();
             formDataToSend.append('task_name', activityId);
             formDataToSend.append('assigned_to', formData.assignTo);
+            formDataToSend.append('reviewer', formData.reviewer);
             formDataToSend.append('customer_id', formData.selectedClient); // Use selected client
             formDataToSend.append('remarks', formData.remarks);
             formDataToSend.append('link', formData.link);
@@ -181,6 +200,22 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
                             {employees.map(emp => (
                                 <option key={emp.actor_id} value={emp.actor_name}>
                                     {emp.actor_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    
+                    <div className="form-group">
+                        <label>Reviewer:</label>
+                        <select
+                            name="reviewer"
+                            value={formData.reviewer}
+                            onChange={handleInputChange}
+                        >
+                            <option value="">Select Reviewer (Optional)</option>
+                            {reviewers.map(reviewer => (
+                                <option key={reviewer.actor_id} value={reviewer.actor_name}>
+                                    {reviewer.actor_name}
                                 </option>
                             ))}
                         </select>

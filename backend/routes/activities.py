@@ -183,7 +183,7 @@ def get_activity_mappings(activity_id):
 @activities_bp.route('/actors_assign', methods=['GET'])
 def get_actors_assign():
     try:
-        actors = Actor.query.all()
+        actors = Actor.query.filter(Actor.role_id != 11, Actor.status != 'O').all()
         actors_data = [{"actor_id": actor.actor_id, "actor_name": actor.actor_name, "role_id": actor.role_id} for actor in actors]
         
         # Set proper CORS headers
@@ -401,13 +401,23 @@ def adjust_due_date(date, criticality):
 @activities_bp.route('/get_frequency/<int:activity_id>', methods=['GET'])
 def get_frequency(activity_id):
     try:
+        print(f"Getting frequency for activity ID: {activity_id}")
         activity = Activity.query.filter_by(activity_id=activity_id).first()
         if not activity:
-            return jsonify({'error': 'Activity not found'}), 404
+            print(f"Activity with ID {activity_id} not found")
+            response = jsonify({'error': 'Activity not found'})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 404
         
-        return jsonify({'frequency': activity.frequency}), 200
+        print(f"Activity frequency: {activity.frequency}")
+        response = jsonify({'frequency': activity.frequency})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error in get_frequency: {str(e)}")
+        response = jsonify({'error': str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
 
 
 @activities_bp.route('/assign_activity', methods=['POST'])
@@ -418,6 +428,7 @@ def assign_activity():
 
         activity_id = data.get('task_name')
         assigned_to = data.get('assigned_to')
+        reviewer = data.get('reviewer', '')  # Get reviewer from form data
         customer_id = data.get('customer_id')
         remarks = data.get('remarks', '')
         link = data.get('link', '')
@@ -459,6 +470,14 @@ def assign_activity():
         assigned_actor_id = assigned_actor.actor_id
         assigned_actor_email = assigned_actor.email_id
 
+        # Check if Reviewer Exists (if provided)
+        reviewer_email = None
+        if reviewer:
+            reviewer_actor = Actor.query.filter_by(actor_name=reviewer).first()
+            if not reviewer_actor:
+                return jsonify({'success': False, 'message': '❌ Invalid Reviewer'}), 400
+            reviewer_email = reviewer_actor.email_id
+
         # Check if Customer Exists
         customer = Customer.query.filter_by(customer_id=customer_id).first()
         if not customer:
@@ -483,8 +502,45 @@ def assign_activity():
         
         # Create a task for this assignment
         try:
+            # Get activity's frequency if not provided
+            if not frequency or frequency == '0':
+                frequency = str(activity.frequency) if activity.frequency else '1'
+                print(f"Using activity frequency: {frequency}")
+                
+            # Parse frequency to integer with fallback
+            try:
+                frequency_int = int(frequency)
+                if frequency_int <= 0:
+                    frequency_int = 1  # Default to 1 (Yearly) if invalid
+            except ValueError:
+                frequency_int = 1  # Default to 1 (Yearly) if parse error
+                
+            print(f"Using frequency value: {frequency_int} for due date calculation")
+                
             # Calculate due date
-            due_date = datetime.now() + timedelta(days=int(frequency))
+            if frequency_int == 1:  # Yearly
+                due_date = datetime.now() + timedelta(days=365)
+            elif frequency_int == 12:  # Monthly
+                due_date = datetime.now() + timedelta(days=30)
+            elif frequency_int == 4:  # Quarterly
+                due_date = datetime.now() + timedelta(days=90)
+            elif frequency_int == 52:  # Weekly
+                due_date = datetime.now() + timedelta(days=7)
+            elif frequency_int == 365:  # Daily
+                due_date = datetime.now() + timedelta(days=1)
+            elif frequency_int == 26:  # Fortnightly
+                due_date = datetime.now() + timedelta(days=14)
+            elif frequency_int == 3:  # Every 4 Months
+                due_date = datetime.now() + timedelta(days=120)
+            elif frequency_int == 6:  # Every 2 Months
+                due_date = datetime.now() + timedelta(days=60)
+            elif frequency_int == 0:  # Onetime
+                due_date = datetime.now() + timedelta(days=30)  # Default to 30 days for onetime
+            else:
+                # Default calculation based on frequency
+                due_date = datetime.now() + timedelta(days=365 // frequency_int if frequency_int > 0 else 365)
+                
+            print(f"Calculated due date: {due_date}")
             
             # Generate a unique task ID
             task_id = f"{activity_id}{customer_id}{due_date.strftime('%d%m%Y')}"
@@ -504,6 +560,7 @@ def assign_activity():
                 duedate=due_date,
                 actor_id=assigned_actor_id,
                 assigned_to=assigned_to,
+                reviewer=reviewer,  # Add reviewer to the task
                 activity_id=activity_id,
                 initiator=initiator,
                 activity_type=activity_type,
@@ -539,6 +596,7 @@ Customer: {customer.customer_name}
 Criticality: {criticality}
 Remarks: {remarks}
 Link: {link}
+Reviewer: {reviewer}
                 """
                 
                 # Add to Google Calendar
@@ -599,6 +657,7 @@ The task '{activity.activity_name}' for '{customer.customer_name}' is due on '{d
 - Task ID: {task_id}
 - Criticality: {criticality}
 - Status: {status}
+{"- Reviewer: " + reviewer if reviewer else ""}
 
 Please review the task and complete it before the due date.
 
@@ -627,6 +686,7 @@ The task '{activity.activity_name}' for '{customer.customer_name}' is due today.
 - Task ID: {task_id}
 - Criticality: {criticality}
 - Status: {status}
+{"- Reviewer: " + reviewer if reviewer else ""}
 
 Please review the task and complete it today.
 Ignore if completed.
@@ -645,6 +705,28 @@ AWE Team"""
                     due_date_for_reminder,  # Reminder on the due date itself
                     task_id
                 )
+                
+                # If reviewer is assigned, send them a notification too
+                if reviewer and reviewer_email:
+                    reviewer_email_subject = f"AWE-Task Review Required: '{activity.activity_name}' for '{customer.customer_name}'"
+                    reviewer_email_content = f"""Hello {reviewer},
+
+You have been assigned as a reviewer for the task '{activity.activity_name}' for customer '{customer.customer_name}'.
+
+- Task Name: {activity.activity_name}
+- Task ID: {task_id}
+- Criticality: {criticality}
+- Assigned To: {assigned_to}
+- Due Date: {due_date_for_reminder.strftime('%Y-%m-%d')}
+- Status: {status}
+
+The assignee will complete this task and you will need to review it.
+
+Regards,
+AWE Team"""
+
+                    # Send email to reviewer
+                    send_email(reviewer_email_subject, reviewer_email, reviewer_email_content)
                 
                 print(f"✅ Email reminders scheduled for task {task_id}")
                 
@@ -665,6 +747,7 @@ A new task '{activity.activity_name}' has been assigned to you for customer '{cu
 - Criticality: {criticality}
 - Due Date: {due_date.strftime('%Y-%m-%d')}
 - Status: {status}
+{"- Reviewer: " + reviewer if reviewer else ""}
 
 {f"This task has been added to your Google Calendar." if calendar_event_id else ""}
 
@@ -863,3 +946,23 @@ def get_client_tasks(client_id):
     except Exception as e:
         print(f"Error fetching client tasks: {e}")
         return jsonify({"error": str(e)}), 500
+
+@activities_bp.route('/reviewers', methods=['GET'])
+def get_reviewers():
+    try:
+        # Fetch all active actors to be reviewers
+        reviewers = Actor.query.filter_by(status='A').all()
+        
+        # Create response with proper CORS headers
+        response = jsonify([{
+            "actor_id": reviewer.actor_id,
+            "actor_name": reviewer.actor_name
+        } for reviewer in reviewers])
+        
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+    except Exception as e:
+        print("Error fetching reviewers:", e)
+        response = jsonify({"error": str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500

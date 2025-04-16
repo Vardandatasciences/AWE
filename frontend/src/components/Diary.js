@@ -43,12 +43,14 @@ const Diary = () => {
   console.log("User Role ID:", role_id);
   console.log("User User ID:", actor_id)
   const [taskNames, setTaskNames] = useState({});
+  const [subtasks, setSubtasks] = useState({});
 
   const emptyEntry = {
     date: new Date(),
     start_time: null,
     end_time: null,
     task: '',
+    subtask: '',
     remarks: ''
   };
   useEffect(() => {
@@ -62,6 +64,7 @@ const Diary = () => {
 
     console.log("🚀 Actor ID found:", actorId);
     fetchWIPTasks();
+    fetchEntries(actorId);
 }, []);
 
   useEffect(() => {
@@ -169,8 +172,73 @@ const Diary = () => {
     loadMissingTaskDetails();
   }, [entries, taskNames]);
 
-  
- 
+  useEffect(() => {
+    // Load subtasks when task selection changes
+    const loadSubtasks = async () => {
+      const tasksNeedingSubtasks = entries
+        .filter(entry => entry.task && !subtasks[entry.task])
+        .map(entry => entry.task);
+        
+      if (tasksNeedingSubtasks.length === 0) return;
+      
+      const uniqueTaskIds = [...new Set(tasksNeedingSubtasks)];
+      
+      const newSubtasks = { ...subtasks };
+      for (const taskId of uniqueTaskIds) {
+        try {
+          const response = await axios.get(`http://localhost:5000/diary/activity-subtasks`, {
+            params: { task_id: taskId },
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            },
+            withCredentials: true
+          });
+          
+          if (response.data.subtasks) {
+            newSubtasks[taskId] = response.data.subtasks;
+          }
+        } catch (error) {
+          console.error(`Failed to load subtasks for task ${taskId}`, error);
+        }
+      }
+      
+      setSubtasks(newSubtasks);
+    };
+    
+    loadSubtasks();
+  }, [entries]);
+
+  const handleTaskChange = async (index, taskId) => {
+    const updatedEntries = [...entries];
+    updatedEntries[index].task = taskId;
+    updatedEntries[index].subtask = ''; // Reset subtask when task changes
+    setEntries(updatedEntries);
+    
+    // Fetch subtasks if not already loaded
+    if (!subtasks[taskId]) {
+      try {
+        const response = await axios.get(`http://localhost:5000/diary/activity-subtasks`, {
+          params: { task_id: taskId },
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
+          withCredentials: true
+        });
+        
+        if (response.data.subtasks) {
+          setSubtasks({
+            ...subtasks,
+            [taskId]: response.data.subtasks
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to load subtasks for task ${taskId}`, error);
+      }
+    }
+  };
+
   const handleAddEntry = async () => {
     const token = localStorage.getItem('token');
     const actorId = localStorage.getItem('actor_id');
@@ -196,6 +264,7 @@ const Diary = () => {
             start_time: null,
             end_time: null,
             task: tasks.length > 0 ? tasks[0].task_id : '',
+            subtask: '', // Add this line to initialize subtask field
             remarks: ''
         };
 
@@ -207,11 +276,6 @@ const Diary = () => {
     }
 };
 
-
-
-
-
- 
   const handleSaveEntries = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -233,7 +297,8 @@ const Diary = () => {
           actor_id: actorId, // Ensure actor_id is set for each entry
           date: entry.date ? format(entry.date, 'yyyy-MM-dd') : null,
           start_time: entry.start_time ? format(entry.start_time, 'HH:mm') : null,
-          end_time: entry.end_time ? format(entry.end_time, 'HH:mm') : null
+          end_time: entry.end_time ? format(entry.end_time, 'HH:mm') : null,
+          subtask: entry.subtask || '' // Include subtask field
         };
       });
       
@@ -380,6 +445,89 @@ const fetchTaskDetails = async (taskId) => {
   return null;
 };
 
+const fetchEntries = async (actorId) => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    
+    console.log("Fetching entries for actor ID:", actorId);
+    
+    const response = await axios.get('http://localhost:5000/diary/entries', {
+      params: { actor_id: actorId },
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      withCredentials: true
+    });
+    
+    if (response.status === 200) {
+      console.log("Entries fetched successfully:", response.data);
+      
+      // Format dates and times for each entry
+      const formattedEntries = response.data.map(entry => ({
+        ...entry,
+        date: entry.date ? new Date(entry.date) : null,
+        start_time: entry.start_time ? parse(entry.start_time, 'HH:mm', new Date()) : null,
+        end_time: entry.end_time ? parse(entry.end_time, 'HH:mm', new Date()) : null,
+        subtask: entry.subtask || '' // Ensure subtask is always defined
+      }));
+      
+      setEntries(formattedEntries);
+      
+      // Also trigger loading task details and subtasks for these entries
+      const taskIds = [...new Set(formattedEntries.filter(e => e.task).map(e => e.task))];
+      console.log("Need to load details for task IDs:", taskIds);
+      
+      // Load task names
+      const newTaskNames = { ...taskNames };
+      for (const taskId of taskIds) {
+        if (!newTaskNames[taskId]) {
+          try {
+            const taskDetails = await fetchTaskDetails(taskId);
+            if (taskDetails) {
+              newTaskNames[taskId] = taskDetails.task_name;
+            }
+          } catch (error) {
+            console.error(`Failed to load details for task ${taskId}`, error);
+          }
+        }
+      }
+      setTaskNames(newTaskNames);
+      
+      // Load subtasks for these tasks
+      const newSubtasks = { ...subtasks };
+      for (const taskId of taskIds) {
+        if (!newSubtasks[taskId]) {
+          try {
+            const subtaskResponse = await axios.get(`http://localhost:5000/diary/activity-subtasks`, {
+              params: { task_id: taskId },
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              withCredentials: true
+            });
+            
+            if (subtaskResponse.data.subtasks) {
+              newSubtasks[taskId] = subtaskResponse.data.subtasks;
+            }
+          } catch (error) {
+            console.error(`Failed to load subtasks for task ${taskId}`, error);
+          }
+        }
+      }
+      setSubtasks(newSubtasks);
+    }
+  } catch (error) {
+    console.error("Error fetching entries:", error);
+    // Still show UI without existing entries
+    setEntries([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <div style={{ padding: '20px' }}>
@@ -436,11 +584,12 @@ const fetchTaskDetails = async (taskId) => {
             <TableHead>
               <TableRow>
                 <TableCell style={{ width: '3%' }}>Serial No.</TableCell>
-                <TableCell style={{ width: '15%' }}>Date</TableCell>
-                <TableCell style={{ width: '14%' }}>Start Time</TableCell>
-                <TableCell style={{ width: '14%' }}>End Time</TableCell>
-                <TableCell style={{ width: '25%' }}>Task</TableCell>
-                <TableCell style={{ width: '35%' }}>Remarks</TableCell>
+                <TableCell style={{ width: '12%' }}>Date</TableCell>
+                <TableCell style={{ width: '10%' }}>Start Time</TableCell>
+                <TableCell style={{ width: '10%' }}>End Time</TableCell>
+                <TableCell style={{ width: '20%' }}>Task</TableCell>
+                <TableCell style={{ width: '20%' }}>Sub Task</TableCell>
+                <TableCell style={{ width: '25%' }}>Remarks</TableCell>
                 <TableCell style={{ width: '5%' }}>Remove</TableCell>
               </TableRow>
             </TableHead>
@@ -448,7 +597,7 @@ const fetchTaskDetails = async (taskId) => {
   {entries.map((entry, index) => (
     <TableRow key={entry.id}>
       <TableCell style={{ width: '3%' }}>{index + 1}</TableCell>
-      <TableCell style={{ width: '15%' }}>
+      <TableCell style={{ width: '12%' }}>
         <DatePicker
           value={entry.date}
           onChange={(newDate) => {
@@ -461,7 +610,7 @@ const fetchTaskDetails = async (taskId) => {
           }}
         />
       </TableCell>
-      <TableCell style={{ width: '14%' }}>
+      <TableCell style={{ width: '10%' }}>
         <TimePicker
           value={entry.start_time}
           onChange={(newTime) => {
@@ -474,7 +623,7 @@ const fetchTaskDetails = async (taskId) => {
           }}
         />
       </TableCell>
-      <TableCell style={{ width: '14%' }}>
+      <TableCell style={{ width: '10%' }}>
         <TimePicker
           value={entry.end_time}
           onChange={(newTime) => {
@@ -487,15 +636,11 @@ const fetchTaskDetails = async (taskId) => {
           }}
         />
       </TableCell>
-      <TableCell style={{ width: '40%' }}>
+      <TableCell style={{ width: '20%' }}>
         {entry.task ? (
           <Select
             value={entry.task}
-            onChange={(e) => {
-              const updatedEntries = [...entries];
-              updatedEntries[index].task = e.target.value;
-              setEntries(updatedEntries);
-            }}
+            onChange={(e) => handleTaskChange(index, e.target.value)}
             fullWidth
             size="small"
             displayEmpty
@@ -525,11 +670,7 @@ const fetchTaskDetails = async (taskId) => {
         ) : (
           <Select
             value={entry.task || ''}
-            onChange={(e) => {
-              const updatedEntries = [...entries];
-              updatedEntries[index].task = e.target.value;
-              setEntries(updatedEntries);
-            }}
+            onChange={(e) => handleTaskChange(index, e.target.value)}
             fullWidth
             size="small"
             displayEmpty
@@ -547,7 +688,41 @@ const fetchTaskDetails = async (taskId) => {
           </Select>
         )}
       </TableCell>
-      <TableCell style={{ width: '35%' }}>
+      <TableCell style={{ width: '20%' }}>
+        {entry.task && subtasks[entry.task] ? (
+          <Select
+            value={entry.subtask || ''}
+            onChange={(e) => {
+              const updatedEntries = [...entries];
+              updatedEntries[index].subtask = e.target.value;
+              setEntries(updatedEntries);
+            }}
+            fullWidth
+            size="small"
+            displayEmpty
+          >
+            <MenuItem value="" disabled>Select a sub task</MenuItem>
+            {Array.isArray(subtasks[entry.task]) ? 
+              subtasks[entry.task].map((subtask, i) => (
+                <MenuItem key={i} value={typeof subtask === 'object' ? JSON.stringify(subtask) : subtask}>
+                  {typeof subtask === 'object' ? 
+                    (subtask.name || subtask.description || JSON.stringify(subtask)) : 
+                    subtask}
+                </MenuItem>
+              )) : 
+              <MenuItem disabled>Invalid subtask format</MenuItem>
+            }
+          </Select>
+        ) : (
+          <TextField
+            disabled
+            value={entry.task ? "No subtasks available" : "Select a task first"}
+            fullWidth
+            size="small"
+          />
+        )}
+      </TableCell>
+      <TableCell style={{ width: '25%' }}>
         <TextField
           value={entry.remarks || ''}
           onChange={(e) => {

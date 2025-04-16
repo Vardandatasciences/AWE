@@ -22,33 +22,45 @@ def get_tasks():
         # Get user information from request
         user_id = request.args.get('user_id')
         role_id = request.args.get('role_id')
+        review_mode = request.args.get('review_mode', 'false').lower() == 'true'
         
         # Get filters if provided
         auditor_id = request.args.get('auditor_id')
         client_id = request.args.get('client_id')
         
         print(f"Fetching tasks with filters - User ID: {user_id}, Role ID: {role_id}, "
-              f"Auditor ID: {auditor_id}, Client ID: {client_id}")
+              f"Auditor ID: {auditor_id}, Client ID: {client_id}, Review Mode: {review_mode}")
         
+        # Get the user's name for reviewer matching
+        current_user = Actor.query.get(user_id)
+        if not current_user:
+            return jsonify({"error": "User not found"}), 404
+            
         # Base query with ordering by assigned_timestamp in descending order
         query = Task.query.order_by(Task.assigned_timestamp.desc())
         
         # Apply filters based on role and parameters
-        if auditor_id:
-            print(f"Filtering tasks for auditor_id: {auditor_id}")
-            query = query.filter(Task.actor_id == auditor_id)
-        elif client_id:
-            print(f"Filtering tasks for client_id: {client_id}")
-            customer = Customer.query.filter_by(customer_id=client_id).first()
-            if customer:
-                query = query.filter(Task.customer_name == customer.customer_name)
-            else:
-                return jsonify([])
-        elif role_id != "11":  # Not admin
-            if user_id:
-                query = query.filter(Task.actor_id == user_id)
-            else:
-                return jsonify([])
+        if review_mode:
+            # In review mode, get tasks where the current user's name matches the reviewer field
+            query = query.filter(Task.reviewer == current_user.actor_name)
+            print(f"Filtering review tasks for reviewer: {current_user.actor_name}")
+        else:
+            # Normal mode - get tasks assigned to the user
+            if auditor_id:
+                print(f"Filtering tasks for auditor_id: {auditor_id}")
+                query = query.filter(Task.actor_id == auditor_id)
+            elif client_id:
+                print(f"Filtering tasks for client_id: {client_id}")
+                customer = Customer.query.filter_by(customer_id=client_id).first()
+                if customer:
+                    query = query.filter(Task.customer_name == customer.customer_name)
+                else:
+                    return jsonify([])
+            elif role_id != "11":  # Not admin
+                if user_id:
+                    query = query.filter(Task.actor_id == user_id)
+                else:
+                    return jsonify([])
         
         # Execute query and get all tasks
         tasks = query.all()
@@ -69,6 +81,8 @@ def get_tasks():
             'customer_name': task.customer_name,
             'title': task.task_name,
             'remarks': task.remarks,
+            'reviewer': task.reviewer,  # Add reviewer field to response
+            'reviewer_status': task.reviewer_status,  # Add reviewer_status field to response
             'assigned_timestamp': task.assigned_timestamp.isoformat() if task.assigned_timestamp else None
         } for task in tasks]
         
@@ -584,3 +598,236 @@ def get_task_subtasks(task_id):
     except Exception as e:
         print(f"Error fetching task subtasks: {e}")
         return jsonify({"error": str(e)}), 500 
+
+@tasks_bp.route('/tasks/<task_id>/update-review-status', methods=['POST'])
+@cross_origin()
+def update_review_status(task_id):
+    try:
+        # Get user information from request
+        user_id = request.args.get('user_id')
+        role_id = request.args.get('role_id')
+        
+        # Validate user authentication
+        if not user_id or not role_id:
+            return jsonify({
+                "success": False, 
+                "error": "Authentication required. Please provide user_id and role_id"
+            }), 401
+        
+        # Get the task
+        task = Task.query.filter_by(task_id=task_id).first()
+        if not task:
+            return jsonify({"success": False, "error": "Task not found"}), 404
+        
+        # Get the reviewer
+        reviewer = Actor.query.filter_by(actor_name=task.reviewer).first()
+        if not reviewer:
+            return jsonify({"success": False, "error": "Reviewer not found for this task"}), 404
+        
+        # Check permissions - only the assigned reviewer or admin can update review status
+        if role_id != "11" and str(reviewer.actor_id) != str(user_id):
+            return jsonify({
+                "success": False, 
+                "error": "You don't have permission to update the review status of this task"
+            }), 403
+        
+        # Get the data from the request
+        data = request.json
+        new_status = data.get('status')
+        review_comments = data.get('comments', '')
+        
+        valid_statuses = ['under_review', 'approved', 'rejected', 'changes_requested']
+        if not new_status or new_status not in valid_statuses:
+            return jsonify({
+                "success": False, 
+                "error": f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            }), 400
+        
+        # Update the task with the new review status
+        task.reviewer_status = new_status
+        task.review_comments = review_comments
+        
+        # If approved, update task status to completed
+        if new_status == 'approved':
+            previous_status = task.status
+            task.status = 'completed'
+            print(f"Task status updated from {previous_status} to completed")
+        
+        # Save changes
+        db.session.commit()
+        
+        print(f"✅ Successfully updated review status to {new_status} for task {task_id}")
+        
+        # Notify the task owner by email
+        try:
+            task_owner = Actor.query.filter_by(actor_id=task.actor_id).first()
+            if task_owner and task_owner.email_id:
+                subject = f"Task Review Update: {task.task_name}"
+                status_message = ""
+                if new_status == 'approved':
+                    status_message = "The task has been approved and marked as completed."
+                elif new_status == 'rejected':
+                    status_message = "The task has been rejected."
+                elif new_status == 'changes_requested':
+                    status_message = "Changes have been requested for the task."
+                
+                email_content = f"""Dear {task_owner.actor_name},
+
+The review status for task '{task.task_name}' has been updated to '{new_status}'.
+{status_message}
+
+REVIEW DETAILS:
+- Reviewer: {task.reviewer}
+- Status: {new_status}
+- Comments: {review_comments}
+
+Please log into the ProSync system to view the complete details.
+
+You can view the task at: http://localhost:3000/tasks
+
+Best regards,
+ProSync Team"""
+
+                send_email(subject, task_owner.email_id, email_content)
+                print(f"✅ Review status update notification sent to {task_owner.actor_name}")
+        except Exception as e:
+            print(f"Warning: Failed to send review status notification: {e}")
+            # Continue execution even if notification fails
+        
+        return jsonify({
+            "success": True, 
+            "message": "Review status updated successfully",
+            "task": {
+                "id": task.task_id,
+                "reviewer": task.reviewer,
+                "reviewer_status": task.reviewer_status,
+                "review_comments": task.review_comments,
+                "status": task.status
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"🚨 ERROR in update_review_status: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@tasks_bp.route('/reviewers', methods=['GET'])
+def get_reviewers():
+    try:
+        # Get query parameters
+        status = request.args.get('status', 'A')  # Default to 'A' if not provided
+        
+        # Query active auditors with role_id 22 or 11 (regular users and admins)
+        reviewers = Actor.query.filter(
+            Actor.status == status,
+            Actor.role_id.in_(['22', '11'])  # Include both regular users and admins
+        ).order_by(Actor.actor_name).all()
+        
+        # Format the response - ensure IDs are strings for consistency
+        reviewers_list = [{
+            'id': str(reviewer.actor_id),
+            'name': reviewer.actor_name,
+            'email': reviewer.email_id
+        } for reviewer in reviewers]
+        
+        print(f"Fetched {len(reviewers_list)} potential reviewers")
+        return jsonify(reviewers_list)
+    
+    except Exception as e:
+        print(f"Error fetching reviewers: {e}")
+        return jsonify({'error': 'Failed to fetch reviewers'}), 500 
+
+@tasks_bp.route('/tasks/<task_id>/assign-reviewer', methods=['POST'])
+@cross_origin()
+def assign_reviewer(task_id):
+    try:
+        # Get user information from request
+        user_id = request.args.get('user_id')
+        role_id = request.args.get('role_id')
+        
+        # Validate user authentication
+        if not user_id or not role_id:
+            return jsonify({
+                "success": False, 
+                "error": "Authentication required. Please provide user_id and role_id"
+            }), 401
+        
+        # Get the task
+        task = Task.query.filter_by(task_id=task_id).first()
+        if not task:
+            return jsonify({"success": False, "error": "Task not found"}), 404
+        
+        # Check permissions - only admins and task owners can assign reviewers
+        if role_id != "11" and str(task.actor_id) != str(user_id):
+            return jsonify({
+                "success": False, 
+                "error": "You don't have permission to assign reviewers to this task"
+            }), 403
+        
+        # Get the data from the request
+        data = request.json
+        reviewer_id = data.get('reviewer_id')
+        
+        if not reviewer_id:
+            return jsonify({
+                "success": False, 
+                "error": "Reviewer ID is required"
+            }), 400
+        
+        # Get the reviewer
+        reviewer = Actor.query.filter_by(actor_id=reviewer_id).first()
+        if not reviewer:
+            return jsonify({"success": False, "error": "Reviewer not found"}), 404
+        
+        # Update the task with the reviewer
+        task.reviewer = reviewer.actor_name
+        task.reviewer_status = 'under_review'  # Set initial status
+        
+        # Save changes
+        db.session.commit()
+        
+        print(f"✅ Successfully assigned reviewer {reviewer.actor_name} to task {task_id}")
+        
+        # Notify the reviewer by email
+        try:
+            if reviewer.email_id:
+                subject = f"Task Review Request: {task.task_name}"
+                email_content = f"""Dear {reviewer.actor_name},
+
+You have been assigned to review the task '{task.task_name}' for customer '{task.customer_name}'.
+
+TASK DETAILS:
+- Task Name: {task.task_name}
+- Task ID: {task.task_id}
+- Criticality: {task.criticality}
+- Due Date: {task.duedate.strftime('%Y-%m-%d') if task.duedate else 'Not specified'}
+- Assignee: {task.assigned_to}
+- Status: {task.status}
+
+Please review this task and provide your feedback by logging into the ProSync system.
+
+You can review the task at: http://localhost:3000/tasks
+
+Best regards,
+ProSync Team"""
+
+                send_email(subject, reviewer.email_id, email_content)
+                print(f"✅ Review request notification sent to {reviewer.actor_name}")
+        except Exception as e:
+            print(f"Warning: Failed to send review request notification: {e}")
+            # Continue execution even if notification fails
+        
+        return jsonify({
+            "success": True, 
+            "message": "Reviewer assigned successfully",
+            "task": {
+                "id": task.task_id,
+                "reviewer": task.reviewer,
+                "reviewer_status": task.reviewer_status
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"🚨 ERROR in assign_reviewer: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
