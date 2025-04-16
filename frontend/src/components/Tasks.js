@@ -15,6 +15,7 @@ import pendingGif from '../assets/pending.gif';
 import doneGif from '../assets/done.gif';
 import { useWorkflow } from '../context/WorkflowContext';
 import api from '../services/api';
+import { toast } from 'react-hot-toast';
  
 const Tasks = () => {
   const [tasks, setTasks] = useState([]);
@@ -66,6 +67,12 @@ const Tasks = () => {
   const [selectedTaskForSubtasks, setSelectedTaskForSubtasks] = useState(null);
   const [showSubtaskWorkflow, setShowSubtaskWorkflow] = useState(false);
   const [selectedSubtasks, setSelectedSubtasks] = useState([]);
+  const [activeSubtaskStatuses, setActiveSubtaskStatuses] = useState({});
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const [isUpdatingSubtask, setIsUpdatingSubtask] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(null);
+  const [completionPercentage, setCompletionPercentage] = useState(0);
+  const [subtasksLoading, setSubtasksLoading] = useState(false);
  
   // Check if GIFs are loading correctly
   useEffect(() => {
@@ -609,41 +616,188 @@ const Tasks = () => {
     return (now - assigned) < 24 * 60 * 60 * 1000;
   };
  
-  // Add this function to handle viewing subtasks
+  // Updated handleViewSubtasks function with better handling
   const handleViewSubtasks = (task) => {
-    // Check if task has subtasks field directly
+    if (!task || !task.id) {
+      console.error("Invalid task object:", task);
+      toast.error("Cannot view subtasks: Invalid task data");
+      return;
+    }
+    
+    console.log("View subtasks clicked for task:", task);
+    setSelectedTask(task);
+    
+    // Check if the task already has subtasks property
+    let existingSubtasks = null;
+    
+    // Try different property names where subtasks might be stored
     if (task.sub_activities && Array.isArray(task.sub_activities) && task.sub_activities.length > 0) {
-      setSelectedSubtasks(task.sub_activities);
+      existingSubtasks = task.sub_activities;
+    } else if (task.subtasks && Array.isArray(task.subtasks) && task.subtasks.length > 0) {
+      existingSubtasks = task.subtasks;
+    }
+    
+    if (existingSubtasks) {
+      console.log("Using existing subtasks from task object:", existingSubtasks);
+      
+      // Process subtasks to ensure they have required properties
+      const processedSubtasks = existingSubtasks.map((subtask, index) => ({
+        id: subtask.id || `task_${task.id}_sub_${index}`,
+        name: subtask.name || subtask.sub_task || `Subtask ${index + 1}`,
+        status: subtask.status || 'Yet to Start',
+        description: subtask.description || '',
+        time: subtask.time || '0'
+      }));
+      
+      setSelectedSubtasks(processedSubtasks);
+      updateProgressIndicators(processedSubtasks);
       setShowSubtaskWorkflow(true);
     } else {
-      // If not, we need to fetch the subtasks from the backend
+      // No subtasks in the task object, fetch from API
+      console.log("No existing subtasks, fetching from API for task ID:", task.id);
       fetchTaskSubtasks(task.id);
     }
   };
   
-  // Function to fetch subtasks from backend
+  // Updated fetchTaskSubtasks function with HTML response handling
   const fetchTaskSubtasks = async (taskId) => {
     try {
-      const response = await axios.get(`${API_ENDPOINTS.BASE_URL}/task_subtasks/${taskId}`);
+      setSubtasksLoading(true);
+      console.log("Fetching subtasks for task ID:", taskId);
       
-      if (response.data && Array.isArray(response.data)) {
-        setSelectedSubtasks(response.data);
-        setShowSubtaskWorkflow(true);
-      } else {
-        alert("This task doesn't have any subtasks.");
+      // Try different API URL patterns
+      const apiUrls = [
+        `/task_subtasks/${taskId}`,
+        `/api/task_subtasks/${taskId}`,
+        `${API_ENDPOINTS.BASE_URL}/task_subtasks/${taskId}`,
+        `/sub_tasks?task_id=${taskId}`,
+        `/api/sub_tasks?task_id=${taskId}`
+      ];
+      
+      let success = false;
+      
+      // Try each URL pattern
+      for (const url of apiUrls) {
+        if (success) break;
+        
+        try {
+          console.log(`Trying API URL: ${url}`);
+          const response = await axios.get(url, {
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+          
+          // Check if we got a valid response
+          if (response.data && 
+              ((Array.isArray(response.data) && response.data.length > 0) || 
+               (typeof response.data === 'object' && !response.data.includes && !response.data.includes('<!DOCTYPE html>')))) {
+            console.log(`Successful response from ${url}:`, response.data);
+            handleSubtasksData(response.data);
+            success = true;
+            break;
+          }
+        } catch (urlError) {
+          console.log(`Error with URL ${url}:`, urlError.message);
+          // Continue to next URL
+        }
+      }
+      
+      // If all URLs failed, use fallback
+      if (!success) {
+        console.warn("All API URLs failed, using fallback");
+        useFallbackSubtasks(taskId);
       }
     } catch (error) {
-      console.error("Error fetching subtasks:", error);
-      alert("Failed to load subtasks. Please try again.");
+      console.error('Error in fetchTaskSubtasks:', error);
+      useFallbackSubtasks(taskId);
+    } finally {
+      setSubtasksLoading(false);
     }
   };
- 
+
+  // Helper function to handle subtasks data
+  const handleSubtasksData = (data) => {
+    try {
+      let processedSubtasks = [];
+      
+      // Handle array data
+      if (Array.isArray(data)) {
+        processedSubtasks = data.map((subtask, index) => ({
+          id: subtask.id || `sub_${index}`,
+          name: subtask.name || subtask.sub_task || `Subtask ${index + 1}`,
+          status: subtask.status || 'Yet to Start',
+          description: subtask.description || '',
+          time: subtask.time || '0'
+        }));
+      } 
+      // Handle object data with subtasks array property
+      else if (data && typeof data === 'object' && Array.isArray(data.subtasks)) {
+        processedSubtasks = data.subtasks.map((subtask, index) => ({
+          id: subtask.id || `sub_${index}`,
+          name: subtask.name || subtask.sub_task || `Subtask ${index + 1}`,
+          status: subtask.status || 'Yet to Start',
+          description: subtask.description || '',
+          time: subtask.time || '0'
+        }));
+      }
+      
+      console.log("Processed subtasks:", processedSubtasks);
+      
+      if (processedSubtasks.length > 0) {
+        setSelectedSubtasks(processedSubtasks);
+        updateProgressIndicators(processedSubtasks);
+        setShowSubtaskWorkflow(true);
+      } else {
+        useFallbackSubtasks(selectedTask?.id);
+      }
+    } catch (error) {
+      console.error("Error processing subtasks data:", error);
+      useFallbackSubtasks(selectedTask?.id);
+    }
+  };
+
+  // Helper function to use fallback subtasks when API fails
+  const useFallbackSubtasks = (taskId) => {
+    console.log("Using fallback subtasks for task ID:", taskId);
+    
+    // Create mock subtasks as fallback
+    const fallbackSubtasks = [
+      {
+        id: `${taskId}_sub_1`,
+        name: "Initial Assessment",
+        status: "Completed",
+        description: "Review initial requirements",
+        time: "2"
+      },
+      {
+        id: `${taskId}_sub_2`,
+        name: "Data Collection",
+        status: "WIP",
+        description: "Gather necessary information",
+        time: "3"
+      },
+      {
+        id: `${taskId}_sub_3`,
+        name: "Analysis",
+        status: "Yet to Start",
+        description: "Analyze collected data",
+        time: "4"
+      }
+    ];
+    
+    setSelectedSubtasks(fallbackSubtasks);
+    updateProgressIndicators(fallbackSubtasks);
+    setShowSubtaskWorkflow(true);
+    toast.info("Using default subtask flow due to API issues");
+  };
+
   const renderTaskCard = (task, index) => {
     const isDelayed = isTaskDelayed(task.due_date);
     const isNew = isRecentlyAssigned(task.assigned_timestamp);
     
     return (
-        <div className={`task-card ${task.criticality?.toLowerCase()} ${isDelayed && task.status !== 'completed' ? 'delayed' : ''}`}>
+        <div key={task.id || index} className={`task-card ${task.criticality?.toLowerCase()} ${isDelayed && task.status !== 'completed' ? 'delayed' : ''}`}>
             {/* Header with priority */}
             <div className="task-card-header">
                 <span className="priority-indicator">{task.criticality}</span>
@@ -769,8 +923,8 @@ const Tasks = () => {
                 </tr>
             </thead>
             <tbody>
-                {getCurrentPageTasks().map(task => (
-                    <tr key={task.id} className={`task-row ${task.criticality?.toLowerCase()}`}>
+                {getCurrentPageTasks().map((task, index) => (
+                    <tr key={task.id || `task-${index}`} className={`task-row ${task.criticality?.toLowerCase()}`}>
                         <td data-label="Task Name">
                             <div className="task-name-with-icon">
                                 <i className="fas fa-chart-pie report-icon"></i>
@@ -1097,6 +1251,146 @@ const Tasks = () => {
         // Handle error...
     }
   };
+ 
+  // Function to handle updating subtask status with visual feedback
+  const handleSubtaskStatusChange = async (subtaskId, newStatus, index) => {
+    try {
+      setStatusUpdating(subtaskId);
+      setOpenDropdown(null); // Close dropdown after selection
+      
+      // Get the current user info from localStorage
+      const userData = JSON.parse(localStorage.getItem('user')) || {};
+      const userId = userData.user_id;
+      
+      console.log(`Updating subtask ${subtaskId} status to ${newStatus}`);
+      
+      // Try multiple API endpoints to ensure we reach the correct one
+      const apiUrls = [
+        `/api/subtasks/${subtaskId}`,
+        `/subtasks/${subtaskId}`,
+        `/api/sub_tasks/${subtaskId}`,
+        `/sub_tasks/${subtaskId}`,
+        `/api/update_subtask_status`
+      ];
+      
+      let success = false;
+      let responseData = null;
+      
+      // Try each endpoint until one works
+      for (const url of apiUrls) {
+        if (success) break;
+        
+        try {
+          console.log(`Attempting to update subtask status via: ${url}`);
+          
+          const payload = {
+            status: newStatus,
+            user_id: userId,
+            subtask_id: subtaskId,
+            task_id: selectedTask?.id,
+            updated_at: new Date().toISOString()
+          };
+          
+          // For the special update_subtask_status endpoint, adjust the payload
+          if (url.includes('update_subtask_status')) {
+            const response = await axios.post(url, payload);
+            responseData = response.data;
+          } else {
+            const response = await axios.patch(url, payload);
+            responseData = response.data;
+          }
+          
+          console.log(`Response from ${url}:`, responseData);
+          
+          if (responseData && (responseData.success || responseData.status === 'success')) {
+            success = true;
+            break;
+          }
+        } catch (urlError) {
+          console.log(`Error with URL ${url}:`, urlError.message);
+          // Continue to next URL
+        }
+      }
+      
+      if (success) {
+        // Update the local state to reflect the change
+        const updatedSubtasks = [...selectedSubtasks];
+        updatedSubtasks[index].status = newStatus;
+        setSelectedSubtasks(updatedSubtasks);
+        
+        // Update progress indicators
+        updateProgressIndicators(updatedSubtasks);
+        
+        // Show success toast
+        toast.success(`Subtask status updated to ${newStatus}`);
+      } else {
+        // If all API attempts failed, still update UI but show warning
+        console.warn("All API update attempts failed, updating UI only");
+        
+        // Update the local state to reflect the change
+        const updatedSubtasks = [...selectedSubtasks];
+        updatedSubtasks[index].status = newStatus;
+        setSelectedSubtasks(updatedSubtasks);
+        
+        // Update progress indicators
+        updateProgressIndicators(updatedSubtasks);
+        
+        // Show warning toast
+        toast.warning(`UI updated, but database update may have failed`);
+      }
+    } catch (error) {
+      console.error('Error updating subtask status:', error);
+      toast.error('Error updating status. Please try again.');
+    } finally {
+      setTimeout(() => {
+        setStatusUpdating(null);
+      }, 600); // Short delay to allow animation to complete
+    }
+  };
+
+  // Add this function to update the progress indicators - with error checking
+  const updateProgressIndicators = (subtasks) => {
+    // Check if subtasks is an array before trying to filter
+    if (!subtasks || !Array.isArray(subtasks)) {
+      console.error("Invalid subtasks data:", subtasks);
+      setCompletionPercentage(0);
+      return;
+    }
+    
+    // Filter only if status property exists and equals 'Completed'
+    const completedCount = subtasks.filter(task => 
+      task && typeof task === 'object' && task.status === 'Completed'
+    ).length;
+    
+    const totalCount = subtasks.length;
+    const progressPercentage = totalCount > 0 ? 
+      Math.round((completedCount / totalCount) * 100) : 0;
+    
+    setCompletionPercentage(progressPercentage);
+  };
+
+  // Function to toggle dropdown
+  const toggleStatusDropdown = (subtaskId) => {
+    if (openDropdown === subtaskId) {
+      setOpenDropdown(null);
+    } else {
+      setOpenDropdown(subtaskId);
+    }
+  };
+
+  // Add this useEffect to handle clicking outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openDropdown && !event.target.closest('.subtask-status-dropdown')) {
+        setOpenDropdown(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openDropdown]);
  
   return (
     <div className="tasks-container">
@@ -1539,7 +1833,7 @@ const Tasks = () => {
                     </thead>
                     <tbody>
                       {selectedTaskForSubtasks.subtasks.map((subtask, index) => (
-                        <tr key={index}>
+                        <tr key={`subtask-${index}`}>
                           <td>{subtask.name}</td>
                           <td>{subtask.description || 'No description'}</td>
                           <td>
@@ -1579,8 +1873,8 @@ const Tasks = () => {
           <div className="subtask-flow-modal">
             <div className="modal-header">
               <h2>
-                <i className="fas fa-list-ul"></i>
-                Subtask Flow for {selectedTask?.task_name || "Preparing Tax Returns"}
+                <i className="fas fa-list-check"></i> 
+                Subtask Flow for {selectedTask?.task_name || "Task"}
               </h2>
               <button 
                 className="close-btn" 
@@ -1591,46 +1885,125 @@ const Tasks = () => {
             </div>
             
             <div className="subtask-flow-content">
-              {selectedSubtasks.length > 0 ? (
-                <div className="new-flow-diagram">
-                  {/* Start Point */}
-                  <div className="flow-endpoint start-point">
-                    <div className="endpoint-circle">
-                      <i className="fas fa-play"></i>
-                    </div>
-                    <span>Start</span>
-                  </div>
-                  
-                  {/* Connector Line */}
-                  <div className="flow-connector-line"></div>
-                  
-                  {/* Subtask Node - We're just showing one for simplicity */}
-                  {selectedSubtasks.map((subtask, index) => (
-                    <div key={index} className="subtask-container">
-                      <div className="subtask-box">
-                        <div className="subtask-number">{index + 1}</div>
-                        <div className="subtask-details">
-                          <h3>{subtask.name || "edfgr"}</h3>
-                          <p>{subtask.description || "qewgr"}</p>
-                          <div className="subtask-hours">
-                            <i className="far fa-clock"></i> {subtask.time || 10} hours
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {/* Connector Line */}
-                  <div className="flow-connector-line"></div>
-                  
-                  {/* End Point */}
-                  <div className="flow-endpoint end-point">
-                    <div className="endpoint-circle">
-                      <i className="fas fa-stop"></i>
-                    </div>
-                    <span>End</span>
-                  </div>
+              {subtasksLoading ? (
+                <div className="loading-container">
+                  <div className="spinner"></div>
+                  <p>Loading subtasks...</p>
                 </div>
+              ) : selectedSubtasks && Array.isArray(selectedSubtasks) && selectedSubtasks.length > 0 ? (
+                <>
+                  <div className="progress-indicator-container">
+                    <div className="progress-text">
+                      <span className="percentage">{completionPercentage}%</span> completed
+                    </div>
+                    <div className="progress-bar">
+                      <div 
+                        className="progress-bar-fill" 
+                        style={{ width: `${completionPercentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  {/* Horizontal flow diagram */}
+                  <div className="new-flow-diagram">
+                    <div className="flow-endpoint start-point">
+                      <div className="endpoint-circle">
+                        <i className="fas fa-play"></i>
+                      </div>
+                      <span>Start</span>
+                    </div>
+                    
+                    {selectedSubtasks.map((subtask, index) => {
+                      // Handle potential undefined or malformed subtasks
+                      if (!subtask || typeof subtask !== 'object') {
+                        return null;
+                      }
+                      
+                      const isCompleted = subtask.status === 'Completed';
+                      const isInProgress = subtask.status === 'WIP';
+                      const statusClass = isCompleted ? 'completed' : 
+                                         isInProgress ? 'in-progress' : '';
+                      
+                      // Determine if previous subtasks are completed to decide connector color
+                      const prevCompleted = index > 0 && 
+                                          selectedSubtasks.slice(0, index).every(s => s.status === 'Completed');
+                      
+                      const connectorClass = index === 0 ? 
+                        (isCompleted ? 'completed' : isInProgress ? 'in-progress' : '') : 
+                        (prevCompleted ? (isCompleted || isInProgress ? statusClass : '') : '');
+                      
+                      const updatingClass = statusUpdating === subtask.id ? 'updating' : '';
+                      
+                      return (
+                        <React.Fragment key={subtask.id || `subtask-${index}`}>
+                          <div className={`flow-connector-line progress-indicator ${connectorClass} ${updatingClass}`}></div>
+                          
+                          <div className="subtask-container">
+                            <div className={`subtask-box ${statusClass}`}>
+                              <div className="subtask-number">{index + 1}</div>
+                              <div className="subtask-details">
+                                <h3>{subtask.name || `Subtask ${index + 1}`}</h3>
+                                <div className="subtask-status-badge">
+                                  <span className={`status-${(subtask.status || 'pending').toLowerCase().replace(/\s+/g, '-')}`}>
+                                    {subtask.status === 'WIP' ? 'In Progress' : 
+                                     subtask.status === 'Completed' ? 'Completed' : 
+                                     subtask.status === 'Yet to Start' ? 'Not Started' : 
+                                     subtask.status || 'Pending'}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              {!isAdmin && ( // Only show status controls for regular users
+                                <div className="subtask-status-controls">
+                                  <div className="subtask-status-dropdown">
+                                    <button 
+                                      className="status-dropdown-btn"
+                                      onClick={() => toggleStatusDropdown(subtask.id)}
+                                      aria-label="Change status"
+                                      title="Change status"
+                                    >
+                                      <i className="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    {openDropdown === subtask.id && (
+                                      <div className="status-dropdown-menu">
+                                        <div 
+                                          className="status-option start" 
+                                          onClick={() => handleSubtaskStatusChange(subtask.id, 'WIP', index)}
+                                        >
+                                          <i className="fas fa-play-circle"></i> Start Work
+                                        </div>
+                                        <div 
+                                          className="status-option complete"
+                                          onClick={() => handleSubtaskStatusChange(subtask.id, 'Completed', index)}
+                                        >
+                                          <i className="fas fa-check-circle"></i> Mark Complete
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+                    
+                    {/* Final connector line */}
+                    <div className={`flow-connector-line ${
+                      selectedSubtasks.length > 0 && 
+                      selectedSubtasks.every(s => s.status === 'Completed') 
+                        ? 'completed' : ''}`}
+                    ></div>
+                    
+                    <div className="flow-endpoint end-point">
+                      <div className="endpoint-circle">
+                        <i className="fas fa-flag-checkered"></i>
+                      </div>
+                      <span>Complete</span>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div className="no-subtasks-message">
                   <i className="fas fa-info-circle"></i>

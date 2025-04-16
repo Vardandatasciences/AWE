@@ -423,13 +423,7 @@ def assign_activity():
         link = data.get('link', '')
         frequency = data.get('frequency', '1')
         status = data.get('status', 'Yet to Start')
-        sub_tasks = data.get('sub_tasks', '[]')  # Get sub_tasks as JSON string
         
-        try:
-            sub_tasks = json.loads(sub_tasks)  # Parse JSON string to list
-        except:
-            sub_tasks = []  # Default to empty list if parsing fails
-
         if not activity_id or not assigned_to or not customer_id:
             return jsonify({'success': False, 'message': '❌ Missing required fields'}), 400
 
@@ -437,7 +431,19 @@ def assign_activity():
         activity = Activity.query.filter_by(activity_id=activity_id).first()
         if not activity:
             return jsonify({'success': False, 'message': '❌ Invalid Activity'}), 400
-
+        
+        # Get subtasks from the activity
+        sub_activities = []
+        if activity.sub_activities:
+            try:
+                if isinstance(activity.sub_activities, str):
+                    sub_activities = json.loads(activity.sub_activities)
+                else:
+                    sub_activities = activity.sub_activities
+            except Exception as e:
+                print(f"❌ Error parsing subtasks: {e}")
+                sub_activities = []
+        
         if data.get('actor_id'):
             actor = Actor.query.filter_by(actor_id=data.get('actor_id')).first()
             initiator = actor.actor_name if actor else None
@@ -512,9 +518,9 @@ def assign_activity():
             )
             db.session.add(new_task)
             
-            # Add subtasks to sub_task table
-            if sub_tasks and isinstance(sub_tasks, list):
-                for subtask_item in sub_tasks:
+            # Add subtasks to sub_task table from the activity's sub_activities
+            if sub_activities and isinstance(sub_activities, list):
+                for subtask_item in sub_activities:
                     if isinstance(subtask_item, dict) and 'name' in subtask_item:
                         new_subtask = SubTask(
                             task_id=task_id,
@@ -522,6 +528,7 @@ def assign_activity():
                             status='Pending'
                         )
                         db.session.add(new_subtask)
+                        print(f"✅ Added subtask: {subtask_item.get('name', '')} for task {task_id}")
             
             db.session.commit()
             

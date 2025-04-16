@@ -232,16 +232,31 @@ const Activities = () => {
                 sub_activities: subtasks
             };
             
-            const response = await api.post('/add_activity', dataToSend);
+            let response;
             
-            if (response.data.activity) {
-                setActivities([response.data.activity, ...activities]);
+            if (editingActivity) {
+                // Update existing activity
+                response = await api.put('/update_activity', dataToSend);
+                
+                // Update the activities list with the edited activity
+                const updatedActivities = activities.map(act => 
+                    act.activity_id === editingActivity.activity_id ? response.data.activity : act
+                );
+                setActivities(updatedActivities);
+                
+                setSuccessMessage("Activity updated successfully");
             } else {
-                fetchActivities();
+                // Add new activity
+                response = await api.post('/add_activity', dataToSend);
+                
+                if (response.data.activity) {
+                    setActivities([response.data.activity, ...activities]);
+                } else {
+                    fetchActivities();
+                }
+                
+                setSuccessMessage("Activity added successfully");
             }
-            
-            // Show success message
-            setSuccessMessage("Activity added successfully");
             
             // Reset form and close modal
             setShowForm(false);
@@ -1335,7 +1350,7 @@ const fetchActivityReport = async (activityId) => {
                             
                             <div className="form-actions">
                                 <button type="submit" className="btn-save">
-                                    <i className="fas fa-save"></i> Save
+                                    <i className="fas fa-save"></i> {editingActivity ? 'Update Details' : 'Save'}
                                 </button>
                                 <button 
                                     type="button" 
