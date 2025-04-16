@@ -1,370 +1,622 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Home.css';
 import { showWorkflowGuide } from '../App';
 
-// Import multiple GIFs for a more dynamic experience
-import taskManagementGif from '../assets/task-management.gif'; // Task management animation
-import analyticsGif from '../assets/analytics.gif'; // Analytics dashboard animation
-import teamworkGif from '../assets/teamwork.gif'; // Team collaboration animation
-import automationGif from '../assets/automation.gif'; // Workflow automation animation
+// Import videos and images for JSW Steel company
+import manufacturingGif from '../assets/manufacturing.mp4';
+import manufacturingGif1 from '../assets/manufacturing1.mp4';
+import qualityControlGif from '../assets/quality_control.mp4';
+import supplyChainGif from '../assets/supply_chain.mp4';
+import sustainabilityGif from '../assets/sustainability.mp4';
+import automationGif from '../assets/automation1.mp4';
+import aerialViewGif from '../assets/aerial_view.mp4';
+// Additional media imports
+import productionLineGif from '../assets/production_line.mp4';
+import internationalMarketGif from '../assets/international_market.mp4';
+import researchLabGif from '../assets/research_lab.mp4';
+// Import static images for products and clients
+import automotiveImg from '../assets/automotive.avif';
+import constructionImg from '../assets/construction.avif';
+import energyImg from '../assets/energy.avif';
+import appliancesImg from '../assets/appliances.avif';
+import client1 from '../assets/clients/client1.avif';
+import client2 from '../assets/clients/client2.avif';
+import client3 from '../assets/clients/client3.avif';
+import client4 from '../assets/clients/client4.avif';
+import client5 from '../assets/clients/client5.avif';
+import client6 from '../assets/clients/client6.avif';
 
 const Home = () => {
-  // Refs for animation elements
-  const featuresRef = useRef(null);
-  const benefitsRef = useRef(null);
-  const testimonialsRef = useRef(null);
   const navigate = useNavigate();
-
-  // Add scroll animation effect
-  useEffect(() => {
-    const observerOptions = {
-      threshold: 0.1,
-      rootMargin: '0px 0px -50px 0px'
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('animate-in');
-        }
-      });
-    }, observerOptions);
-
-    // Observe all sections with animation
-    const animatedElements = document.querySelectorAll('.animate-on-scroll');
-    animatedElements.forEach(el => observer.observe(el));
-
-    return () => {
-      animatedElements.forEach(el => observer.unobserve(el));
-    };
-  }, []);
-
+  const productsRef = useRef(null);
+  const partnersRef = useRef(null);
+  const globalPresenceRef = useRef(null);
+  const researchRef = useRef(null);
+  const [isVisible, setIsVisible] = useState({});
+  const [counters, setCounters] = useState({
+    revenue: 0,
+    employees: 0,
+    plants: 0,
+    countries: 0
+  });
+  
   // Handle Get Started button click
   const handleGetStartedClick = (e) => {
     e.preventDefault();
     console.log("Home: Get Started button clicked");
 
-
     const user = JSON.parse(localStorage.getItem('user'));
 
     if (user) {
       if (user.role != 'admin') {
-        navigate('/tasks');  // Redirect Admin to Employee Page
+        navigate('/tasks');
       } else {
-        showWorkflowGuide();     // Redirect User to Tasks Page
+        showWorkflowGuide();
       }
     } else {
-      showWorkflowGuide();      // Redirect to Login if Not Authenticated
+      showWorkflowGuide();
     }
-
-
-
   };
+
+  // Counter animation for stats
+  useEffect(() => {
+    const duration = 2000; // ms
+    const frameDuration = 1000/60; // 60fps
+    const totalFrames = Math.round(duration / frameDuration);
+    
+    let frame = 0;
+    const counter = setInterval(() => {
+      frame++;
+      const progress = frame / totalFrames;
+      
+      setCounters({
+        revenue: Math.floor(progress * 27000),
+        employees: Math.floor(progress * 40000),
+        plants: Math.floor(progress * 12),
+        countries: Math.floor(progress * 100)
+      });
+      
+      if (frame === totalFrames) {
+        clearInterval(counter);
+      }
+    }, frameDuration);
+    
+    return () => clearInterval(counter);
+  }, []);
+
+  // Intersection observer for animations
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            setIsVisible(prev => ({
+              ...prev,
+              [entry.target.id]: true
+            }));
+          }
+        });
+      },
+      { threshold: 0.2 }
+    );
+
+    const sections = [
+      productsRef.current,
+      partnersRef.current,
+      globalPresenceRef.current,
+      researchRef.current
+    ];
+
+    sections.forEach(section => {
+      if (section) observer.observe(section);
+    });
+
+    return () => {
+      sections.forEach(section => {
+        if (section) observer.unobserve(section);
+      });
+    };
+  }, []);
 
   return (
     <div className="home-container">
-      {/* Hero Section with Animated Background */}
-      <section className="hero">
-        <div className="hero-background">
-          <div className="animated-shapes">
-            <div className="shape shape-1"></div>
-            <div className="shape shape-2"></div>
-            <div className="shape shape-3"></div>
-            <div className="shape shape-4"></div>
-          </div>
-        </div>
+      {/* Hero Section */}
+      <section className="hero-section">
         <div className="hero-content">
-          <h1>Professional Work Sync</h1>
-          <p className="tagline">Streamline accounting processes. Enhance compliance. Maximize financial insights.</p>
+          <div className="company-badge">
+            <span>India's Premier Steel Producer</span>
+          </div>
+          <h1>JSW Steel: Forging India's Future</h1>
+          <p className="tagline">Leading the steel revolution with world-class manufacturing, sustainability, and innovative solutions.</p>
+          
+          <div className="hero-stats">
+            <div className="stat-item">
+              <div className="stat-number">₹{counters.revenue}+ Cr</div>
+              <div className="stat-label">Annual Revenue</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-number">{counters.employees}+</div>
+              <div className="stat-label">Employees</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-number">{counters.plants}</div>
+              <div className="stat-label">Plants</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-number">{counters.countries}+</div>
+              <div className="stat-label">Countries</div>
+            </div>
+          </div>
+          
           <div className="hero-buttons">
-            <button
-              className="btn btn-primary"
-              onClick={handleGetStartedClick}
-            >
-              <i className="fas fa-rocket"></i> Get Started
+            <button className="btn btn-primary" onClick={handleGetStartedClick}>
+              <i className="fas fa-rocket"></i> Explore Products
             </button>
-            <a href="#features" className="btn btn-secondary">
-              <i className="fas fa-info-circle"></i> Learn More
+            <a href="#manufacturing" className="btn btn-secondary">
+              <i className="fas fa-info-circle"></i> Our Capabilities
             </a>
           </div>
         </div>
         <div className="hero-visual">
-          <div className="gif-container primary-gif">
-            <img src={taskManagementGif} alt="Task Management" className="hero-gif" />
-            <div className="gif-overlay">
-              <span>Intelligent Professional Work Synchronisation</span>
-            </div>
+          <video src={manufacturingGif} autoPlay muted loop className="hero-video" />
+        </div>
+      </section>
+
+      {/* Manufacturing Section */}
+      <section id="manufacturing" className="feature-section">
+        <div className="feature-icon-container">
+          <div className="feature-icon">
+            <i className="fas fa-industry"></i>
+          </div>
+        </div>
+        
+        <div className="feature-content-container">
+          <h2 className="feature-title">Advanced Manufacturing</h2>
+          <p className="feature-description">
+            State-of-the-art blast furnaces, continuous casting, and hot rolling mills produce world-class steel products with precise specifications and exceptional quality.
+          </p>
+          
+          <ul className="feature-list">
+            <li><i className="fas fa-check-circle"></i> Hot rolled coils and sheets</li>
+            <li><i className="fas fa-check-circle"></i> Cold rolled products</li>
+            <li><i className="fas fa-check-circle"></i> Galvanized and galvalume steel</li>
+            <li><i className="fas fa-check-circle"></i> Tinplate and color-coated products</li>
+          </ul>
+          
+          <div className="feature-badge">
+            <i className="fas fa-star"></i>
+            <span>Industry-Leading Technology</span>
+          </div>
+        </div>
+        
+        <div className="feature-visual-container">
+          <div className="feature-visual-content">
+            <video src={manufacturingGif1} autoPlay muted loop className="feature-video" />
+            <div className="image-caption">Continuous Casting Process</div>
           </div>
         </div>
       </section>
 
-      {/* Value Proposition */}
-      <section className="value-proposition">
-        <div className="container">
-          <div className="value-cards">
-            <div className="value-card">
-              <div className="value-icon">
-                <i className="fas fa-bolt"></i>
-              </div>
-              <h3>Efficiency</h3>
-              <p>Reduce accounting workload by 75%</p>
-            </div>
-            <div className="value-card">
-              <div className="value-icon">
-                <i className="fas fa-chart-line"></i>
-              </div>
-              <h3>Accuracy</h3>
-              <p>Minimize errors in financial reporting</p>
-            </div>
-            <div className="value-card">
-              <div className="value-icon">
-                <i className="fas fa-shield-alt"></i>
-              </div>
-              <h3>Compliance</h3>
-              <p>Stay updated with tax regulations</p>
-            </div>
-            <div className="value-card">
-              <div className="value-icon">
-                <i className="fas fa-sync"></i>
-              </div>
-              <h3>Adaptability</h3>
-              <p>Customizable to your firm's needs</p>
-            </div>
+      {/* Quality Control Section */}
+      <section className="feature-section alt-section">
+        <div className="feature-icon-container">
+          <div className="feature-icon alt-icon">
+            <i className="fas fa-microscope"></i>
+          </div>
+        </div>
+        
+        <div className="feature-visual-container">
+          <div className="feature-visual-content">
+            <video src={qualityControlGif} autoPlay muted loop className="feature-video" />
+            <div className="image-caption">Advanced Quality Testing Lab</div>
+          </div>
+        </div>
+        
+        <div className="feature-content-container">
+          <h2 className="feature-title">Quality Control Systems</h2>
+          <p className="feature-description">
+            Rigorous testing at every production stage ensures consistent quality that meets the most demanding international standards.
+          </p>
+          
+          <ul className="feature-list">
+            <li><i className="fas fa-check-circle"></i> Metallurgical testing</li>
+            <li><i className="fas fa-check-circle"></i> Surface quality inspection</li>
+            <li><i className="fas fa-check-circle"></i> Mechanical property verification</li>
+            <li><i className="fas fa-check-circle"></i> Dimensional accuracy control</li>
+          </ul>
+          
+          <div className="feature-badge alt-badge">
+            <i className="fas fa-award"></i>
+            <span>ISO 9001:2015 Certified</span>
           </div>
         </div>
       </section>
 
-      {/* Features Section with GIFs */}
-      <section className="features animate-on-scroll" id="features" ref={featuresRef}>
-        <div className="container">
-          <div className="section-header">
-            <h2>Professional Work Management Solutions</h2>
-            <p>Comprehensive tools designed for accounting professionals</p>
-          </div>
-
-          <div className="feature-showcase">
-            <div className="feature-content">
-              <div className="feature-icon">
-                <i className="fas fa-tasks"></i>
-              </div>
-              <h3>Intelligent Tax Management</h3>
-              <p>Organize, prioritize, and track client tax filings with ease. Our smart algorithms help distribute workload efficiently across your accounting team.</p>
-              <ul className="feature-list">
-                <li><i className="fas fa-check-circle"></i> Automated tax deadline tracking</li>
-                <li><i className="fas fa-check-circle"></i> Priority-based client scheduling</li>
-                <li><i className="fas fa-check-circle"></i> Real-time audit monitoring</li>
-
-                {/* <li><i className="fas fa-check-circle"></i> Document management system</li> */}
-              </ul>
-            </div>
-            <div className="feature-visual">
-              <img src={taskManagementGif} alt="Tax Management" className="feature-gif" />
-            </div>
-          </div>
-
-          <div className="feature-showcase reverse">
-            <div className="feature-content">
-              <div className="feature-icon">
-                <i className="fas fa-chart-bar"></i>
-              </div>
-              <h3>Advanced Analytics Dashboard</h3>
-              <p>Gain valuable insights into your team's performance with comprehensive analytics and customizable reports.</p>
-              <ul className="feature-list">
-                <li><i className="fas fa-check-circle"></i> Performance metrics</li>
-                <li><i className="fas fa-check-circle"></i> Productivity trends</li>
-                <li><i className="fas fa-check-circle"></i> Resource utilization</li>
-                <li><i className="fas fa-check-circle"></i> Bottleneck identification</li>
-              </ul>
-            </div>
-            <div className="feature-visual">
-              <img src={analyticsGif} alt="Analytics Dashboard" className="feature-gif" />
-            </div>
-          </div>
-
-          <div className="feature-showcase">
-            <div className="feature-content">
-              <div className="feature-icon">
-                <i className="fas fa-users-cog"></i>
-              </div>
-              <h3>Team Collaboration Hub</h3>
-              <p>Foster teamwork and communication with integrated collaboration tools designed for modern workplaces.</p>
-              <ul className="feature-list">
-                <li><i className="fas fa-check-circle"></i> Task commenting</li>
-                {/* <li><i className="fas fa-check-circle"></i> File sharing</li> */}
-                <li><i className="fas fa-check-circle"></i> Team notifications</li>
-                <li><i className="fas fa-check-circle"></i> Activity feeds</li>
-              </ul>
-            </div>
-            <div className="feature-visual">
-              <img src={teamworkGif} alt="Team Collaboration" className="feature-gif" />
-            </div>
-          </div>
-
-          <div className="feature-showcase reverse">
-            <div className="feature-content">
-              <div className="feature-icon">
-                <i className="fas fa-robot"></i>
-              </div>
-              <h3>Workflow Automation</h3>
-              <p>Eliminate repetitive tasks with powerful automation tools that streamline your business processes.</p>
-              <ul className="feature-list">
-                <li><i className="fas fa-check-circle"></i> Custom workflow creation</li>
-                <li><i className="fas fa-check-circle"></i> Trigger-based actions</li>
-                <li><i className="fas fa-check-circle"></i> Scheduled tasks</li>
-                <li><i className="fas fa-check-circle"></i> Integration capabilities</li>
-              </ul>
-            </div>
-            <div className="feature-visual">
-              <img src={automationGif} alt="Workflow Automation" className="feature-gif" />
-            </div>
-          </div>
+      {/* Product Categories Section - NEW */}
+      <section id="products" className="products-section" ref={productsRef}>
+        <div className="section-header">
+          <h2>Innovative Steel Solutions</h2>
+          <p>Premium products engineered for diverse industrial applications</p>
         </div>
-      </section>
-
-      {/* Benefits Section with Animated Stats */}
-      <section className="benefits animate-on-scroll" id="benefits" ref={benefitsRef}>
-        <div className="container">
-          <div className="section-header">
-            <h2>Real Business Impact</h2>
-            <p>Measurable results that transform your organization</p>
-          </div>
-
-          <div className="benefits-grid">
-            <div className="benefit-card">
-              <div className="benefit-stat">
-                <span className="stat-number">40%</span>
-                <span className="stat-icon"><i className="fas fa-arrow-up"></i></span>
+        
+        <div className={`products-grid ${isVisible["products"] ? "animate-in" : ""}`}>
+          <div className="product-category">
+            <div className="product-image">
+              <img src={automotiveImg} alt="Automotive Steel" />
+              <div className="product-overlay">
+                <span>45% Market Share</span>
               </div>
-              <h3>Productivity Increase</h3>
-              <p>Teams report significant productivity gains within the first month</p>
             </div>
-
-            <div className="benefit-card">
-              <div className="benefit-stat">
-                <span className="stat-number">65%</span>
-                <span className="stat-icon"><i className="fas fa-arrow-down"></i></span>
-              </div>
-              <h3>Reduced Errors</h3>
-              <p>Fewer mistakes with automated workflows and validation</p>
+            <h3>Automotive Steel</h3>
+            <p>Advanced high-strength steel for modern vehicles with superior formability and crash resistance.</p>
+            <div className="product-specs">
+              <span>AHSS</span>
+              <span>Galvanealed</span>
+              <span>UHSS</span>
             </div>
-
-            <div className="benefit-card">
-              <div className="benefit-stat">
-                <span className="stat-number">30%</span>
-                <span className="stat-icon"><i className="fas fa-arrow-down"></i></span>
-              </div>
-              <h3>Time Savings</h3>
-              <p>Less time spent on administrative and repetitive tasks</p>
-            </div>
-
-            <div className="benefit-card">
-              <div className="benefit-stat">
-                <span className="stat-number">85%</span>
-                <span className="stat-icon"><i className="fas fa-users"></i></span>
-              </div>
-              <h3>Team Satisfaction</h3>
-              <p>Higher employee satisfaction through better work distribution</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section
-      <section className="testimonials animate-on-scroll" id="testimonials" ref={testimonialsRef}>
-        <div className="container">
-          <div className="section-header">
-            <h2>What Our Clients Say</h2>
-            <p>Success stories from organizations like yours</p>
           </div>
           
-          <div className="testimonial-carousel">
-            <div className="testimonial-card">
-              <div className="testimonial-content">
-                <i className="fas fa-quote-left"></i>
-                <p>"ProSync has transformed how we manage our accounting processes. Tasks that used to take days now happen automatically, and our team can focus on what really matters."</p>
-              </div>
-              <div className="testimonial-author">
-                <div className="author-avatar">
-                  <i className="fas fa-user-circle"></i>
-                </div>
-                <div className="author-info">
-                  <h4>Sarah Johnson</h4>
-                  <p>CFO, Global Innovations</p>
-                </div>
+          <div className="product-category">
+            <div className="product-image">
+              <img src={constructionImg} alt="Construction Steel" />
+              <div className="product-overlay">
+                <span>32% Market Share</span>
               </div>
             </div>
-            
-            <div className="testimonial-card">
-              <div className="testimonial-content">
-                <i className="fas fa-quote-left"></i>
-                <p>"The analytics dashboard gives us unprecedented visibility into our operations. We've identified and resolved bottlenecks we didn't even know existed."</p>
-              </div>
-              <div className="testimonial-author">
-                <div className="author-avatar">
-                  <i className="fas fa-user-circle"></i>
-                </div>
-                <div className="author-info">
-                  <h4>Michael Chen</h4>
-                  <p>Operations Director, TechSolutions</p>
-                </div>
+            <h3>Construction Steel</h3>
+            <p>High-tensile structural steel for buildings, bridges, and infrastructure with exceptional durability.</p>
+            <div className="product-specs">
+              <span>TMT Rebars</span>
+              <span>Steel Beams</span>
+              <span>Profiles</span>
+            </div>
+          </div>
+          
+          <div className="product-category">
+            <div className="product-image">
+              <img src={energyImg} alt="Energy Sector Steel" />
+              <div className="product-overlay">
+                <span>28% Market Share</span>
               </div>
             </div>
-            
-            <div className="testimonial-card">
-              <div className="testimonial-content">
-                <i className="fas fa-quote-left"></i>
-                <p>"Implementation was seamless, and the ROI was evident within weeks. Our regulatory compliance tasks are now completed on time, every time."</p>
+            <h3>Energy Sector</h3>
+            <p>Specialized steel for oil & gas, power generation, and renewable energy infrastructure.</p>
+            <div className="product-specs">
+              <span>API Grades</span>
+              <span>Wind Energy</span>
+              <span>Solar Structures</span>
+            </div>
+          </div>
+          
+          <div className="product-category">
+            <div className="product-image">
+              <img src={appliancesImg} alt="Appliance Steel" />
+              <div className="product-overlay">
+                <span>38% Market Share</span>
               </div>
-              <div className="testimonial-author">
-                <div className="author-avatar">
-                  <i className="fas fa-user-circle"></i>
-                </div>
-                <div className="author-info">
-                  <h4>Elena Rodriguez</h4>
-                  <p>Compliance Manager, FinSecure</p>
-                </div>
-              </div>
+            </div>
+            <h3>Appliances & Packaging</h3>
+            <p>Precision-finished steel for consumer durables, white goods, and food packaging applications.</p>
+            <div className="product-specs">
+              <span>Tinplate</span>
+              <span>Coated Steel</span>
+              <span>CRCA</span>
             </div>
           </div>
         </div>
-      </section> */}
+        
+        <div className="section-cta">
+          <button className="btn btn-secondary" onClick={handleGetStartedClick}>
+            <i className="fas fa-th-list"></i> View Complete Product Catalog
+          </button>
+        </div>
+      </section>
 
-      {/* Call to Action with Animated Background */}
-      <section className="cta">
-        <div className="cta-background">
-          <div className="animated-shapes">
-            <div className="shape shape-1"></div>
-            <div className="shape shape-2"></div>
+      {/* Supply Chain Section */}
+      <section className="feature-section">
+        <div className="feature-icon-container">
+          <div className="feature-icon">
+            <i className="fas fa-truck"></i>
           </div>
         </div>
+        
+        <div className="feature-content-container">
+          <h2 className="feature-title">Supply Chain Excellence</h2>
+          <p className="feature-description">
+            Integrated logistics and distribution network ensures timely delivery across India and global markets, supported by strategic port-based facilities.
+          </p>
+          
+          <ul className="feature-list">
+            <li><i className="fas fa-check-circle"></i> Port-based manufacturing facilities</li>
+            <li><i className="fas fa-check-circle"></i> Just-in-time delivery systems</li>
+            <li><i className="fas fa-check-circle"></i> Real-time shipment tracking</li>
+            <li><i className="fas fa-check-circle"></i> Multi-modal transportation network</li>
+          </ul>
+          
+          <div className="feature-badge">
+            <i className="fas fa-shipping-fast"></i>
+            <span>Global Logistics Excellence</span>
+          </div>
+        </div>
+        
+        <div className="feature-visual-container">
+          <div className="feature-visual-content">
+            <video src={supplyChainGif} autoPlay muted loop className="feature-video" />
+            <div className="image-caption">Integrated Logistics Network</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Global Presence Section - NEW */}
+      <section id="global-presence" className="global-presence-section" ref={globalPresenceRef}>
+        <div className="section-header">
+          <h2>Global Market Leadership</h2>
+          <p>Serving customers across continents with world-class steel products</p>
+        </div>
+        
+        <div className={`global-content ${isVisible["global-presence"] ? "animate-in" : ""}`}>
+          <div className="global-map-container">
+            <video src={internationalMarketGif} autoPlay muted loop className="global-map" />
+            <div className="map-markers">
+              <div className="map-marker india">
+                <span className="marker-label">India</span>
+                <div className="marker-dot"></div>
+              </div>
+              <div className="map-marker usa">
+                <span className="marker-label">USA</span>
+                <div className="marker-dot"></div>
+              </div>
+              <div className="map-marker europe">
+                <span className="marker-label">Europe</span>
+                <div className="marker-dot"></div>
+              </div>
+              <div className="map-marker middleeast">
+                <span className="marker-label">Middle East</span>
+                <div className="marker-dot"></div>
+              </div>
+              <div className="map-marker asia">
+                <span className="marker-label">Asia Pacific</span>
+                <div className="marker-dot"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="global-stats">
+            <div className="global-stat">
+              <div className="stat-value">140+</div>
+              <div className="stat-name">Countries Served</div>
+            </div>
+            <div className="global-stat">
+              <div className="stat-value">28%</div>
+              <div className="stat-name">Export Revenue</div>
+            </div>
+            <div className="global-stat">
+              <div className="stat-value">12</div>
+              <div className="stat-name">Global Offices</div>
+            </div>
+            <div className="global-stat">
+              <div className="stat-value">5</div>
+              <div className="stat-name">International Subsidiaries</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Sustainability Section */}
+      <section className="feature-section alt-section">
+        <div className="feature-icon-container">
+          <div className="feature-icon alt-icon">
+            <i className="fas fa-leaf"></i>
+          </div>
+        </div>
+        
+        <div className="feature-visual-container">
+          <div className="feature-visual-content">
+            <video src={sustainabilityGif} autoPlay muted loop className="feature-video" />
+            <div className="image-caption">Solar Power Integration at Plants</div>
+          </div>
+        </div>
+        
+        <div className="feature-content-container">
+          <h2 className="feature-title">Sustainability Initiatives</h2>
+          <p className="feature-description">
+            Leading the industry in sustainable steel production with revolutionary green technologies and commitment to environmental responsibility.
+          </p>
+          
+          <ul className="feature-list">
+            <li><i className="fas fa-check-circle"></i> Carbon capture technology</li>
+            <li><i className="fas fa-check-circle"></i> Renewable energy integration</li>
+            <li><i className="fas fa-check-circle"></i> Water conservation systems</li>
+            <li><i className="fas fa-check-circle"></i> Waste heat recovery & utilization</li>
+          </ul>
+          
+          <div className="feature-badge highlight-badge">
+            <i className="fas fa-leaf"></i>
+            <span>42% Carbon Reduction Since 2005</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Research & Innovation Section - NEW */}
+      <section id="research" className="research-section" ref={researchRef}>
+        <div className="research-content">
+          <div className="research-text">
+            <h2>Research & Innovation</h2>
+            <p>Our state-of-the-art R&D facilities drive continuous innovation in steel manufacturing processes and product development.</p>
+            
+            <div className={`research-highlights ${isVisible["research"] ? "animate-in" : ""}`}>
+              <div className="research-highlight">
+                <div className="highlight-icon">
+                  <i className="fas fa-flask"></i>
+                </div>
+                <div className="highlight-text">
+                  <h4>Advanced Materials Research</h4>
+                  <p>Developing next-generation high-performance steels with enhanced properties</p>
+                </div>
+              </div>
+              
+              <div className="research-highlight">
+                <div className="highlight-icon">
+                  <i className="fas fa-recycle"></i>
+                </div>
+                <div className="highlight-text">
+                  <h4>Sustainable Manufacturing</h4>
+                  <p>Pioneering low-carbon production technologies and circular economy solutions</p>
+                </div>
+              </div>
+              
+              <div className="research-highlight">
+                <div className="highlight-icon">
+                  <i className="fas fa-cogs"></i>
+                </div>
+                <div className="highlight-text">
+                  <h4>Process Optimization</h4>
+                  <p>Enhancing manufacturing efficiency through digitalization and automation</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="research-stats">
+              <div className="research-stat">
+                <div className="stat-number">300+</div>
+                <div className="stat-label">Patents</div>
+              </div>
+              <div className="research-stat">
+                <div className="stat-number">₹450 Cr</div>
+                <div className="stat-label">Annual R&D Investment</div>
+              </div>
+              <div className="research-stat">
+                <div className="stat-number">250+</div>
+                <div className="stat-label">Scientists & Engineers</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="research-visual">
+            <video src={researchLabGif} autoPlay muted loop className="research-video" />
+          </div>
+        </div>
+      </section>
+
+      {/* Industry 4.0 Section */}
+      <section className="feature-section">
+        <div className="feature-icon-container">
+          <div className="feature-icon">
+            <i className="fas fa-robot"></i>
+          </div>
+        </div>
+        
+        <div className="feature-content-container">
+          <h2 className="feature-title">Industry 4.0 Automation</h2>
+          <p className="feature-description">
+            Cutting-edge automation systems and digital technologies driving efficiency, precision, and productivity across all manufacturing processes.
+          </p>
+          
+          <ul className="feature-list">
+            <li><i className="fas fa-check-circle"></i> AI-powered process optimization</li>
+            <li><i className="fas fa-check-circle"></i> Robotics and automation</li>
+            <li><i className="fas fa-check-circle"></i> Digital twin technology</li>
+            <li><i className="fas fa-check-circle"></i> Predictive maintenance systems</li>
+          </ul>
+          
+          <div className="feature-badge">
+            <i className="fas fa-microchip"></i>
+            <span>Smart Manufacturing Leader</span>
+          </div>
+        </div>
+        
+        <div className="feature-visual-container">
+          <div className="feature-visual-content">
+            <video src={automationGif} autoPlay muted loop className="feature-video" />
+            <div className="image-caption">Robotic Manufacturing Systems</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Production Line Showcase - NEW */}
+      <section className="production-showcase">
         <div className="container">
-          <h2>Ready to Transform Your Professional Work Experience?</h2>
-          <p>Join hundreds of accounting firms already optimizing their operations with our financial automation platform.</p>
+          <div className="section-header">
+            <h2>Manufacturing Excellence</h2>
+            <p>Witness our integrated steel production process</p>
+          </div>
+          
+          <div className="production-video-container">
+            <video src={productionLineGif} autoPlay muted loop className="production-video" />
+            <div className="production-stats">
+              <div className="production-stage">
+                <div className="stage-number">01</div>
+                <div className="stage-name">Iron Making</div>
+                <div className="stage-detail">Blast furnaces with 4500m³ capacity</div>
+              </div>
+              <div className="production-stage">
+                <div className="stage-number">02</div>
+                <div className="stage-name">Steel Making</div>
+                <div className="stage-detail">BOF converters with 150T capacity</div>
+              </div>
+              <div className="production-stage">
+                <div className="stage-number">03</div>
+                <div className="stage-name">Continuous Casting</div>
+                <div className="stage-detail">State-of-the-art casters</div>
+              </div>
+              <div className="production-stage">
+                <div className="stage-number">04</div>
+                <div className="stage-name">Hot Rolling</div>
+                <div className="stage-detail">High-speed mills with 5000mm width</div>
+              </div>
+              <div className="production-stage">
+                <div className="stage-number">05</div>
+                <div className="stage-name">Value Addition</div>
+                <div className="stage-detail">Cold rolling, coating & finishing</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Trusted Partners Section - NEW */}
+      <section id="partners" className="partners-section" ref={partnersRef}>
+        <div className="section-header">
+          <h2>Trusted by Industry Leaders</h2>
+          <p>Partnering with global brands to deliver excellence</p>
+        </div>
+        
+        <div className={`partners-grid ${isVisible["partners"] ? "animate-in" : ""}`}>
+          <div className="partner-logo"><img src={client1} alt="Client Logo" /></div>
+          <div className="partner-logo"><img src={client2} alt="Client Logo" /></div>
+          <div className="partner-logo"><img src={client3} alt="Client Logo" /></div>
+          <div className="partner-logo"><img src={client4} alt="Client Logo" /></div>
+          <div className="partner-logo"><img src={client5} alt="Client Logo" /></div>
+          <div className="partner-logo"><img src={client6} alt="Client Logo" /></div>
+        </div>
+        
+        <div className="testimonial-slider">
+          <div className="testimonial">
+            <div className="testimonial-quote">
+              <i className="fas fa-quote-left"></i>
+              <p>JSW Steel has been our trusted supplier for over a decade. Their quality, reliability and innovation have been critical to our manufacturing success.</p>
+            </div>
+            <div className="testimonial-author">
+              <div className="author-name">Rajiv Bajaj</div>
+              <div className="author-title">Managing Director, Bajaj Auto</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Call to Action */}
+      <section className="cta-section">
+        <div className="cta-content">
+          <h2>Partner with JSW Steel for Your Manufacturing Needs</h2>
+          <p>Join thousands of businesses already trusting JSW Steel for quality, reliability, and innovation.</p>
           <div className="cta-buttons">
-            <button
-              className="btn btn-primary btn-large"
-              onClick={handleGetStartedClick}
-            >
-              <i className="fas fa-rocket"></i> Schedule a Demo
+            <button className="btn btn-primary btn-large" onClick={handleGetStartedClick}>
+              <i className="fas fa-file-signature"></i> Request a Quote
             </button>
             <Link to="/contact" className="btn btn-outline btn-large">
-              <i className="fas fa-headset"></i> Speak to an Advisor
+              <i className="fas fa-headset"></i> Contact Our Team
             </Link>
-          </div>
-          <div className="cta-features">
-            <div className="cta-feature">
-              <i className="fas fa-check-circle"></i>
-              <span>No credit card required</span>
-            </div>
-            <div className="cta-feature">
-              <i className="fas fa-check-circle"></i>
-              <span>14-day free trial</span>
-            </div>
-            <div className="cta-feature">
-              <i className="fas fa-check-circle"></i>
-              <span>Dedicated support</span>
-            </div>
           </div>
         </div>
       </section>

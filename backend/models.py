@@ -174,7 +174,7 @@ class Task(db.Model):
 class SubTask(db.Model):
     __tablename__ = 'sub_task'
     
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True,autoincrement=True)
     task_id = db.Column(db.String(50), db.ForeignKey('tasks.task_id'), nullable=False)
     sub_task = db.Column(db.JSON)
     status = db.Column(db.String(50), default='Pending')

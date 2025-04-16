@@ -228,7 +228,7 @@ const Auditors = () => {
                   </div>
                 </div>
               </div>
-              <h3 className="stat-title">Auditors</h3>
+              <h3 className="stat-title">Plant Managers</h3>
             </div>
           </div>
 
@@ -237,7 +237,7 @@ const Auditors = () => {
             <div className="action-buttons">
               <button className="quick-action-btn" onClick={handleAddAuditor}>
                 <i className="fas fa-user-plus"></i>
-                <span>New Auditor</span>
+                <span>New Plant Manager</span>
               </button>
             </div>
           </div>
@@ -251,7 +251,7 @@ const Auditors = () => {
                   <i className="fas fa-search"></i>
                   <input
                     type="text"
-                    placeholder="Search auditors..."
+                    placeholder="Search plant managers..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />

@@ -22,11 +22,11 @@ const SubNav = () => {
         {isAdmin && (
           <>
             <NavLink to="/auditors" className={({ isActive }) => isActive ? 'active' : ''}>
-              <i className="fas fa-user-tie"></i> Auditors
+              <i className="fas fa-user-tie"></i> Plant Managers
             </NavLink>
 
             <NavLink to="/clients" className={({ isActive }) => isActive ? 'active' : ''}>
-              <i className="fas fa-building"></i> Clients
+              <i className="fas fa-building"></i> Customers
             </NavLink>
 
             <NavLink to="/activities" className={({ isActive }) => isActive ? 'active' : ''}>

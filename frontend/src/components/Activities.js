@@ -860,7 +860,7 @@ const fetchActivityReport = async (activityId) => {
                             <div className="stat-details">
                                 <div className="stat-detail">
                                     <span className="detail-dot customer"></span>
-                                    <span>Client Activities</span>
+                                    <span>Customer Activities</span>
                                 </div>
                             </div>
                         </div>
@@ -1002,8 +1002,8 @@ const fetchActivityReport = async (activityId) => {
             ) : !selectedClient ? (
                 <div className="empty-state">
                     <i className="fas fa-users"></i>
-                    <h3>Select a Client</h3>
-                    <p>Please select a client to view their activities</p>
+                    <h3>Select a Customer</h3>
+                    <p>Please select a customer to view their activities</p>
                 </div>
             ) : filteredActivities.length > 0 ? (
                 <div className={viewMode === 'grid' ? 'activity-grid' : 'activity-list'}>

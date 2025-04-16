@@ -221,7 +221,7 @@ const Clients = () => {
                   </div>
                 </div>
               </div>
-              <h3 className="stat-title">Clients</h3>
+              <h3 className="stat-title">Customers</h3>
             </div>
           </div>
 
@@ -230,7 +230,7 @@ const Clients = () => {
             <div className="action-buttons">
               <button className="quick-action-btn" onClick={handleAddCustomer}>
                 <i className="fas fa-building"></i>
-                <span>New Client</span>
+                <span>New Customer</span>
               </button>
             </div>
           </div>
@@ -244,7 +244,7 @@ const Clients = () => {
                   <i className="fas fa-search"></i>
                   <input
                     type="text"
-                    placeholder="Search clients..."
+                    placeholder="Search customers..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -268,7 +268,7 @@ const Clients = () => {
           {loading ? (
             <div className="loading-container">
               <div className="spinner"></div>
-              <p>Loading clients...</p>
+              <p>Loading customers...</p>
             </div>
           ) : getFilteredData().length > 0 ? (
             <div className="card-grid">
@@ -386,8 +386,8 @@ const Clients = () => {
           ) : (
             <div className="empty-state">
               <i className="fas fa-folder-open"></i>
-              <h3>No clients found</h3>
-              <p>There are no clients to display.</p>
+              <h3>No customers found</h3>
+              <p>There are no customers to display.</p>
               <button className="add-button" onClick={handleAddCustomer}>
                 <i className="fas fa-plus"></i> Add New Client
               </button>

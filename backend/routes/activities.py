@@ -413,9 +413,14 @@ def get_frequency(activity_id):
 @activities_bp.route('/assign_activity', methods=['POST'])
 def assign_activity():
     try:
-        data = request.form
+        # Change from using request.form to request.json or handle both
+        if request.is_json:
+            data = request.json
+        else:
+            data = request.form
+            
         print("📥 Received Data for Task Assignment:", data)
-
+        
         activity_id = data.get('task_name')
         assigned_to = data.get('assigned_to')
         customer_id = data.get('customer_id')
@@ -423,12 +428,22 @@ def assign_activity():
         link = data.get('link', '')
         frequency = data.get('frequency', '1')
         status = data.get('status', 'Yet to Start')
-        sub_tasks = data.get('sub_tasks', '[]')  # Get sub_tasks as JSON string
+        
+        # Debug the sub_tasks parameter
+        print("Raw sub_tasks:", data.get('sub_tasks'))
         
         try:
-            sub_tasks = json.loads(sub_tasks)  # Parse JSON string to list
-        except:
-            sub_tasks = []  # Default to empty list if parsing fails
+            # Try to parse the JSON string - handle both string and direct JSON
+            sub_tasks_data = data.get('sub_tasks', '[]')
+            if isinstance(sub_tasks_data, str):
+                sub_tasks = json.loads(sub_tasks_data)
+            else:
+                sub_tasks = sub_tasks_data
+                
+            print("Parsed sub_tasks:", sub_tasks)
+        except Exception as e:
+            print(f"Error parsing sub_tasks: {e}")
+            sub_tasks = []
 
         if not activity_id or not assigned_to or not customer_id:
             return jsonify({'success': False, 'message': '❌ Missing required fields'}), 400
@@ -452,6 +467,10 @@ def assign_activity():
         due_by = activity.due_by
         activity_type = activity.activity_type
         
+        # Use activity.sub_activities as the source of sub-tasks rather than relying on frontend
+        sub_tasks = activity.sub_activities if activity.sub_activities else []
+        print(f"Activity sub_activities: {sub_tasks}")
+
         # Check if Employee Exists
         assigned_actor = Actor.query.filter_by(actor_name=assigned_to).first()
         if not assigned_actor:
@@ -513,15 +532,59 @@ def assign_activity():
             db.session.add(new_task)
             
             # Add subtasks to sub_task table
-            if sub_tasks and isinstance(sub_tasks, list):
+            if sub_tasks:
+                print(f"Adding {len(sub_tasks)} subtasks")
                 for subtask_item in sub_tasks:
+                    print(f"Processing subtask: {subtask_item}")
+                    subtask_text = None
+                    
                     if isinstance(subtask_item, dict) and 'name' in subtask_item:
+                        subtask_text = subtask_item.get('name', '')
+                    elif isinstance(subtask_item, str):
+                        subtask_text = subtask_item
+                    else:
+                        subtask_text = str(subtask_item)
+                        
+                    # Remove any extra quotes that might be in the text
+                    if subtask_text:
+                        # Strip quotes if they exist at beginning and end
+                        subtask_text = subtask_text.strip('"\'')
+                        
                         new_subtask = SubTask(
                             task_id=task_id,
-                            sub_task=subtask_item.get('name', ''),
-                            status='Pending'
+                            sub_task=subtask_text,
+                            status='Not Started'
                         )
                         db.session.add(new_subtask)
+                        print(f"Added subtask (cleaned): {subtask_text}")
+            
+            # After adding the task, add a failsafe to ensure subtasks are inserted
+            if activity.sub_activities and not sub_tasks:
+                print("Using direct SQL approach to insert subtasks")
+                try:
+                    for subtask_item in activity.sub_activities:
+                        subtask_text = None
+                        
+                        if isinstance(subtask_item, dict) and 'name' in subtask_item:
+                            subtask_text = subtask_item.get('name', '')
+                        elif isinstance(subtask_item, str):
+                            subtask_text = subtask_item
+                        else:
+                            subtask_text = str(subtask_item)
+                            
+                        # Remove any extra quotes
+                        if subtask_text:
+                            subtask_text = subtask_text.strip('"\'')
+                            
+                            new_subtask = SubTask(
+                                task_id=task_id,
+                                sub_task=subtask_text,
+                                status='Not Started'
+                            )
+                            db.session.add(new_subtask)
+                            print(f"Added subtask (cleaned): {subtask_text}")
+                except Exception as subtask_error:
+                    print(f"Error adding subtasks: {subtask_error}")
             
             db.session.commit()
             

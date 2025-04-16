@@ -449,6 +449,16 @@ const Login = () => {
                 <p>Stay updated with timely alerts and reminders</p>
               </div>
             </div>
+
+            <div className="feature-item" data-aos="fade-up" data-aos-delay="300">
+              <div className="feature-icon">
+                <i className="fas fa-bell"></i>
+              </div>
+              <div className="feature-text">
+                <h4>Automated Daily Scrum</h4>
+                <p>Get daily updates on your tasks and progress</p>
+              </div>
+            </div>
            
             <div className="feature-item" data-aos="fade-up" data-aos-delay="400">
               <div className="feature-icon">

@@ -40,4 +40,25 @@ api.interceptors.response.use(
   }
 );
 
+const handleApiError = (error) => {
+  console.error("API Error:", error);
+  
+  // Check if it's a network error
+  if (!error.response) {
+    return Promise.reject({ 
+      message: "Network error: Please check your connection"
+    });
+  }
+  
+  // Handle specific HTTP errors
+  if (error.response.status === 500) {
+    return Promise.reject({
+      message: "Server error: Something went wrong on the server"
+    });
+  }
+  
+  // Return the error response for other cases
+  return Promise.reject(error.response.data || error);
+};
+
 export default api; 

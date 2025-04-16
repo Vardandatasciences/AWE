@@ -10,6 +10,7 @@ const AssignActivity = ({ activityId, onClose }) => {
   const [frequency, setFrequency] = useState(""); 
   const actor_id = localStorage.getItem('actor_id');
   const actor_name= localStorage.getItem('actor_name');
+  const [subTasks, setSubTasks] = useState([]);
   console.log("User User ID:", actor_id);
   console.log("User User Name:", actor_name)
 
@@ -85,6 +86,22 @@ const AssignActivity = ({ activityId, onClose }) => {
     }
   }, [activityId]);
   
+  useEffect(() => {
+    if (activityId) {
+      axios.get(`http://127.0.0.1:5000/activities`)
+        .then(response => {
+          if (Array.isArray(response.data)) {
+            const activity = response.data.find(act => act.activity_id === parseInt(activityId));
+            if (activity && activity.sub_activities) {
+              setSubTasks(activity.sub_activities);
+            }
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching activity sub-tasks:", error);
+        });
+    }
+  }, [activityId]);
 
   const handleAssign = () => {
     if (!selectedAssignee || !selectedCustomer) {
@@ -94,22 +111,32 @@ const AssignActivity = ({ activityId, onClose }) => {
   
     // Retrieve assigning user's info from local storage
     const actor_id = localStorage.getItem("actor_id");
-    const actor_name = localStorage.getItem("actor_name");
-  
+    
     console.log("Assigning activity...");
-    console.log("Assigned by (Local Storage):", actor_id, actor_name);
-  
-    const assignmentData = {
-      activity_id: activityId,
-      assignee_id: selectedAssignee,
-      customer_id: selectedCustomer,
-      actor_id: actor_id,
-      actor_name: actor_name
-    };
-  
-    axios.post("http://127.0.0.1:5000/assign_activity", assignmentData)
+    console.log("Current subtasks:", subTasks);
+    
+    // Use Axios with formData
+    const formData = new FormData();
+    formData.append("task_name", activityId);
+    formData.append("assigned_to", selectedAssignee);
+    formData.append("customer_id", selectedCustomer);
+    formData.append("actor_id", actor_id);
+    
+    // Make sure we're properly serializing the subTasks
+    if (subTasks && subTasks.length > 0) {
+      formData.append("sub_tasks", JSON.stringify(subTasks));
+      console.log("Added subtasks to form data:", JSON.stringify(subTasks));
+    }
+
+    // Debug what's being sent
+    for (let pair of formData.entries()) {
+      console.log(pair[0] + ': ' + pair[1]);
+    }
+
+    // Send the form data
+    axios.post("http://127.0.0.1:5000/assign_activity", formData)
       .then(response => {
-        alert(`Activity assigned successfully by ${actor_name}`);
+        alert(`Activity assigned successfully`);
         onClose();
       })
       .catch(error => {

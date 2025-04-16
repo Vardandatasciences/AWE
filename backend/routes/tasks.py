@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Task, ActivityAssignment, Actor, Diary1 ,Activity,Customer
+from models import db, Task, ActivityAssignment, Actor, Diary1, Activity, Customer, SubTask
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -54,28 +54,54 @@ def get_tasks():
         tasks = query.all()
         print(f"Found {len(tasks)} tasks for the given filters")
         
-        # Convert tasks to response format
-        tasks_response = [{
-            'id': str(task.task_id),
-            'task_name': task.task_name,
-            'link': task.link,
-            'status': task.status,
-            'criticality': task.criticality,
-            'assignee': task.assigned_to,
-            'actor_id': str(task.actor_id),
-            'due_date': task.duedate.isoformat() if task.duedate else None,
-            'initiator': task.initiator,
-            'time_taken': task.duration,
-            'customer_name': task.customer_name,
-            'title': task.task_name,
-            'remarks': task.remarks,
-            'assigned_timestamp': task.assigned_timestamp.isoformat() if task.assigned_timestamp else None
-        } for task in tasks]
+        # Convert tasks to response format with proper type checking
+        tasks_response = []
+        for task in tasks:
+            # Handle date/datetime fields safely
+            due_date = None
+            if task.duedate:
+                if isinstance(task.duedate, str):
+                    # It's already a string, no need to convert
+                    due_date = task.duedate
+                else:
+                    # It's a date/datetime object, convert to ISO format
+                    due_date = task.duedate.isoformat()
+            
+            # Handle assigned_timestamp safely
+            assigned_timestamp = None
+            if task.assigned_timestamp:
+                if isinstance(task.assigned_timestamp, str):
+                    # It's already a string, no need to convert
+                    assigned_timestamp = task.assigned_timestamp
+                else:
+                    # It's a datetime object, convert to ISO format
+                    assigned_timestamp = task.assigned_timestamp.isoformat()
+            
+            # Create task response object
+            task_data = {
+                'id': str(task.task_id),
+                'task_name': task.task_name,
+                'link': task.link,
+                'status': task.status,
+                'criticality': task.criticality,
+                'assignee': task.assigned_to,
+                'actor_id': str(task.actor_id),
+                'due_date': due_date,
+                'initiator': task.initiator,
+                'time_taken': task.duration,
+                'customer_name': task.customer_name,
+                'title': task.task_name,
+                'remarks': task.remarks,
+                'assigned_timestamp': assigned_timestamp
+            }
+            tasks_response.append(task_data)
         
         return jsonify(tasks_response)
         
     except Exception as e:
         print("Error fetching tasks:", e)
+        # Print a more detailed traceback for debugging
+        traceback.print_exc()
         return jsonify({'error': 'Failed to fetch tasks'}), 500
     
 
@@ -584,3 +610,59 @@ def get_task_subtasks(task_id):
     except Exception as e:
         print(f"Error fetching task subtasks: {e}")
         return jsonify({"error": str(e)}), 500 
+
+@tasks_bp.route('/subtasks/<subtask_id>', methods=['PATCH'])
+@cross_origin()
+def update_subtask_status(subtask_id):
+    try:
+        # Get user information from request
+        user_id = request.json.get('user_id')
+        if not user_id:
+            return jsonify({"success": False, "error": "User ID is required"}), 400
+            
+        # Get the new status from request
+        new_status = request.json.get('status')
+        if not new_status:
+            return jsonify({"success": False, "error": "Status is required"}), 400
+            
+        # Validate status value
+        valid_statuses = ['Yet to Start', 'WIP', 'Completed', 'Pending']
+        if new_status not in valid_statuses:
+            return jsonify({"success": False, "error": f"Invalid status. Must be one of: {', '.join(valid_statuses)}"}), 400
+        
+        # Find the subtask in the database
+        # Assuming your subtask table is named 'sub_task'
+        subtask = db.session.query(SubTask).filter_by(id=subtask_id).first()
+        
+        if not subtask:
+            return jsonify({"success": False, "error": "Subtask not found"}), 404
+            
+        # Update the status
+        old_status = subtask.status
+        subtask.status = new_status
+        
+        # Add updated_by and updated_at information
+        subtask.updated_by = user_id
+        subtask.updated_at = datetime.now()
+        
+        # Save changes to the database
+        db.session.commit()
+        
+        print(f"✅ Successfully updated subtask {subtask_id} status from {old_status} to {new_status}")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Subtask status updated to {new_status}",
+            "data": {
+                "id": subtask_id,
+                "status": new_status,
+                "updated_at": subtask.updated_at.isoformat() if hasattr(subtask, 'updated_at') else None
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"🚨 ERROR in update_subtask_status: {e}")
+        traceback.print_exc()  # Print detailed error traceback
+        return jsonify({"success": False, "error": str(e)}), 500
+ 

@@ -66,6 +66,9 @@ const Tasks = () => {
   const [selectedTaskForSubtasks, setSelectedTaskForSubtasks] = useState(null);
   const [showSubtaskWorkflow, setShowSubtaskWorkflow] = useState(false);
   const [selectedSubtasks, setSelectedSubtasks] = useState([]);
+  const [activeSubtaskStatuses, setActiveSubtaskStatuses] = useState({});
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const [isUpdatingSubtask, setIsUpdatingSubtask] = useState(false);
  
   // Check if GIFs are loading correctly
   useEffect(() => {
@@ -643,7 +646,7 @@ const Tasks = () => {
     const isNew = isRecentlyAssigned(task.assigned_timestamp);
     
     return (
-        <div className={`task-card ${task.criticality?.toLowerCase()} ${isDelayed && task.status !== 'completed' ? 'delayed' : ''}`}>
+        <div key={task.id || index} className={`task-card ${task.criticality?.toLowerCase()} ${isDelayed && task.status !== 'completed' ? 'delayed' : ''}`}>
             {/* Header with priority */}
             <div className="task-card-header">
                 <span className="priority-indicator">{task.criticality}</span>
@@ -769,8 +772,8 @@ const Tasks = () => {
                 </tr>
             </thead>
             <tbody>
-                {getCurrentPageTasks().map(task => (
-                    <tr key={task.id} className={`task-row ${task.criticality?.toLowerCase()}`}>
+                {getCurrentPageTasks().map((task, index) => (
+                    <tr key={task.id || `task-${index}`} className={`task-row ${task.criticality?.toLowerCase()}`}>
                         <td data-label="Task Name">
                             <div className="task-name-with-icon">
                                 <i className="fas fa-chart-pie report-icon"></i>
@@ -1095,6 +1098,61 @@ const Tasks = () => {
     } catch (error) {
         console.error('Error assigning task:', error);
         // Handle error...
+    }
+  };
+ 
+  // Function to handle updating subtask status
+  const handleSubtaskStatusChange = async (subtaskId, newStatus, index) => {
+    if (isUpdatingSubtask) return;
+    
+    try {
+      setIsUpdatingSubtask(true);
+      
+      // Get user info from localStorage
+      const userData = JSON.parse(localStorage.getItem('user')) || {};
+      const userId = userData.user_id;
+      
+      // Make API call to update subtask status
+      const response = await api.patch(`/subtasks/${subtaskId}`, {
+        status: newStatus,
+        user_id: userId
+      });
+      
+      if (response.data.success) {
+        // Update local state
+        setActiveSubtaskStatuses(prev => ({
+          ...prev,
+          [subtaskId]: newStatus
+        }));
+        
+        // Close dropdown
+        setOpenDropdown(null);
+        
+        // Show success message
+        displaySuccess(`Subtask status updated to ${newStatus}`);
+        
+        // Update the selected subtasks array
+        const updatedSubtasks = [...selectedSubtasks];
+        if (updatedSubtasks[index]) {
+          updatedSubtasks[index].status = newStatus;
+          setSelectedSubtasks(updatedSubtasks);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating subtask status:', error);
+      setError('Failed to update subtask status');
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setIsUpdatingSubtask(false);
+    }
+  };
+
+  // Function to toggle dropdown
+  const toggleStatusDropdown = (subtaskId) => {
+    if (openDropdown === subtaskId) {
+      setOpenDropdown(null);
+    } else {
+      setOpenDropdown(subtaskId);
     }
   };
  
@@ -1539,7 +1597,7 @@ const Tasks = () => {
                     </thead>
                     <tbody>
                       {selectedTaskForSubtasks.subtasks.map((subtask, index) => (
-                        <tr key={index}>
+                        <tr key={`subtask-${index}`}>
                           <td>{subtask.name}</td>
                           <td>{subtask.description || 'No description'}</td>
                           <td>
@@ -1606,18 +1664,89 @@ const Tasks = () => {
                   
                   {/* Subtask Node - We're just showing one for simplicity */}
                   {selectedSubtasks.map((subtask, index) => (
-                    <div key={index} className="subtask-container">
-                      <div className="subtask-box">
-                        <div className="subtask-number">{index + 1}</div>
-                        <div className="subtask-details">
-                          <h3>{subtask.name || "edfgr"}</h3>
-                          <p>{subtask.description || "qewgr"}</p>
-                          <div className="subtask-hours">
-                            <i className="far fa-clock"></i> {subtask.time || 10} hours
+                    <React.Fragment key={`flow-${index}`}>
+                      {index === 0 && (
+                        <div className={`flow-connector-line progress-indicator ${
+                          subtask.status === 'WIP' || activeSubtaskStatuses[subtask.id] === 'WIP'
+                            ? 'in-progress' 
+                            : subtask.status === 'Completed' || activeSubtaskStatuses[subtask.id] === 'Completed'
+                              ? 'completed' 
+                              : ''
+                        }`}></div>
+                      )}
+                      
+                      <div className="subtask-container">
+                        <div className="subtask-box">
+                          <div className="subtask-number">{index + 1}</div>
+                          <div className="subtask-details">
+                            <h3>{subtask.name || "Task"}</h3>
+                            <p>{subtask.description || "Description"}</p>
+                            <div className="subtask-hours">
+                              <i className="far fa-clock"></i> {subtask.time || 1} hours
+                            </div>
+                            
+                            {/* Add status badge */}
+                            {(subtask.status || activeSubtaskStatuses[subtask.id]) && (
+                              <div className={`subtask-status-badge status-${
+                                subtask.status === 'Completed' || activeSubtaskStatuses[subtask.id] === 'Completed' 
+                                  ? 'completed' 
+                                  : subtask.status === 'WIP' || activeSubtaskStatuses[subtask.id] === 'WIP'
+                                    ? 'in-progress' 
+                                    : 'not-started'
+                              }`}>
+                                <i className={`fas ${
+                                  subtask.status === 'Completed' || activeSubtaskStatuses[subtask.id] === 'Completed'
+                                    ? 'fa-check' 
+                                    : subtask.status === 'WIP' || activeSubtaskStatuses[subtask.id] === 'WIP'
+                                      ? 'fa-spinner' 
+                                      : 'fa-clock'
+                                }`}></i>
+                              </div>
+                            )}
+                            
+                            {/* Only show control buttons for non-admin users */}
+                            {!isAdmin && (
+                              <div className="subtask-status-controls">
+                                <div className={`subtask-status-dropdown ${openDropdown === subtask.id ? 'open' : ''}`}>
+                                  <button 
+                                    className={`status-dropdown-btn ${openDropdown === subtask.id ? 'active' : ''}`}
+                                    onClick={() => toggleStatusDropdown(subtask.id)}
+                                  >
+                                    Update Status <i className="fas fa-chevron-down"></i>
+                                  </button>
+                                  
+                                  {openDropdown === subtask.id && (
+                                    <div className="status-dropdown-menu">
+                                      <div 
+                                        className="status-option start"
+                                        onClick={() => handleSubtaskStatusChange(subtask.id, 'WIP', index)}
+                                      >
+                                        <i className="fas fa-play"></i> Start
+                                      </div>
+                                      <div 
+                                        className="status-option complete"
+                                        onClick={() => handleSubtaskStatusChange(subtask.id, 'Completed', index)}
+                                      >
+                                        <i className="fas fa-check"></i> Complete
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
-                    </div>
+                      
+                      {index < selectedSubtasks.length - 1 && (
+                        <div className={`flow-connector-line progress-indicator ${
+                          // Only color this connector if the current subtask is at least in progress
+                          (subtask.status === 'Completed' || activeSubtaskStatuses[subtask.id] === 'Completed')
+                            ? 'completed' 
+                            : ''
+                        }`}></div>
+                      )}
+                    </React.Fragment>
                   ))}
                   
                   {/* Connector Line */}
