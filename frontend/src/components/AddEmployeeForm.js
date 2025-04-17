@@ -74,8 +74,11 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
     
     if (!formData.password.trim()) {
       errors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
+    } else if (formData.password.length < 8) {
+      errors.password = 'Password must be at least 8 characters';
+    } else if (!/(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*])/.test(formData.password)) {
+      // Regex to check for letters, numbers, and special characters
+      errors.password = 'Password must contain at least one letter, one number, and one special character';
     }
     
     setFormErrors(errors);
