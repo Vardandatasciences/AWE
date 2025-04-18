@@ -126,6 +126,19 @@ def get_actors_assign():
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
 
+@actors_bp.route('/reviewers', methods=['GET'])
+def get_reviewers():
+    try:
+        # Fetch actors with role_id = 22
+        reviewers = Actor.query.filter_by(status='A').all()
+        return jsonify([{
+            "actor_id": reviewer.actor_id,
+            "actor_name": reviewer.actor_name
+        } for reviewer in reviewers])
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({"error": str(e)}), 500
+
 @actors_bp.route('/add_actor', methods=['POST'])
 def add_actor_endpoint():
     try:

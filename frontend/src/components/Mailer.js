@@ -113,7 +113,7 @@ const Mailer = () => {
       // Handle group_name as an array for multiple selection
       let groupNames = [];
       if (messageData.group_name) {
-        groupNames = messageData.group_name.split(',');
+        groupNames = Array.isArray(messageData.group_name) ? messageData.group_name : [messageData.group_name];
       }
       
       setFormData({

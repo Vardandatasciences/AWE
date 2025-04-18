@@ -243,7 +243,7 @@ def schedule_email_reminder(subject, content, email, task_name, due_date, custom
         
         # Create a new reminder record
         new_reminder = ReminderMail(
-            task_id=task_id,
+            task_id=str(task_id),  # Convert to string since ReminderMail.task_id is a string column
             message_des=f"{task_name} for {customer_name}",
             date=reminder_date,
             time=reminder_time,
@@ -319,7 +319,7 @@ def send_email_task(subject, body, to_email,task_id):
                     email_id=to_email,
                     date=datetime.now().date(),
                     time=datetime.now().time(),
-                    task_id=task_id
+                    task_id=str(task_id)  # Convert to string
                 ).update({'status': 'Sent'})
  
                 db.session.commit()
@@ -338,7 +338,7 @@ def send_email_task(subject, body, to_email,task_id):
                     email_id=to_email,
                     date=datetime.now().date(),
                     time=datetime.now().time(),
-                    task_id=task_id
+                    task_id=str(task_id)  # Convert to string
                 ).update({'status': f'Failed: {e}'})
  
                 db.session.commit()
@@ -418,6 +418,7 @@ def assign_activity():
 
         activity_id = data.get('task_name')
         assigned_to = data.get('assigned_to')
+        reviewer = data.get('reviewer')
         customer_id = data.get('customer_id')
         remarks = data.get('remarks', '')
         link = data.get('link', '')
@@ -430,7 +431,7 @@ def assign_activity():
         except:
             sub_tasks = []  # Default to empty list if parsing fails
 
-        if not activity_id or not assigned_to or not customer_id:
+        if not activity_id or not assigned_to or not customer_id or not reviewer:
             return jsonify({'success': False, 'message': '❌ Missing required fields'}), 400
 
         # Check if Activity Exists
@@ -459,6 +460,13 @@ def assign_activity():
         assigned_actor_id = assigned_actor.actor_id
         assigned_actor_email = assigned_actor.email_id
 
+        # Check if Reviewer Exists
+        reviewer_actor = Actor.query.filter_by(actor_name=reviewer).first()
+        if not reviewer_actor:
+            return jsonify({'success': False, 'message': '❌ Invalid Reviewer'}), 400
+        reviewer_actor_id = reviewer_actor.actor_id
+        reviewer_actor_email = reviewer_actor.email_id
+
         # Check if Customer Exists
         customer = Customer.query.filter_by(customer_id=customer_id).first()
         if not customer:
@@ -486,11 +494,9 @@ def assign_activity():
             # Calculate due date
             due_date = datetime.now() + timedelta(days=int(frequency))
             
-            # Generate a unique task ID
-            task_id = f"{activity_id}{customer_id}{due_date.strftime('%d%m%Y')}"
-            
-            # Get current timestamp for assignment
-            current_timestamp = datetime.now()
+            # Generate a unique integer task ID using timestamp
+            current_timestamp = int(datetime.now().timestamp())
+            task_id = current_timestamp
             
             # Create the task
             new_task = Task(
@@ -504,11 +510,12 @@ def assign_activity():
                 duedate=due_date,
                 actor_id=assigned_actor_id,
                 assigned_to=assigned_to,
+                reviewer=reviewer,
                 activity_id=activity_id,
                 initiator=initiator,
                 activity_type=activity_type,
                 stage_id=1,
-                assigned_timestamp=current_timestamp
+                assigned_timestamp=datetime.now()  # Use actual datetime object instead of integer timestamp
             )
             db.session.add(new_task)
             
@@ -596,7 +603,7 @@ Link: {link}
 The task '{activity.activity_name}' for '{customer.customer_name}' is due on '{due_date_for_reminder.strftime('%Y-%m-%d')}'.
 
 - Task Name: {activity.activity_name}
-- Task ID: {task_id}
+- Task ID: {str(task_id)}
 - Criticality: {criticality}
 - Status: {status}
 
@@ -624,7 +631,7 @@ AWE Team"""
 The task '{activity.activity_name}' for '{customer.customer_name}' is due today.
 
 - Task Name: {activity.activity_name}
-- Task ID: {task_id}
+- Task ID: {str(task_id)}
 - Criticality: {criticality}
 - Status: {status}
 
@@ -654,7 +661,7 @@ AWE Team"""
             
             # Send immediate email notification
             try:
-                # Prepare email content
+                # Prepare email content for assignee
                 subject = f"AWE-New Task Assigned: {activity.activity_name}"
                 content = f"""Dear {assigned_to},
 
@@ -671,15 +678,35 @@ A new task '{activity.activity_name}' has been assigned to you for customer '{cu
 Best regards,
 AWE Team"""
 
-                # Send email
-                print(f"✉️ Email would be sent to {assigned_actor_email} with subject: {subject}")
-                print(f"✉️ Email content: {content}")
-                
+                # Send email to assignee
+                print(f"✉️ Email sent to assignee {assigned_actor_email} with subject: {subject}")
                 send_email(subject, assigned_actor_email, content)
+                
+                # Prepare email content for reviewer
+                reviewer_subject = f"AWE-Review Request: {activity.activity_name}"
+                reviewer_content = f"""Dear {reviewer},
+
+You have been assigned as a reviewer for the task '{activity.activity_name}' for customer '{customer.customer_name}'.
+
+- Task Name: {activity.activity_name}
+- Task ID: {task_id}
+- Criticality: {criticality}
+- Due Date: {due_date.strftime('%Y-%m-%d')}
+- Status: {status}
+- Assigned To: {assigned_to}
+
+Please review the task once it is completed by the assignee.
+
+Best regards,
+AWE Team"""
+
+                # Send email to reviewer
+                print(f"✉️ Email sent to reviewer {reviewer_actor_email} with subject: {reviewer_subject}")
+                send_email(reviewer_subject, reviewer_actor_email, reviewer_content)
                 
                 return jsonify({
                     'success': True, 
-                    'message': 'Activity assigned successfully and notification sent',
+                    'message': 'Activity assigned successfully and notifications sent',
                     'email_sent': True,
                     'calendar_added': calendar_event_id is not None,
                     'reminders_scheduled': True

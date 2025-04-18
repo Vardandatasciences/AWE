@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';  // Import the configured api instance
 import './Login.css';
 import { useAuth } from '../context/AuthContext';
  
@@ -40,7 +40,7 @@ const Login = () => {
     setLoading(true);
    
     try {
-      const response = await axios.post('http://localhost:5000/login', {
+      const response = await api.post('/login', {
         actorId,
         password
       });
@@ -79,7 +79,7 @@ const Login = () => {
     setLoading(true);
  
     try {
-      const response = await axios.post('http://localhost:5000/request-otp', {
+      const response = await api.post('/request-otp', {
         email,
         actorId: forgotPasswordActorId
       });
@@ -103,7 +103,7 @@ const Login = () => {
     setLoading(true);
  
     try {
-      const response = await axios.post('http://localhost:5000/verify-otp', { email, otp });
+      const response = await api.post('/verify-otp', { email, otp });
       if (response.data.success) {
         setResetStep('reset');
         setResetMessage({ type: 'success', text: 'OTP verified successfully!' });
@@ -124,7 +124,7 @@ const Login = () => {
     setLoading(true);
  
     try {
-      const response = await axios.post('http://localhost:5000/reset-password', {
+      const response = await api.post('/reset-password', {
         email,
         password: newPassword,
         confirmPassword

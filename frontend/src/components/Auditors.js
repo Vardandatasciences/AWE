@@ -313,6 +313,13 @@ const Auditors = () => {
                         placeholder="Phone"
                         className="form-input"
                       />
+                      {/* <input
+                        type="text"
+                        value={editedData.city || ''}
+                        onChange={(e) => setEditedData({...editedData, city: e.target.value})}
+                        placeholder="City"
+                        className="form-input"
+                      /> */}
                       <select
                         value={editedData.gender || 'M'}
                         onChange={(e) => setEditedData({...editedData, gender: e.target.value})}
@@ -322,14 +329,14 @@ const Auditors = () => {
                         <option value="F">Female</option>
                         <option value="O">Other</option>
                       </select>
-                      <select
+                      {/* <select
                         value={editedData.status || 'A'}
                         onChange={(e) => setEditedData({...editedData, status: e.target.value})}
                         className="form-select"
                       >
                         <option value="A">Active</option>
                         <option value="O">Inactive</option>
-                      </select>
+                      </select> */}
                       <div className="form-actions">
                         <button 
                           className="btn-save" 
@@ -367,12 +374,10 @@ const Auditors = () => {
                           <i className="fas fa-phone"></i>
                           <span>{item.mobile1}</span>
                         </div>
-                        {item.city && (
-                          <div className="detail-item">
-                            <i className="fas fa-map-marker-alt"></i>
-                            <span>{item.city}</span>
-                          </div>
-                        )}
+                        {/* <div className="detail-item">
+                          <i className="fas fa-map-marker-alt"></i>
+                          <span>{item.city || 'N/A'}</span>
+                        </div> */}
                       </div>
                       <div className="card-actions">
                         <button className="btn-edit" onClick={() => handleEdit(index)}>

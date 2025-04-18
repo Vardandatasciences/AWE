@@ -306,7 +306,33 @@ def get_message(message_id):
     """Get a message by ID"""
     try:
         message = Message.query.get_or_404(message_id)
-        return jsonify(message.to_dict())
+        
+        # Handle timedelta conversion to time string
+        time_str = None
+        if message.time:
+            if isinstance(message.time, timedelta):
+                # Convert timedelta to total seconds
+                total_seconds = int(message.time.total_seconds())
+                # Extract hours, minutes, seconds
+                hours = total_seconds // 3600
+                minutes = (total_seconds % 3600) // 60
+                seconds = total_seconds % 60
+                time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            else:
+                # If it's already a string or time object
+                time_str = str(message.time)
+        
+        message_dict = {
+            'message_id': message.message_id,
+            'message_description': message.message_description,
+            'group_name': message.group_name.split(',') if message.group_name else [],
+            'frequency': message.frequency,
+            'date': message.date.strftime('%Y-%m-%d') if message.date else None,
+            'email_id': message.email_id,
+            'time': time_str,
+            'status': message.status
+        }
+        return jsonify(message_dict)
     except Exception as e:
         print(f"Error getting message: {e}")
         return jsonify({"error": str(e)}), 500

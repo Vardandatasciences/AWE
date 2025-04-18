@@ -1,9 +1,11 @@
-from flask import Flask, session
+import os
+from datetime import datetime, timedelta
+from flask import Flask, session, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
 from config import Config
-from models import db, Actor
+from models import db, Actor, Task
 from routes.activities import activities_bp
 from routes.actors import actors_bp
 from routes.customers import customers_bp
@@ -18,7 +20,6 @@ from routes.changepassword import changepassword_bp
 from routes.diary import diary_bp
 from flask_bcrypt import Bcrypt
 from routes.users import users_bp
-from datetime import timedelta
 from flask_mail import Mail
 
 
@@ -40,7 +41,7 @@ def load_user(user_id):
     return Actor.query.get(int(user_id))
 
 # Setup CORS properly - this is critical to fix the error
-CORS(app, supports_credentials=True, origins=["http://localhost:3000"], methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://127.0.0.1:3000"], methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 
 # Remove or comment out this section as it's redundant
 # CORS(app, resources={
@@ -95,8 +96,16 @@ def index():
 @app.after_request
 def after_request(response):
     # Only add header if it doesn't exist
-    if 'Access-Control-Allow-Origin' not in response.headers:
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+    origin = request.headers.get('Origin')
+    allowed_origins = ['http://localhost:3000', 'http://127.0.0.1:3000']
+    
+    if origin in allowed_origins:
+        if 'Access-Control-Allow-Origin' not in response.headers:
+            response.headers.add('Access-Control-Allow-Origin', origin)
+    else:
+        if 'Access-Control-Allow-Origin' not in response.headers:
+            response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+            
     if 'Access-Control-Allow-Headers' not in response.headers:
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     if 'Access-Control-Allow-Methods' not in response.headers:
@@ -104,6 +113,50 @@ def after_request(response):
     if 'Access-Control-Allow-Credentials' not in response.headers:
         response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
+
+@app.route('/tasks/<task_id>/review-status', methods=['PATCH'])
+def update_review_status(task_id):
+    try:
+        data = request.json
+        reviewer_status = data.get('reviewer_status')
+        user_id = data.get('user_id')
+        role_id = data.get('role_id')
+
+        if not all([reviewer_status, user_id, role_id]):
+            return jsonify({
+                'success': False,
+                'message': 'Missing required fields'
+            }), 400
+
+        # Log the incoming request
+        print(f"Updating review status for task {task_id} to {reviewer_status}")
+        print(f"Request data: {data}")
+
+        # Get the task
+        task = Task.query.get(task_id)
+        if not task:
+            return jsonify({
+                'success': False,
+                'message': f'Task {task_id} not found'
+            }), 404
+
+        # Update the review status
+        task.reviewer_status = reviewer_status
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Review status updated successfully',
+            'task': task.to_dict()
+        })
+
+    except Exception as e:
+        print(f"Error updating review status: {str(e)}")
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'Error updating review status: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
