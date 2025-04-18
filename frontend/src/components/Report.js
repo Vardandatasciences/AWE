@@ -138,40 +138,35 @@ const Report = () => {
 
     const handleDownloadReport = (report) => {
         try {
-            // Show loading indicator
-            alert(`Generating ${report.title} report, please wait...`);
-            
-            // Determine the URL based on report type
-            let url;
+            // For demonstration purposes, we'll use fixed IDs
+            // In a real application, you would use the actual IDs from your report object
             if (report.type === 'activity') {
                 const activityId = report.activityId || 1144; // Use a valid activity ID
-                url = `/generate_activity_report?activity_id=${activityId}`;
-            } else if (report.type === 'employee') {
-                const actorId = report.actorId || 1; // Use a valid actor ID 
-                url = `/download-performance/${actorId}`;
-            } else if (report.type === 'customer') {
-                const customerId = report.customerId || 1; // Use a valid customer ID
-                url = `/download-customer-report/${customerId}`;
-            } else {
-                // Generic report URL
-                url = `/generate_report?type=${report.type}&id=${report.id}`;
-            }
-            
-            // Try to open in a new tab first (most reliable for PDFs)
-            const newTab = window.open(url, '_blank');
-            
-            // If popup blocked, fallback to the link approach
-            if (!newTab || newTab.closed || typeof newTab.closed === 'undefined') {
-                console.log("Popup blocked, using alternative download method");
                 
                 // Create a link element and trigger the download
                 const link = document.createElement('a');
-                link.href = url;
-                link.target = '_blank'; // Still try to open in new tab
-                link.setAttribute('download', `${report.title.replace(/\s+/g, '_')}.pdf`);
+                link.href = `/generate_activity_report?activity_id=${activityId}`;
+                link.target = '_blank';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+                
+            } else if (report.type === 'employee') {
+                const actorId = report.actorId || 1; // Use a valid actor ID
+                
+                console.log("Fetching performance for actor_id:", actorId);
+                
+                // Create a link element and trigger the download
+                const link = document.createElement('a');
+                link.href = `/download-performance/${actorId}`;
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+            } else {
+                // For other report types or fallback
+                alert(`Downloading ${report.title} in PDF format`);
             }
         } catch (error) {
             console.error("Error downloading report:", error);
