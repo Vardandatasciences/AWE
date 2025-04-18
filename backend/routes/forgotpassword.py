@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import bcrypt
 from datetime import datetime, timedelta
+import hashlib
  
 forgotpassword_bp = Blueprint('forgotpassword', __name__)
  
@@ -60,6 +61,23 @@ def is_valid_password(password):
     if not any(c in "@$!%*?&" for c in password):
         return False, "Password must contain at least one special character (@$!%*?&)"
     return True, "Password is valid"
+
+def is_same_as_current_password(password, stored_password):
+    # Check if new password matches the stored password (SHA256)
+    sha256_hash = hashlib.sha256(password.encode()).hexdigest()
+    if sha256_hash == stored_password:
+        return True
+    
+    # Try bcrypt check if the password is stored in bcrypt format
+    try:
+        if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
+            return True
+    except Exception as e:
+        print(f"Bcrypt check error: {e}")
+        # If we get an error in bcrypt check, formats are different so passwords are likely different
+        pass
+    
+    return False
  
 # Store OTP and its expiry time
 otp_store = {}
@@ -183,10 +201,24 @@ def reset_password():
         # Get actor_id from stored OTP data
         actor_id = otp_store[email]['actor_id']
        
-        # Update password in database
+        # Get user from database
         actor = Actor.query.filter_by(actor_id=actor_id).first()
+        if not actor:
+            return jsonify({
+                'success': False,
+                'message': 'User not found'
+            }), 404
+        
+        # Check if new password is the same as the current password
+        if is_same_as_current_password(new_password, actor.password):
+            return jsonify({
+                'success': False,
+                'message': 'New password must be different from your current password'
+            }), 400
+           
+        # Update password in database
         if actor:
-            hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
+            hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             actor.password = hashed_password
             db.session.commit()
            

@@ -101,7 +101,12 @@ const AddEmployeeForm = ({ onClose, onSuccess }) => {
       const response = await api.post('/add_actor', formData);
       
       if (response.status === 201) {
-        onSuccess("Auditor added successfully");
+        // Pass the new auditor data to the parent component
+        const newAuditorData = {
+          ...formData,
+          actor_id: response.data.actor_id
+        };
+        onSuccess("Auditor added successfully", newAuditorData);
         onClose();
       }
     } catch (err) {

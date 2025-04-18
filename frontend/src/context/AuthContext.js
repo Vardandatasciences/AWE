@@ -22,11 +22,24 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    // Clear all authentication related localStorage items
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('role_id');
+    localStorage.removeItem('actor_id');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userRole');
+    
+    // Clear authorization header
     delete axios.defaults.headers.common['Authorization'];
+    
+    // Update state
     setToken(null);
     setUser(null);
+    
+    // Make API call to server to invalidate session (optional)
+    axios.post('/logout').catch(err => console.error("Logout API error:", err));
   };
 
   const isAuthenticated = !!localStorage.getItem('token');

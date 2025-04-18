@@ -305,6 +305,13 @@ const Profile = () => {
         return;
       }
 
+      // Check if new password is the same as current password
+      if (passwordData.newPassword === passwordData.currentPassword) {
+        setPasswordError('New password must be different from your current password');
+        setIsChangingPassword(false);
+        return;
+      }
+
       // Password strength validation
       if (passwordData.newPassword.length < 8) {
         setPasswordError('Password must be at least 8 characters long');
@@ -312,6 +319,7 @@ const Profile = () => {
         return;
       }
 
+      // Continue with the API call
       const response = await api.post('/api/reset-password', {
         email: profileData.email_id,
         password: passwordData.newPassword,
@@ -330,7 +338,14 @@ const Profile = () => {
       setIsChangingPassword(false);
     } catch (err) {
       console.error('Error resetting password:', err);
-      setPasswordError('An error occurred. Please try again later.');
+      
+      // Handle specific error for same password
+      if (err.response && err.response.data && err.response.data.message === 'New password must be different from your current password') {
+        setPasswordError('New password must be different from your current password');
+      } else {
+        setPasswordError('An error occurred. Please try again later.');
+      }
+      
       setIsChangingPassword(false);
     }
   };
@@ -621,10 +636,11 @@ const Profile = () => {
                     <div className="password-requirements">
                       <p>Password requirements:</p>
                       <ul>
-                        <li>At least 8 characters</li>
+                        <li><strong>Must be at least 8 characters long</strong></li>
                         <li>Must include uppercase and lowercase letters</li>
                         <li>Must include at least one number</li>
                         <li>Must include at least one special character (@$!%*?&)</li>
+                        <li><strong>Must be different from your current password</strong></li>
                       </ul>
                     </div>
                   </div>

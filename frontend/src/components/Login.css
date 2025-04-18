@@ -305,6 +305,9 @@
   border: none;
   cursor: pointer;
   padding: 0;
+  display: block;
+  text-align: right;
+  margin-left: auto;
 }
  
 .forgot-password-link:hover {
@@ -414,6 +417,7 @@ input[type="text"][maxlength="6"] {
   opacity: 0.7;
   cursor: not-allowed;
   transform: none;
+  background: linear-gradient(135deg, #a0a0a0, #7a7a7a);
 }
  
 .login-button i {
@@ -594,4 +598,33 @@ input[type="text"][maxlength="6"] {
  
 .password-toggle:focus {
   outline: none;
+}
+
+.lockout-message {
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  animation: pulse-red 2s infinite;
+}
+
+.lockout-message i {
+  margin-right: 10px;
+  font-size: 18px;
+}
+
+@keyframes pulse-red {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
 }

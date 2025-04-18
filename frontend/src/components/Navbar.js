@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Navbar.css'; // Import CSS for styling
@@ -8,11 +8,29 @@ const Navbar = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { isAuthenticated, user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const dropdownRef = useRef(null);
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate('/login', { replace: true });
   };
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Clean up event listener
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   return (
     <header className="navbar">
@@ -29,6 +47,7 @@ const Navbar = () => {
             <div 
               className="user-profile" 
               onClick={() => setShowUserMenu(!showUserMenu)}
+              ref={dropdownRef}
             >
               <div className="user-avatar">
                 <i className="fas fa-user-circle"></i>
@@ -56,12 +75,12 @@ const Navbar = () => {
                         <span>Profile</span>
                       </Link>
                     </li>
-                    <li>
+                    {/* <li>
                       <Link to="/settings">
                         <i className="fas fa-cog"></i>
                         <span>Settings</span>
                       </Link>
-                    </li>
+                    </li> */}
                     <li className="divider"></li>
                     <li>
                       <button onClick={handleLogout} className="logout-btn">

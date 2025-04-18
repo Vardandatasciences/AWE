@@ -144,11 +144,26 @@ const Auditors = () => {
     }
   };
 
-  const handleSuccess = (message) => {
+  const handleSuccess = (message, newAuditorData = null) => {
     setSuccessMessage(message);
     setTimeout(() => {
       setSuccessMessage(null);
     }, 3000);
+    
+    if (newAuditorData) {
+      // Add the new auditor directly to the data without refetching
+      setData(prevData => [...prevData, newAuditorData]);
+      
+      // Update stats
+      setStats(prev => ({
+        total: prev.total + 1,
+        active: newAuditorData.status === 'A' ? prev.active + 1 : prev.active,
+        inactive: newAuditorData.status !== 'A' ? prev.inactive + 1 : prev.inactive
+      }));
+    } else {
+      // If no new data is provided, fetch all data
+      fetchData();
+    }
   };
 
   const handleAddAuditor = () => {

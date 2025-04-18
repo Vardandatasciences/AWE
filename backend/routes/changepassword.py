@@ -82,13 +82,14 @@ def change_password():
             }), 401
 
         data = request.json
+        current_password = data.get('current_password')
         new_password = data.get('new_password')
         confirm_password = data.get('confirm_new_password')
 
-        if not new_password or not confirm_password:
+        if not current_password or not new_password or not confirm_password:
             return jsonify({
                 'success': False,
-                'message': 'New password and confirmation are required'
+                'message': 'Current password, new password, and confirmation are required'
             }), 400
 
         if new_password != confirm_password:
@@ -134,6 +135,45 @@ def change_password():
                 'success': False,
                 'message': 'User not found'
             }), 404
+
+        # Check if the current password is correct
+        sha256_current = hashlib.sha256(current_password.encode()).hexdigest()
+        current_password_correct = False
+        
+        if sha256_current == actor.password:
+            current_password_correct = True
+        else:
+            try:
+                if bcrypt.checkpw(current_password.encode('utf-8'), actor.password.encode('utf-8')):
+                    current_password_correct = True
+            except Exception as e:
+                print(f"Bcrypt verification error: {e}")
+                pass
+        
+        if not current_password_correct:
+            return jsonify({
+                'success': False,
+                'message': 'Current password is incorrect'
+            }), 400
+            
+        # Check if new password is the same as the current password
+        sha256_new = hashlib.sha256(new_password.encode()).hexdigest()
+        if sha256_new == actor.password:
+            return jsonify({
+                'success': False,
+                'message': 'New password must be different from your current password'
+            }), 400
+            
+        try:
+            # Try with bcrypt if the password is stored that way
+            if bcrypt.checkpw(new_password.encode('utf-8'), actor.password.encode('utf-8')):
+                return jsonify({
+                    'success': False,
+                    'message': 'New password must be different from your current password'
+                }), 400
+        except Exception:
+            # If bcrypt check fails, it means the formats are different and thus the passwords are different
+            pass
 
         # Use SHA256 for password hashing to match existing system
         hashed_password = hashlib.sha256(new_password.encode()).hexdigest()

@@ -14,6 +14,11 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
  
+  // Account lockout states
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
+  const [lockoutTimer, setLockoutTimer] = useState(null);
+ 
   // Forgot password states
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
@@ -26,16 +31,71 @@ const Login = () => {
   // Add actorId to forgot password states
   const [forgotPasswordActorId, setForgotPasswordActorId] = useState('');
  
+  useEffect(() => {
+    // Start countdown timer if account is locked
+    if (isLocked && lockoutRemaining > 0) {
+      const timer = setInterval(() => {
+        setLockoutRemaining(prev => {
+          const newValue = prev - 1;
+          if (newValue <= 0) {
+            clearInterval(timer);
+            setIsLocked(false);
+            setError('');
+            return 0;
+          }
+          return newValue;
+        });
+      }, 1000);
+      
+      setLockoutTimer(timer);
+      
+      // Clean up timer on unmount
+      return () => clearInterval(timer);
+    }
+  }, [isLocked, lockoutRemaining]);
+ 
   // Redirect if already logged in
   useEffect(() => {
-    if (isAuthenticated) {
+    // Check authentication status whenever the component mounts
+    if (!isAuthenticated) {
+      // Clear any stored tokens if not authenticated
+      localStorage.removeItem('token');
+      localStorage.removeItem('role_id');
+      localStorage.removeItem('actor_id');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('userName');
+      localStorage.removeItem('userRole');
+    } else {
       const from = location.state?.from?.pathname || '/';
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, location]);
+
+    // Handle browser back/forward navigation
+    const handlePopState = () => {
+      if (!isAuthenticated) {
+        navigate('/login', { replace: true });
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    
+    // Clean up the event listener
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (lockoutTimer) {
+        clearInterval(lockoutTimer);
+      }
+    };
+  }, [isAuthenticated, navigate, location, lockoutTimer]);
  
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Don't submit if account is locked
+    if (isLocked) {
+      return;
+    }
+    
     setError('');
     setLoading(true);
    
@@ -59,7 +119,19 @@ const Login = () => {
      
     } catch (err) {
       console.error('Login error:', err);
-      if (err.response && err.response.data && err.response.data.error) {
+      
+      // Handle account lockout (HTTP 429 Too Many Requests)
+      if (err.response && err.response.status === 429) {
+        setIsLocked(true);
+        
+        // Extract minutes from error message if available
+        const errorMsg = err.response.data.error || '';
+        const minutesMatch = errorMsg.match(/Try again after (\d+) minutes/);
+        const lockMinutes = minutesMatch ? parseInt(minutesMatch[1]) : 30;
+        
+        setLockoutRemaining(lockMinutes * 60); // Convert minutes to seconds
+        setError(`Too many failed login attempts. Account locked for ${lockMinutes} minutes.`);
+      } else if (err.response && err.response.data && err.response.data.error) {
         setError(err.response.data.error);
       } else {
         setError('Failed to login. Please try again.');
@@ -294,6 +366,24 @@ const Login = () => {
     }
   };
  
+  // Helper function to format remaining time
+  const formatLockoutTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+  };
+
+  const renderLockoutMessage = () => {
+    if (!isLocked) return null;
+    
+    return (
+      <div className="lockout-message">
+        <i className="fas fa-lock"></i>
+        <span>Account locked. Try again in {formatLockoutTime(lockoutRemaining)}</span>
+      </div>
+    );
+  };
+ 
   return (
     <div className="login-container">
       <div className="login-card">
@@ -314,6 +404,8 @@ const Login = () => {
             {error || resetMessage.text}
           </div>
         )}
+        
+        {renderLockoutMessage()}
        
         {showForgotPassword ? (
           <>
@@ -345,6 +437,7 @@ const Login = () => {
                   placeholder="Enter your Actor ID"
                   required
                   className="input-field"
+                  disabled={isLocked}
                 />
                 <div className="input-animation"></div>
               </div>
@@ -362,11 +455,13 @@ const Login = () => {
                     placeholder="Enter your password"
                     required
                     className="input-field"
+                    disabled={isLocked}
                   />
                   <button
                     type="button"
                     className="password-toggle"
                     onClick={togglePasswordVisibility}
+                    disabled={isLocked}
                   >
                     <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                   </button>
@@ -375,10 +470,6 @@ const Login = () => {
               </div>
              
               <div className="form-options">
-                <div className="remember-me">
-                  <input type="checkbox" id="remember" />
-                  <label htmlFor="remember">Remember me</label>
-                </div>
                 <button
                   type="button"
                   className="forgot-password-link"
@@ -391,10 +482,12 @@ const Login = () => {
               <button
                 type="submit"
                 className="login-button"
-                disabled={loading}
+                disabled={loading || isLocked}
               >
                 {loading ? (
                   <><i className="fas fa-spinner fa-spin"></i> Logging in...</>
+                ) : isLocked ? (
+                  <><i className="fas fa-lock"></i> Account Locked</>
                 ) : (
                   <>Sign In <i className="fas fa-arrow-right"></i></>
                 )}
