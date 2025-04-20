@@ -627,6 +627,9 @@ def update_subtask_status(subtask_id):
         new_status = request.json.get('status')
         if not new_status:
             return jsonify({"success": False, "error": "Status is required"}), 400
+        
+        # Get remarks if provided
+        remarks = request.json.get('remarks')
             
         # Validate status value
         valid_statuses = ['Yet to Start', 'WIP', 'Completed', 'Pending']
@@ -643,6 +646,10 @@ def update_subtask_status(subtask_id):
         old_status = subtask.status
         subtask.status = new_status
         
+        # Save remarks if provided and status is Completed
+        if remarks and new_status == 'Completed':
+            subtask.user_remarks = remarks
+        
         # Add updated_by and updated_at information if columns exist
         if hasattr(subtask, 'updated_by'):
             subtask.updated_by = user_id
@@ -653,6 +660,8 @@ def update_subtask_status(subtask_id):
         db.session.commit()
         
         print(f"✅ Successfully updated subtask {subtask_id} status from {old_status} to {new_status}")
+        if remarks:
+            print(f"✅ Added remarks: {remarks}")
         
         return jsonify({
             "success": True,
@@ -660,6 +669,7 @@ def update_subtask_status(subtask_id):
             "data": {
                 "id": subtask_id,
                 "status": new_status,
+                "remarks": remarks if remarks else None,
                 "updated_at": subtask.updated_at.isoformat() if hasattr(subtask, 'updated_at') else None
             }
         }), 200

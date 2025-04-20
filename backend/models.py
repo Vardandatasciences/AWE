@@ -227,6 +227,8 @@ class SubTask(db.Model):
     task_id = db.Column(db.String(50), db.ForeignKey('tasks.task_id'), nullable=False)
     sub_task = db.Column(db.JSON)
     status = db.Column(db.String(50), default='Pending')
+    user_remarks = db.Column(db.String(255), nullable=True)
+    reviewer_remarks = db.Column(db.String(255), nullable=True)
     
     # Relationship
     task = db.relationship('Task', backref='subtasks')
@@ -236,7 +238,9 @@ class SubTask(db.Model):
             'id': self.id,
             'task_id': self.task_id,
             'sub_task': self.sub_task,
-            'status': self.status
+            'status': self.status,
+            'user_remarks': self.user_remarks,
+            'reviewer_remarks': self.reviewer_remarks
         }
 
 class Error_Message(db.Model):

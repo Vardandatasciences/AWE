@@ -80,6 +80,9 @@ const Tasks = () => {
   const [taskIdForRejection, setTaskIdForRejection] = useState(null);
   const [showStatusUpdateModal, setShowStatusUpdateModal] = useState(false);
   const [statusUpdateMessage, setStatusUpdateMessage] = useState('');
+  const [remarksDialogOpen, setRemarksDialogOpen] = useState(false);
+  const [currentSubtask, setCurrentSubtask] = useState(null);
+  const [subtaskRemarks, setSubtaskRemarks] = useState('');
  
   // Check if GIFs are loading correctly
   useEffect(() => {
@@ -1376,96 +1379,80 @@ const Tasks = () => {
   // Function to handle updating subtask status with visual feedback
   const handleSubtaskStatusChange = async (subtaskId, newStatus, index) => {
     try {
-      setStatusUpdating(subtaskId);
-      setOpenDropdown(null); // Close dropdown after selection
-      
-      // Get the current user info from localStorage
-      const userData = JSON.parse(localStorage.getItem('user')) || {};
-      const userId = userData.user_id;
-      
-      console.log(`Updating subtask ${subtaskId} status to ${newStatus}`);
-      
-      // Try multiple API endpoints to ensure we reach the correct one
-      const apiUrls = [
-        `/api/subtasks/${subtaskId}`,
-        `/subtasks/${subtaskId}`,
-        `/api/sub_tasks/${subtaskId}`,
-        `/sub_tasks/${subtaskId}`,
-        `/api/update_subtask_status`
-      ];
-      
-      let success = false;
-      let responseData = null;
-      
-      // Try each endpoint until one works
-      for (const url of apiUrls) {
-        if (success) break;
-        
-        try {
-          console.log(`Attempting to update subtask status via: ${url}`);
-          
-          const payload = {
-            status: newStatus,
-            user_id: userId,
-            subtask_id: subtaskId,
-            task_id: selectedTask?.id,
-            updated_at: new Date().toISOString()
-          };
-          
-          // For the special update_subtask_status endpoint, adjust the payload
-          if (url.includes('update_subtask_status')) {
-            const response = await axios.post(url, payload);
-            responseData = response.data;
-          } else {
-            const response = await axios.patch(url, payload);
-            responseData = response.data;
-          }
-          
-          console.log(`Response from ${url}:`, responseData);
-          
-          if (responseData && (responseData.success || responseData.status === 'success')) {
-            success = true;
-            break;
-          }
-        } catch (urlError) {
-          console.log(`Error with URL ${url}:`, urlError.message);
-          // Continue to next URL
-        }
+      // If status is being set to Completed, ask for remarks
+      if (newStatus === 'Completed') {
+        setCurrentSubtask({ id: subtaskId, index });
+        setSubtaskRemarks('');
+        setRemarksDialogOpen(true);
+        return;
       }
       
-      if (success) {
-        // Update the local state to reflect the change
-        const updatedSubtasks = [...selectedSubtasks];
-        updatedSubtasks[index].status = newStatus;
-        setSelectedSubtasks(updatedSubtasks);
+      // For other statuses, proceed without remarks
+      await updateSubtaskStatus(subtaskId, newStatus);
+    } catch (error) {
+      console.error("Error changing subtask status:", error);
+    }
+  };
+
+  const submitSubtaskWithRemarks = async () => {
+    if (!currentSubtask) return;
+    
+    try {
+      await updateSubtaskStatus(currentSubtask.id, 'Completed', subtaskRemarks);
+      setRemarksDialogOpen(false);
+      setCurrentSubtask(null);
+    } catch (error) {
+      console.error("Error submitting subtask with remarks:", error);
+    }
+  };
+
+  const updateSubtaskStatus = async (subtaskId, newStatus, remarks = null) => {
+    try {
+      // Define the correct URL with the API base URL
+      // This is where the 404 error is happening
+      const url = `/api/subtasks/${subtaskId}`; // Fix the endpoint URL
+      
+      const payload = {
+        user_id: user?.id || '0',
+        status: newStatus,
+        remarks: remarks
+      };
+      
+      console.log(`Updating subtask ${subtaskId} to status ${newStatus}`, payload);
+      
+      // Use axios instance with the correct base URL
+      const response = await axios.patch(url, payload);
+      
+      // Check if response has the expected structure
+      if (response.data && response.data.success) {
+        // Update the subtask status in the UI
+        if (subtasks && subtasks.length > 0) {
+          const updatedSubtasks = [...subtasks];
+          const subtaskIndex = updatedSubtasks.findIndex(st => st.id === subtaskId);
+          
+          if (subtaskIndex !== -1) {
+            updatedSubtasks[subtaskIndex].status = newStatus;
+            if (remarks) {
+              updatedSubtasks[subtaskIndex].remarks = remarks;
+            }
+            setSubtasks(updatedSubtasks);
+          }
+          
+          // Update the progress indicators
+          updateProgressIndicators(updatedSubtasks);
+        }
         
-        // Update progress indicators
-        updateProgressIndicators(updatedSubtasks);
-        
-        // Show success toast
-        toast.success(`Subtask status updated to ${newStatus}`);
+        // Show success message
+        toast.success(`Subtask ${newStatus === 'Completed' ? 'completed' : 'updated'} successfully`);
+        return true;
       } else {
-        // If all API attempts failed, still update UI but show warning
-        console.warn("All API update attempts failed, updating UI only");
-        
-        // Update the local state to reflect the change
-        const updatedSubtasks = [...selectedSubtasks];
-        updatedSubtasks[index].status = newStatus;
-        setSelectedSubtasks(updatedSubtasks);
-        
-        // Update progress indicators
-        updateProgressIndicators(updatedSubtasks);
-        
-        // Show warning toast
-        toast.warning(`UI updated, but database update may have failed`);
+        toast.error("Failed to update subtask status");
+        return false;
       }
     } catch (error) {
-      console.error('Error updating subtask status:', error);
-      toast.error('Error updating status. Please try again.');
-    } finally {
-      setTimeout(() => {
-        setStatusUpdating(null);
-      }, 600); // Short delay to allow animation to complete
+      console.error("Error updating subtask status:", error);
+      toast.error(`Error updating subtask: ${error.response?.data?.error || error.message}`);
+      return false;
     }
   };
 
@@ -1844,6 +1831,45 @@ const Tasks = () => {
       }
       return task;
     }));
+  };
+ 
+  // Add this before the return statement
+  const renderRemarksDialog = () => {
+    if (!remarksDialogOpen) return null;
+    
+    return (
+      <div className="modal-overlay active">
+        <div className="modal-content subtask-remarks-modal">
+          <div className="modal-header">
+            <h3><i className="fas fa-comment-alt"></i> Add Completion Remarks</h3>
+            <button className="close-btn" onClick={() => setRemarksDialogOpen(false)}>
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+          <div className="remarks-input-container">
+            <p>Please provide remarks about this completed subtask:</p>
+            <textarea 
+              className="remarks-textarea" 
+              placeholder="Enter your remarks here..."
+              value={subtaskRemarks}
+              onChange={(e) => setSubtaskRemarks(e.target.value)}
+            ></textarea>
+          </div>
+          <div className="modal-actions">
+            <button className="cancel-btn" onClick={() => setRemarksDialogOpen(false)}>
+              Cancel
+            </button>
+            <button 
+              className="save-btn" 
+              onClick={submitSubtaskWithRemarks}
+              disabled={!subtaskRemarks.trim()}
+            >
+              Submit
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
  
   return (
@@ -2565,6 +2591,7 @@ const Tasks = () => {
           </div>
         </div>
       )}
+      {renderRemarksDialog()}
     </div>
   );
 };

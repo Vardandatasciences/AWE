@@ -2345,3 +2345,43 @@
   color: white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
+
+.subtask-remarks-modal {
+  max-width: 500px;
+  width: 90%;
+}
+
+.remarks-input-container {
+  margin: 20px 0;
+}
+
+.remarks-input-container p {
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #555;
+}
+
+.remarks-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.remarks-textarea:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
