@@ -455,13 +455,22 @@ def assign_activity():
                 print(f"❌ Error parsing subtasks: {e}")
                 sub_activities = []
         
-        if data.get('actor_id'):
-            actor = Actor.query.filter_by(actor_id=data.get('actor_id')).first()
-            initiator = actor.actor_name if actor else None
+        # Handle missing actor_id by using a default value (system user)
+        actor_id = data.get('actor_id')
+        actor_name = data.get('actor_name', 'System')
+        
+        initiator = 'System'
+        if actor_id and actor_id != 'null':
+            try:
+                actor = Actor.query.filter_by(actor_id=actor_id).first()
+                if actor:
+                    initiator = actor.actor_name
+                else:
+                    print(f"⚠️ Actor with ID {actor_id} not found, using default initiator")
+            except Exception as e:
+                print(f"⚠️ Error getting actor: {e}")
         else:
-            initiator = None
-        if not initiator:
-            return jsonify({'success': False, 'message': '❌ Initiator not found. Please log in again.'}), 400
+            print("⚠️ No actor_id provided or value is 'null', using default initiator")
 
         task_name = activity.activity_name
         criticality = activity.criticality
@@ -943,13 +952,29 @@ def get_client_tasks(client_id):
         # Query to get all tasks for this customer
         tasks = Task.query.filter_by(customer_name=customer.customer_name).all()
         
-        # Extract unique activity IDs and ensure we return an array
-        assigned_activities = list(set([str(task.activity_id) for task in tasks]))
+        # Get customer activities directly from CustomerActivity table
+        customer_activities = CustomerActivity.query.filter_by(customer_id=client_id).all()
         
-        print(f"Found assigned activities for customer {customer.customer_name}: {assigned_activities}")
+        # Combine both sources of activity IDs
+        assigned_activities = set()
+        
+        # Add from tasks
+        for task in tasks:
+            if task.activity_id:
+                assigned_activities.add(str(task.activity_id))
+                
+        # Add from customer_activities
+        for ca in customer_activities:
+            if ca.activity_id:
+                assigned_activities.add(str(ca.activity_id))
+        
+        # Convert to list for JSON serialization
+        assigned_activities_list = list(assigned_activities)
+        
+        print(f"Found assigned activities for customer {customer.customer_name}: {assigned_activities_list}")
         
         # Return a properly formatted JSON array
-        return jsonify(assigned_activities)
+        return jsonify(assigned_activities_list)
     except Exception as e:
         print(f"Error fetching client tasks: {e}")
         return jsonify({"error": str(e)}), 500

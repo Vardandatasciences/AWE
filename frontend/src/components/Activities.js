@@ -406,9 +406,13 @@ const Activities = () => {
             console.log("Tasks response:", response.data);
             
             // Ensure we're working with an array
-            const assignedIds = Array.isArray(response.data) 
-                ? response.data.map(id => String(id))
-                : [];
+            let assignedIds = [];
+            if (Array.isArray(response.data)) {
+                assignedIds = response.data.map(id => String(id));
+            } else if (response.data) {
+                // Handle if the response isn't an array but has data
+                assignedIds = [String(response.data)];
+            }
                 
             console.log("Assigned activity IDs:", assignedIds);
             setAssignedActivities(assignedIds);

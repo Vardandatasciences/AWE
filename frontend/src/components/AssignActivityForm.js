@@ -18,7 +18,7 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const actor_id = localStorage.getItem('actor_id');
-    const actor_name= localStorage.getItem('actor_name');
+    const actor_name = localStorage.getItem('actor_name');
     console.log("User User ID:", actor_id);
     console.log("User User Name:", actor_name)
  
@@ -112,6 +112,10 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
         e.preventDefault();
        
         try {
+            // Get the actor ID and actor name, or use default values
+            const current_actor_id = localStorage.getItem('actor_id') || '1';
+            const current_actor_name = localStorage.getItem('actor_name') || 'System';
+            
             const formDataToSend = new FormData();
             formDataToSend.append('task_name', activityId);
             formDataToSend.append('assigned_to', formData.assignTo);
@@ -121,8 +125,17 @@ const AssignActivityForm = ({ customerId, activityId, activityName, customerName
             formDataToSend.append('link', formData.link);
             formDataToSend.append('frequency', formData.frequency);
             formDataToSend.append('status', formData.status);
-            formDataToSend.append('actor_id', actor_id);
-            formDataToSend.append('actor_name', actor_name);
+            formDataToSend.append('actor_id', current_actor_id);
+            formDataToSend.append('actor_name', current_actor_name);
+           
+            console.log("Sending form data:", {
+                task_name: activityId,
+                assigned_to: formData.assignTo,
+                reviewer: formData.reviewer,
+                customer_id: formData.selectedClient,
+                actor_id: current_actor_id,
+                actor_name: current_actor_name
+            });
            
             const response = await axios.post('http://127.0.0.1:5000/assign_activity', formDataToSend);
            
