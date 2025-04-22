@@ -138,32 +138,108 @@ const Report = () => {
 
     const handleDownloadReport = (report) => {
         try {
-            // For demonstration purposes, we'll use fixed IDs
+            // Create an axios instance for downloading files with the correct base URL
+            const downloadApi = axios.create({
+                baseURL: 'http://localhost:5000',
+                responseType: 'blob'
+            });
+            
+            // For demonstration purposes, we'll use fixed IDs if not provided
             // In a real application, you would use the actual IDs from your report object
             if (report.type === 'activity') {
                 const activityId = report.activityId || 1144; // Use a valid activity ID
                 
-                // Create a link element and trigger the download
-                const link = document.createElement('a');
-                link.href = `/generate_activity_report?activity_id=${activityId}`;
-                link.target = '_blank';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                // Make the request to the correct endpoint
+                downloadApi.get(`/generate_activity_report?activity_id=${activityId}`)
+                    .then(response => {
+                        // Create a blob URL from the PDF data
+                        const blob = new Blob([response.data], { type: 'application/pdf' });
+                        const url = window.URL.createObjectURL(blob);
+                        
+                        // Create a temporary link and trigger the download
+                        const link = document.createElement('a');
+                        link.href = url;
+                        
+                        const currentDate = new Date().toISOString().split('T')[0];
+                        const fileName = `${currentDate}_Activity_${activityId}_Report.pdf`;
+                        
+                        link.setAttribute('download', fileName);
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        
+                        // Simulate click and then clean up
+                        link.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(link);
+                    })
+                    .catch(error => {
+                        console.error("Error downloading report:", error);
+                        alert("Failed to download report. Please try again.");
+                    });
                 
             } else if (report.type === 'employee') {
                 const actorId = report.actorId || 1; // Use a valid actor ID
                 
                 console.log("Fetching performance for actor_id:", actorId);
                 
-                // Create a link element and trigger the download
-                const link = document.createElement('a');
-                link.href = `/download-performance/${actorId}`;
-                link.target = '_blank';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                // Make the request to the correct endpoint
+                downloadApi.get(`/download-performance/${actorId}`)
+                    .then(response => {
+                        // Create a blob URL from the PDF data
+                        const blob = new Blob([response.data], { type: 'application/pdf' });
+                        const url = window.URL.createObjectURL(blob);
+                        
+                        // Create a temporary link and trigger the download
+                        const link = document.createElement('a');
+                        link.href = url;
+                        
+                        const currentDate = new Date().toISOString().split('T')[0];
+                        const fileName = `${currentDate}_Employee_${actorId}_Report.pdf`;
+                        
+                        link.setAttribute('download', fileName);
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        
+                        // Simulate click and then clean up
+                        link.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(link);
+                    })
+                    .catch(error => {
+                        console.error("Error downloading report:", error);
+                        alert("Failed to download report. Please try again.");
+                    });
                 
+            } else if (report.type === 'customer') {
+                const customerId = report.customerId || 1; // Use a valid customer ID
+                
+                // Make the request to the correct endpoint
+                downloadApi.get(`/download-customer-report/${customerId}`)
+                    .then(response => {
+                        // Create a blob URL from the PDF data
+                        const blob = new Blob([response.data], { type: 'application/pdf' });
+                        const url = window.URL.createObjectURL(blob);
+                        
+                        // Create a temporary link and trigger the download
+                        const link = document.createElement('a');
+                        link.href = url;
+                        
+                        const currentDate = new Date().toISOString().split('T')[0];
+                        const fileName = `${currentDate}_Customer_${customerId}_Report.pdf`;
+                        
+                        link.setAttribute('download', fileName);
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        
+                        // Simulate click and then clean up
+                        link.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(link);
+                    })
+                    .catch(error => {
+                        console.error("Error downloading report:", error);
+                        alert("Failed to download report. Please try again.");
+                    });
             } else {
                 // For other report types or fallback
                 alert(`Downloading ${report.title} in PDF format`);

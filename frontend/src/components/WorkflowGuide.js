@@ -58,12 +58,8 @@ const WorkflowGuide = ({ onClose }) => {
 
   const handleStepClick = (step) => {
     if (step.status === 'in-progress') {
-      // For step 3 (Employee Assignment), redirect to activities page
-      if (step.id === 3) {
-        handleClose('navigated-to-activities');
-      } else {
-        handleClose('navigated');
-      }
+      // Navigate based on the step's path
+      handleClose('navigated');
     }
   };
 
@@ -105,7 +101,7 @@ const WorkflowGuide = ({ onClose }) => {
                 
                 {step.status === 'in-progress' && (
                   <Link 
-                    to={step.id === 3 ? "/activities" : step.path} 
+                    to={step.path} 
                     className="step-action-button"
                     onClick={() => handleStepClick(step)}
                   >
@@ -115,6 +111,13 @@ const WorkflowGuide = ({ onClose }) => {
               </div>
             </div>
           ))}
+        </div>
+        
+        {/* Add reset button - always show it */}
+        <div className="workflow-actions">
+          <button className="reset-workflow-button" onClick={handleStartAgain}>
+            <i className="fas fa-redo"></i> Reset Workflow
+          </button>
         </div>
         
         {allStepsCompleted && (

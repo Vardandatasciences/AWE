@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'chart.js/auto';
 import './Analysis.css';
-import SubNav from './SubNav';
 
 const statusColors = {
   'Completed': '#28a745',
@@ -279,8 +278,7 @@ function Analysis() {
 
   return (
     <>
-      <SubNav />
-      <div className="analysis-wrapper">
+      <div className="analysis-container">
         {loading ? (
           <div className="loading">Loading...</div>
         ) : (

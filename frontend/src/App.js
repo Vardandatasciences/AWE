@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import SubNav from './components/SubNav';
 import Footer from './components/Footer';
@@ -154,8 +154,8 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
     
     // If the guide was closed by clicking the X button or clicking outside
     if (reason === 'canceled') {
-      // Navigate to the employee page
-      navigate('/employee');
+      // Navigate to the clients page instead of employee
+      navigate('/clients');
     } 
     // If the guide was closed by clicking a step
     else if (reason === 'navigated') {
@@ -167,8 +167,8 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
     }
     // If the workflow was reset to start again
     else if (reason === 'reset-workflow') {
-      // Navigate to the employee page to start the first step again
-      navigate('/employee');
+      // Navigate to the clients page to start the first step again
+      navigate('/clients');
       
       // Show a toast or notification that the workflow has been reset
       console.log('Workflow has been reset to start again');
@@ -191,12 +191,12 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
         <Route path="/workflow-test" element={<WorkflowTest />} />
         
         <Route path="/profile" element={
-              <ProtectedRoute>
-                <main className="main-content">
-                  <Profile />
-                </main>
-              </ProtectedRoute>
-            } />
+          <ProtectedRoute>
+            <main className="main-content">
+              <Profile />
+            </main>
+          </ProtectedRoute>
+        } />
 
         {/* Add route for customer add page */}
         <Route path="/customers/add" element={
@@ -211,63 +211,28 @@ function AppContent({ handleGetStartedClick, showWorkflowGuide, setShowWorkflowG
           </ProtectedRoute>
         } />
 
-        <Route path="/employee" element={
-          <ProtectedRoute adminOnly={true}>
-            <SubNav />
-            <main className="main-content">
-              <Employee />
-            </main>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/tasks" element={
+        {/* For all protected routes, render SubNav once at the layout level */}
+        <Route element={
           <ProtectedRoute>
-            <SubNav />
-            <main className="main-content">
-              <Tasks />
-            </main>
+            <>
+              <SubNav />
+              <main className="main-content">
+                <Outlet />
+              </main>
+            </>
           </ProtectedRoute>
-        } />
-        
-        <Route path="/activities" element={
-          <ProtectedRoute adminOnly={true}>
-            <SubNav />
-            <main className="main-content">
-              <Activities />
-            </main>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/mailer" element={
-          <ProtectedRoute >
-            <SubNav />
-            <main className="main-content">
-              <Mailer />
-            </main>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/report" element={
-          <ProtectedRoute>
-            <SubNav />
-            <main className="main-content">
-              <Report />
-            </main>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/analysis" element={<DashboardRouter />} />
-        <Route path="/diary" element={
-          <ProtectedRoute >
-            <SubNav />
-            <main className="main-content">
-              <Diary />
-            </main>
-          </ProtectedRoute>
-        } />
-        <Route path="/dashboard" element={<DashboardRouter />} />
-        <Route path="/auditors" element={<Auditors />} />
-        <Route path="/clients" element={<Clients />} />
+        }>
+          <Route path="/clients" element={<Clients />} />
+          <Route path="/activities" element={<Activities />} />
+          <Route path="/auditors" element={<Auditors />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/mailer" element={<Mailer />} />
+          <Route path="/report" element={<Report />} />
+          <Route path="/analysis" element={<Analysis />} />
+          <Route path="/diary" element={<Diary />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          {/* Other protected routes */}
+        </Route>
       </Routes>
       <Footer />
     </div>

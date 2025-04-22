@@ -256,6 +256,11 @@ const Activities = () => {
                 }
                 
                 setSuccessMessage("Activity added successfully");
+                
+                // If we're in the workflow process, mark this step as completed
+                if (isInWorkflow) {
+                    completeStep(2);
+                }
             }
             
             // Reset form and close modal
@@ -279,14 +284,6 @@ const Activities = () => {
             setTimeout(() => {
                 setSuccessMessage(null);
             }, 3000);
-            
-            // If we're in the workflow process, mark this step as completed
-            if (isInWorkflow) {
-                completeStep(2);
-                setTimeout(() => {
-                    showWorkflowGuide();
-                }, 500);
-            }
         } catch (error) {
             console.error('Error saving activity:', error);
             alert(error.response?.data?.error || 'Error saving activity');
@@ -370,6 +367,11 @@ const Activities = () => {
         // Update assigned activities
         const newClientId = response.customer_id || selectedClient;
         fetchAssignedActivities(newClientId);
+        
+        // If we're in the workflow process for step 3, mark as completed
+        if (isInEmployeeAssignmentStep) {
+            completeStep(3);
+        }
     };
 
     const handleAssignError = (error) => {
@@ -770,6 +772,20 @@ const fetchActivityReport = async (activityId) => {
         } catch (error) {
             console.error('Error viewing user login:', error);
         }
+    };
+
+    // Add this to your activity creation success handler
+    const handleActivityCreationSuccess = () => {
+        // Complete step 2 when an activity is successfully created
+        completeStep(2);
+        // Other success handling code...
+    };
+    
+    // Add this to your auditor assignment success handler
+    const handleAuditorAssignmentSuccess = () => {
+        // Complete step 3 when an auditor is successfully assigned
+        completeStep(3);
+        // Other success handling code...
     };
 
     return (

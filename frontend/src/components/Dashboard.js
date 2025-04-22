@@ -76,7 +76,7 @@ const Dashboard = ({ onGetStarted }) => {
         <div className="stat-card">
           <h3>Auditors</h3>
           <p className="stat-number">0</p>
-          <Link to="/employees" className="stat-link">View All</Link>
+          <Link to="/clients" className="stat-link">View All</Link>
         </div>
       </div>
 

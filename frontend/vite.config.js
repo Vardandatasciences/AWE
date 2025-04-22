@@ -60,9 +60,5 @@ export default defineConfig({
         '.js': 'jsx',
       },
     },
-  },
-  define: {
-    'process.env': {},
-    global: 'globalThis'
   }
 }); 

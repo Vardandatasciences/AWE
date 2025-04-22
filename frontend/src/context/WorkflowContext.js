@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { showWorkflowGuide } from '../App';
 
-// Default workflow steps
+// Default workflow steps - removing ANY reference to employee
 const defaultWorkflowSteps = [
   {
     id: 1,
     title: 'Create Client',
     description: 'Add a new client to the system',
     status: 'in-progress',
-    path: '/employee'
+    path: '/clients'
   },
   {
     id: 2,
@@ -21,7 +22,7 @@ const defaultWorkflowSteps = [
     title: 'Assign Auditor',
     description: 'Assign an auditor to an activity',
     status: 'pending',
-    path: '/activities'  // Changed from /employee to /activities
+    path: '/activities'
   }
 ];
 
@@ -33,43 +34,59 @@ export const useWorkflow = () => useContext(WorkflowContext);
 
 // Provider component
 export const WorkflowProvider = ({ children }) => {
-  // Initialize state from localStorage or use default
   const [workflowSteps, setWorkflowSteps] = useState(() => {
+    // Try to get steps from localStorage
     const savedSteps = localStorage.getItem('workflowSteps');
-    return savedSteps ? JSON.parse(savedSteps) : defaultWorkflowSteps;
+    if (savedSteps) {
+      return JSON.parse(savedSteps);
+    }
+    
+    // Default steps if nothing in localStorage
+    return defaultWorkflowSteps;
   });
+  const [allStepsCompleted, setAllStepsCompleted] = useState(false);
 
-  // Save to localStorage whenever workflowSteps changes
+  // Save steps to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('workflowSteps', JSON.stringify(workflowSteps));
+    
+    // Check if all steps are completed
+    const completed = workflowSteps.every(step => step.status === 'completed');
+    setAllStepsCompleted(completed);
   }, [workflowSteps]);
 
-  // Mark a step as completed and update the next step
   const completeStep = (stepId) => {
     setWorkflowSteps(prevSteps => {
       const updatedSteps = prevSteps.map(step => {
         if (step.id === stepId) {
           return { ...step, status: 'completed' };
-        } else if (step.id === stepId + 1) {
+        } else if (step.id === stepId + 1 && step.id <= prevSteps.length) {
+          // Set next step to in-progress only if there is a next step
           return { ...step, status: 'in-progress' };
         }
         return step;
       });
+      
+      // Check if all steps are completed after updating
+      const allCompleted = updatedSteps.every(step => step.status === 'completed');
+      if (allCompleted) {
+        // If all steps are completed, show a celebration or congratulations
+        console.log("All workflow steps completed!");
+      }
+      
+      // Show the workflow guide after step completion
+      setTimeout(() => {
+        showWorkflowGuide();
+      }, 500);
+      
       return updatedSteps;
     });
   };
 
-  // Reset the workflow to its initial state
   const resetWorkflow = () => {
-    console.log('Resetting workflow to initial state');
-    // Create a fresh copy of the default steps to ensure we don't modify the original
-    const freshSteps = JSON.parse(JSON.stringify(defaultWorkflowSteps));
-    setWorkflowSteps(freshSteps);
-    localStorage.setItem('workflowSteps', JSON.stringify(freshSteps));
+    setWorkflowSteps(defaultWorkflowSteps);
+    setAllStepsCompleted(false);
   };
-
-  // Check if all steps are completed
-  const allStepsCompleted = workflowSteps.every(step => step.status === 'completed');
 
   // Get the current active step
   const getCurrentStep = () => {
@@ -80,8 +97,8 @@ export const WorkflowProvider = ({ children }) => {
   const value = {
     workflowSteps,
     completeStep,
-    resetWorkflow,
     allStepsCompleted,
+    resetWorkflow,
     getCurrentStep
   };
 

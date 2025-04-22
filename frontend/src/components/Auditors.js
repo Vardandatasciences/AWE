@@ -3,7 +3,6 @@ import "./Employee.css";
 import axios from "axios";
 import AddEmployeeForm from './AddEmployeeForm';
 import { useNavigate } from 'react-router-dom';
-import SubNav from './SubNav';
 
 const Auditors = () => {
   const [data, setData] = useState([]);
@@ -175,10 +174,14 @@ const Auditors = () => {
       // Show loading indicator
       setIsSaving(true);
       
-      // Use the correct endpoint with proper parameters
-      const response = await axios.get(`/actors/performance-report/${auditor.actor_id}`, {
-        responseType: 'blob'  // Important: This tells axios to handle the response as binary data
+      // Create an axios instance with the correct base URL
+      const api = axios.create({
+        baseURL: 'http://localhost:5000',
+        responseType: 'blob'
       });
+      
+      // Call the correct endpoint
+      const response = await api.get(`/download-performance/${auditor.actor_id}`);
       
       // Create a blob URL from the PDF data
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -215,8 +218,7 @@ const Auditors = () => {
 
   return (
     <>
-      <SubNav />
-      <div className="employee-container">
+      <div className="auditors-container">
         {successMessage && (
           <div className="success-message">
             <i className="fas fa-check-circle"></i>

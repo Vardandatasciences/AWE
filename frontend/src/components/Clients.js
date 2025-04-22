@@ -3,8 +3,8 @@ import "./Clients.css";
 import axios from "axios";
 import AddCustomerForm from './AddCustomerForm';
 import { useNavigate } from 'react-router-dom';
-import SubNav from './SubNav';
 import api from '../services/api';
+import { useWorkflow } from '../context/WorkflowContext';
 
 const Clients = () => {
   const [data, setData] = useState([]);
@@ -25,6 +25,7 @@ const Clients = () => {
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const navigate = useNavigate();
+  const { completeStep, workflowSteps } = useWorkflow();
 
   useEffect(() => {
     fetchData();
@@ -156,10 +157,14 @@ const Clients = () => {
       // Show a loading indicator
       setIsSaving(true);
       
-      // Use the api service
-      const response = await api.get(`/customers/report/${customer.customer_id}`, {
-        responseType: 'blob'  // Important for handling binary data
+      // Create an axios instance with the correct base URL
+      const downloadApi = axios.create({
+        baseURL: 'http://localhost:5000',
+        responseType: 'blob'
       });
+      
+      // Call the correct endpoint
+      const response = await downloadApi.get(`/download-customer-report/${customer.customer_id}`);
       
       // Create a blob URL from the response data
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -191,9 +196,16 @@ const Clients = () => {
     }
   };
 
+  const handleClientCreationSuccess = () => {
+    completeStep(1);
+    handleSuccess("Client created successfully");
+    setIsAddingCustomer(false);
+    setEditedData({});
+    fetchData();
+  };
+
   return (
     <>
-      <SubNav />
       <div className="employee-container">
         {successMessage && (
           <div className="success-message">
@@ -401,7 +413,7 @@ const Clients = () => {
             <div className="modal-content">
               <AddCustomerForm
                 onClose={() => setIsAddingCustomer(false)}
-                onSuccess={handleSuccess}
+                onSuccess={handleClientCreationSuccess}
               />
             </div>
           </div>
