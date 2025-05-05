@@ -12,7 +12,7 @@
     "@mui/icons-material": "^6.4.7",
     "@mui/material": "^6.4.7",
     "@mui/styled-engine": "^6.4.6",
-    "@mui/system": "^6.4.7",
+    "@mui/system": "^6.4.11",
     "@mui/x-date-pickers": "^7.27.3",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
