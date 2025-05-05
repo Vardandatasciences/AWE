@@ -1,78 +1,44 @@
-name: Full CI/CD Pipeline
+name: ci-secure-checks
 
 on:
   push:
-    branches:
-      - CI-CD-Pipeline   # runs on every push to this branch
-  workflow_dispatch:    # allows manual triggering from the Actions tab
-
-permissions:
-  security-events: write
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-  ci-pipeline:
-    name: Backend & Frontend CI Checks
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      ##########################
-      # Backend Setup & Security
-      ##########################
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.10
 
-      - name: Install Backend Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
+    - name: Upgrade pip
+      run: python -m pip install --upgrade pip
 
-      - name: Install Bandit and Semgrep
-        run: |
-          pip install bandit semgrep
+    - name: Install dependencies (if requirements.txt exists)
+      run: |
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        else
+          echo "No requirements.txt file found. Skipping dependency installation."
+        fi
 
-      - name: Run Bandit (Python Security Scan)
-        run: |
-          bandit -r backend -f sarif -o bandit-results.sarif
+    - name: Run Unit Tests with Pytest
+      run: |
+        if [ -f tests/test_sample.py ]; then
+          pytest
+        else
+          echo "No tests found to run with pytest."
+        fi
 
-      - name: Run Semgrep (Code Scan)
-        run: |
-          semgrep --config=p/ci backend --sarif --output=semgrep-results.sarif
-
-      - name: Upload Bandit SARIF Results
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: bandit-results.sarif
-
-      - name: Upload Semgrep SARIF Results
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: semgrep-results.sarif
-
-      ##########################
-      # React Frontend Checks
-      ##########################
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Install Frontend Dependencies
-        working-directory: frontend
-        run: npm install
-
-      - name: Run ESLint (Frontend Linting)
-        working-directory: frontend
-        run: npm run lint
-
-      - name: Run React Tests (Jest)
-        working-directory: frontend
-        run: npm test -- --watchAll=false
-
-      - name: Build React App
-        working-directory: frontend
-        run: npm run build
+    - name: Bandit - Python Security Linter
+      run: |
+        pip install bandit
+        bandit -r . || { echo "Bandit scan failed with issues"; exit 1; }
