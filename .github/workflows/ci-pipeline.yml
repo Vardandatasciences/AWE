@@ -5,6 +5,9 @@ on:
     branches:
       - CI-CD-Pipeline
 
+permissions:
+  security-events: write  # Required to upload SARIF files to GitHub
+
 jobs:
   security-scan:
     runs-on: ubuntu-latest
@@ -20,11 +23,23 @@ jobs:
 
     - name: Install Bandit and Semgrep
       run: |
-          pip install bandit semgrep
-  
+        python -m pip install --upgrade pip
+        pip install bandit semgrep
 
     - name: Run Bandit (Python security scan)
-      run: bandit -r .
+      run: |
+        bandit -r . -f sarif -o bandit-results.sarif
 
     - name: Run Semgrep (code scan)
-      run: semgrep --config=auto .
+      run: |
+        semgrep --config=p/ci --sarif --output=semgrep-results.sarif
+
+    - name: Upload Bandit SARIF results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: bandit-results.sarif
+
+    - name: Upload Semgrep SARIF results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: semgrep-results.sarif
