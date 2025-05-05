@@ -3,43 +3,48 @@ name: Secure CI Pipeline
 on:
   push:
     branches:
-      - CI-CD-Pipeline
+      - CI-CD-Pipeline  # Trigger this workflow only when pushing to this branch
 
 permissions:
-  security-events: write  # Required to upload SARIF files to GitHub
+  security-events: write  # Needed to upload SARIF results to GitHub Security tab
 
 jobs:
   security-scan:
+    name: Run Bandit & Semgrep Security Scans
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install Bandit and Semgrep
-      run: |
-        python -m pip install --upgrade pip
-        pip install bandit semgrep
+      - name: Install Python Dependencies from requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
 
-    - name: Run Bandit (Python security scan)
-      run: |
-        bandit -r . -f sarif -o bandit-results.sarif
+      - name: Install Bandit and Semgrep
+        run: |
+          pip install bandit semgrep
 
-    - name: Run Semgrep (code scan)
-      run: |
-        semgrep --config=p/ci --sarif --output=semgrep-results.sarif
+      - name: Run Bandit (Python Security Scan)
+        run: |
+          bandit -r backend -f sarif -o bandit-results.sarif
 
-    - name: Upload Bandit SARIF results
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: bandit-results.sarif
+      - name: Run Semgrep (Code Scan)
+        run: |
+          semgrep --config=p/ci backend --sarif --output=semgrep-results.sarif
 
-    - name: Upload Semgrep SARIF results
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: semgrep-results.sarif
+      - name: Upload Bandit SARIF Results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: bandit-results.sarif
+
+      - name: Upload Semgrep SARIF Results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: semgrep-results.sarif
