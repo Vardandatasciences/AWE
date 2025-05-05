@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     - name: Checkout code
@@ -29,6 +29,10 @@ jobs:
         else
           echo "No requirements.txt file found. Skipping dependency installation."
         fi
+
+    - name: verify path & files 
+      run: |
+        Pwd
 
     - name: Run Unit Tests with Pytest
       run: |
