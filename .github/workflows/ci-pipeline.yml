@@ -38,4 +38,3 @@ jobs:
         run: |
           curl -sL https://semgrep.dev/install.sh | sh
           ./semgrep/semgrep --config=auto --error
-
