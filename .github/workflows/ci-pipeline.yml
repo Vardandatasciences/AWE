@@ -2,9 +2,9 @@ name: CI Pipeline with Security Checks
 
 on:
   push:
-    branches: [ CI-CD-pipeline ]
+    branches: [ CI/CD-pipeline ]
   pull_request:
-    branches: [ CI-CD-pipeline ]
+    branches: [ CI/CD-pipeline ]
 
 jobs:
   ci-secure-checks:
