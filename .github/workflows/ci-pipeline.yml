@@ -1,12 +1,12 @@
-name: Full Secure CI Pipeline
+name: Full CI/CD Pipeline
 
 on:
   push:
     branches:
-      - CI-CD-Pipeline
+      - CI-CD-Pipeline  # Trigger this workflow on push to the CI-CD-Pipeline branch
 
 permissions:
-  security-events: write  # Required for uploading SARIF to GitHub Security
+  security-events: write  # For uploading SARIF results to GitHub Security
 
 jobs:
   ci-pipeline:
@@ -18,14 +18,14 @@ jobs:
         uses: actions/checkout@v3
 
       ##########################
-      # Python Backend Setup
+      # Backend Setup
       ##########################
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install Backend Requirements
+      - name: Install Backend Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
@@ -53,7 +53,7 @@ jobs:
           sarif_file: semgrep-results.sarif
 
       ##########################
-      # React Frontend Setup
+      # Frontend Setup
       ##########################
       - name: Set up Node.js
         uses: actions/setup-node@v3
@@ -64,7 +64,7 @@ jobs:
         working-directory: frontend
         run: npm install
 
-      - name: Run ESLint
+      - name: Run ESLint (Frontend Linting)
         working-directory: frontend
         run: npm run lint
 
